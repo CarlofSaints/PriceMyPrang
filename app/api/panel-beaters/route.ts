@@ -1,0 +1,89 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById } from "@/lib/store";
+import { geocodeAddress } from "@/lib/geocode";
+import type { PanelBeater } from "@/lib/types";
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!can(user, "manage_panel_beaters") && !can(user, "onboard_self"))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  let list = await getPanelBeaters();
+  // Panel-beater logins only see their own listing.
+  if (!can(user, "manage_panel_beaters") && user.panelBeaterId) {
+    list = list.filter((p) => p.id === user.panelBeaterId);
+  }
+  return NextResponse.json(list);
+}
+
+export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const canManage = can(user, "manage_panel_beaters");
+  if (!canManage && !can(user, "onboard_self"))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const b = (await request.json()) as Partial<PanelBeater> & { id?: string };
+
+  for (const req of ["companyName", "companyRegNumber", "physicalAddress", "mibcoNumber", "rmiNumber", "sambraNumber"] as const) {
+    if (!b[req] || !String(b[req]).trim()) {
+      return NextResponse.json({ error: `Missing required field: ${req}` }, { status: 400 });
+    }
+  }
+
+  const existing = b.id ? (await getPanelBeaters()).find((p) => p.id === b.id) : null;
+
+  // A self-onboarding user can only edit their own listing.
+  if (!canManage && existing && existing.id !== user.panelBeaterId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Geocode if address changed or coords missing.
+  let lat = existing?.lat;
+  let lng = existing?.lng;
+  if (!existing || existing.physicalAddress !== b.physicalAddress || lat == null) {
+    const geo = await geocodeAddress(String(b.physicalAddress));
+    if (geo) {
+      lat = geo.lat;
+      lng = geo.lng;
+    }
+  }
+
+  const pb: PanelBeater = {
+    id: existing?.id ?? crypto.randomUUID(),
+    companyName: String(b.companyName).trim(),
+    tradingAs: b.tradingAs?.trim() || undefined,
+    companyRegNumber: String(b.companyRegNumber).trim(),
+    vatNumber: b.vatNumber?.trim() || undefined,
+    physicalAddress: String(b.physicalAddress).trim(),
+    lat,
+    lng,
+    mibcoNumber: String(b.mibcoNumber).trim(),
+    rmiNumber: String(b.rmiNumber).trim(),
+    sambraNumber: String(b.sambraNumber).trim(),
+    miwaNumber: b.miwaNumber?.trim() || undefined,
+    labourRateSenior: b.labourRateSenior != null ? Number(b.labourRateSenior) : undefined,
+    labourRateJunior: b.labourRateJunior != null ? Number(b.labourRateJunior) : undefined,
+    logoUrl: b.logoUrl?.trim() || existing?.logoUrl,
+    email: b.email?.trim() || existing?.email,
+    phone: b.phone?.trim() || existing?.phone,
+    active: b.active ?? existing?.active ?? true,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  };
+
+  await upsertPanelBeater(pb);
+
+  // Link a self-onboarding user to the listing they just created.
+  if (!canManage && !user.panelBeaterId) {
+    const fresh = await findUserById(user.id);
+    if (fresh) {
+      fresh.panelBeaterId = pb.id;
+      await upsertUser(fresh);
+    }
+  }
+
+  return NextResponse.json(pb);
+}

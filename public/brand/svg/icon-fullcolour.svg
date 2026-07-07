@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1610" height="740" viewBox="90 28 322 148">
+
+<defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="500" height="200">
+<g transform="translate(66,6)">
+<rect x="34" y="30" width="42" height="100" rx="15" fill="#fff"></rect>
+<path d="M76 30 L108 30 L134 50 L180 66 C189 68 189 80 182 88 L182 116 L172 116 A 23 23 0 0 0 126 116 L120 94 L76 94 Z" fill="#fff"></path>
+<path d="M92 50 L112 46 L136 60 L136 74 L124 80 L92 80 Z" fill="#000"></path>
+<circle cx="55" cy="138" r="23" fill="#fff"></circle><circle cx="55" cy="138" r="15" fill="#000"></circle><circle cx="55" cy="138" r="9" fill="#fff"></circle><circle cx="55" cy="138" r="4" fill="#000"></circle>
+<circle cx="149" cy="138" r="23" fill="#fff"></circle><circle cx="149" cy="138" r="15" fill="#000"></circle><circle cx="149" cy="138" r="9" fill="#fff"></circle><circle cx="149" cy="138" r="4" fill="#000"></circle>
+</g>
+<g transform="translate(434,6) scale(-1,1)">
+<rect x="34" y="30" width="42" height="100" rx="15" fill="#fff"></rect>
+<path d="M76 30 L108 30 L134 50 L180 66 C189 68 189 80 182 88 L182 116 L172 116 A 23 23 0 0 0 126 116 L120 94 L76 94 Z" fill="#fff"></path>
+<path d="M92 50 L112 46 L136 60 L136 74 L124 80 L92 80 Z" fill="#000"></path>
+<circle cx="55" cy="138" r="23" fill="#fff"></circle><circle cx="55" cy="138" r="15" fill="#000"></circle><circle cx="55" cy="138" r="9" fill="#fff"></circle><circle cx="55" cy="138" r="4" fill="#000"></circle>
+<circle cx="149" cy="138" r="23" fill="#fff"></circle><circle cx="149" cy="138" r="15" fill="#000"></circle><circle cx="149" cy="138" r="9" fill="#fff"></circle><circle cx="149" cy="138" r="4" fill="#000"></circle>
+</g>
+</mask></defs>
+<rect x="0" y="0" width="500" height="200" fill="#00848D" mask="url(#m)"></rect>
+<polygon points="250,42 259,71 279,55 265,79 296,80 265,85 279,109 259,93 250,122 241,93 221,109 235,85 204,80 235,79 221,55 241,71" fill="#F05940"></polygon>
+<polygon points="250,60 254,74 268,78 254,82 250,96 246,82 232,78 246,74" fill="#FBB77B"></polygon>
+</svg>

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------
+   Price my Prang — brand tokens (CI Guidelines v1.0)
+   Prang Teal #00848D · Impact Coral #F05940 · Deep Ink Teal #052F35
+   Teal Light #53C1C7 · Signal Amber #FBB77B · Off-White #ECF8F8
+   Type: Space Grotesk (headings) · Archivo (UI)
+----------------------------------------------------------------- */
+
+@theme {
+  --color-teal: #00848d;
+  --color-teal-light: #53c1c7;
+  --color-coral: #f05940;
+  --color-ink: #052f35;
+  --color-amber: #fbb77b;
+  --color-offwhite: #ecf8f8;
+
+  --color-background: #ecf8f8;
+  --color-foreground: #052f35;
+
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-brand: 1rem;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-offwhite);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+}
+
+/* Larger, comfortable tap targets on the consumer flow */
+@media (max-width: 640px) {
+  input, select, textarea, button {
+    font-size: 16px; /* prevents iOS zoom-on-focus */
+  }
+}
+
+/* Utility: subtle brand card */
+.pmp-card {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--color-teal) 12%, transparent);
+  border-radius: var(--radius-brand);
+  box-shadow: 0 1px 2px rgba(5, 47, 53, 0.04), 0 8px 24px rgba(5, 47, 53, 0.06);
+}
