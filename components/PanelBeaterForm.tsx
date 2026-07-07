@@ -138,7 +138,8 @@ export default function PanelBeaterForm({
       {mode === "public" && (
         <p className="rounded-xl bg-teal/5 p-3 text-sm text-ink/70">
           Your application will be reviewed by our team. Only MIWA, MIBCO and RMI approved panel
-          beaters are listed on Price my Prang — we&apos;ll verify your details and be in touch.
+          beaters are listed on <strong className="font-semibold text-ink">Price my Prang</strong> —
+          we&apos;ll verify your details and be in touch.
         </p>
       )}
 

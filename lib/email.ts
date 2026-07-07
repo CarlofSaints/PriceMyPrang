@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import type { PanelBeater, QuoteRequest } from "./types";
+import { getUsers } from "./store";
+import { can } from "./permissions";
 
 const BRAND = {
   teal: "#00848D",
@@ -52,6 +54,30 @@ function client(): Resend | null {
   return key ? new Resend(key) : null;
 }
 
+/**
+ * Who gets internal notifications (new quote requests, panel-beater applications).
+ * Derived from the USER LIST — anyone active who can view the dashboard
+ * (admins + assessors, set in the portal). ADMIN_NOTIFY_EMAILS is an optional
+ * extra for external addresses that aren't portal users.
+ */
+async function notifyRecipients(): Promise<string[]> {
+  const set = new Set<string>();
+  try {
+    const users = await getUsers();
+    users
+      .filter((u) => u.active && can(u, "view_dashboard") && u.email)
+      .forEach((u) => set.add(u.email));
+  } catch {
+    // ignore — fall back to env below
+  }
+  (process.env.ADMIN_NOTIFY_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .forEach((e) => set.add(e));
+  return [...set];
+}
+
 export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelBeater[]) {
   const resend = client();
   if (!resend) return;
@@ -91,10 +117,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
   const resend = client();
   if (!resend) return;
 
-  const to = (process.env.ADMIN_NOTIFY_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const to = await notifyRecipients();
   if (to.length === 0) return;
 
   const photos = req.damagePhotos
@@ -145,10 +168,7 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
   const resend = client();
   if (!resend) return;
 
-  const to = (process.env.ADMIN_NOTIFY_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const to = await notifyRecipients();
   if (to.length === 0) return;
 
   const body = `
