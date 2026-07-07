@@ -6,7 +6,17 @@ import { upload } from "@vercel/blob/client";
 import type { PanelBeater } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 
-export default function PanelBeaterForm({ existing }: { existing?: PanelBeater }) {
+export default function PanelBeaterForm({
+  existing,
+  mode = "admin",
+  submitUrl = "/api/panel-beaters",
+  onSuccess,
+}: {
+  existing?: PanelBeater;
+  mode?: "admin" | "public";
+  submitUrl?: string;
+  onSuccess?: () => void;
+}) {
   const router = useRouter();
   const [form, setForm] = useState<Partial<PanelBeater>>(existing ?? { active: true });
   const [logoUrl, setLogoUrl] = useState<string | undefined>(existing?.logoUrl);
@@ -35,7 +45,7 @@ export default function PanelBeaterForm({ existing }: { existing?: PanelBeater }
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/panel-beaters", {
+      const res = await fetch(submitUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, logoUrl }),
@@ -43,6 +53,10 @@ export default function PanelBeaterForm({ existing }: { existing?: PanelBeater }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Save failed");
+      }
+      if (onSuccess) {
+        onSuccess();
+        return;
       }
       router.push("/portal/panel-beaters");
       router.refresh();
@@ -114,10 +128,19 @@ export default function PanelBeaterForm({ existing }: { existing?: PanelBeater }
         )}
       </Field>
 
-      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-        <input type="checkbox" checked={form.active ?? true} onChange={(e) => set("active", e.target.checked)} />
-        Active (visible to consumers on the map)
-      </label>
+      {mode === "admin" && (
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <input type="checkbox" checked={form.active ?? true} onChange={(e) => set("active", e.target.checked)} />
+          Active (visible to consumers on the map)
+        </label>
+      )}
+
+      {mode === "public" && (
+        <p className="rounded-xl bg-teal/5 p-3 text-sm text-ink/70">
+          Your application will be reviewed by our team. Only MIWA, MIBCO and RMI approved panel
+          beaters are listed on Price my Prang — we&apos;ll verify your details and be in touch.
+        </p>
+      )}
 
       {error && (
         <p className="rounded-xl border border-coral/30 bg-coral/10 p-3 text-sm text-coral">{error}</p>
@@ -125,7 +148,13 @@ export default function PanelBeaterForm({ existing }: { existing?: PanelBeater }
 
       <div className="flex gap-3">
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? "Saving…" : existing ? "Save changes" : "Add panel beater"}
+          {busy
+            ? "Submitting…"
+            : mode === "public"
+            ? "Submit application"
+            : existing
+            ? "Save changes"
+            : "Add panel beater"}
         </Button>
       </div>
     </form>

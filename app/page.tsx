@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import QuoteLauncher from "@/components/QuoteLauncher";
+import RegisterLauncher from "@/components/RegisterLauncher";
+
+const APPROVALS = [
+  { src: "/approvals/miwa.png", alt: "MIWA" },
+  { src: "/approvals/mibco.jpg", alt: "MIBCO" },
+  { src: "/approvals/rmi.png", alt: "RMI" },
+];
 
 const STEPS = [
   { n: "1", t: "Snap the damage", d: "Answer a few quick questions and upload photos of the prang." },
@@ -12,11 +19,14 @@ export default function Home() {
   return (
     <main className="min-h-dvh bg-offwhite">
       {/* Top bar */}
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
-        <Logo variant="horizontal-light" className="h-9 w-auto" priority />
-        <Link href="/login" className="text-sm font-semibold text-teal hover:text-ink">
-          Portal login
-        </Link>
+      <header className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-4 sm:flex-row sm:justify-between">
+        <Logo variant="horizontal-light" className="h-20 w-auto sm:h-40" priority />
+        <div className="flex items-center gap-3">
+          <RegisterLauncher />
+          <Link href="/login" className="text-sm font-semibold text-teal hover:text-ink">
+            Portal login
+          </Link>
+        </div>
       </header>
 
       {/* Hero */}
@@ -50,11 +60,33 @@ export default function Home() {
             </div>
           ))}
         </div>
+
+        {/* Accreditation */}
+        <div className="mt-8 rounded-2xl border border-teal/15 bg-white p-6 text-center">
+          <p className="mx-auto max-w-2xl font-display text-lg font-semibold text-ink">
+            Only MIWA, MIBCO and RMI approved panel beaters are available on the Price my Prang
+            platform.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-6">
+            {APPROVALS.map((a) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={a.alt}
+                src={a.src}
+                alt={`${a.alt} approved`}
+                className="h-14 w-auto object-contain sm:h-16"
+              />
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-teal/10 bg-ink py-8 text-center text-sm text-white/70">
-        <Logo variant="horizontal-dark" className="mx-auto mb-3 h-8 w-auto" />
+        <Logo variant="horizontal-dark" className="mx-auto mb-4 h-10 w-auto" />
+        <div className="mb-4 flex justify-center">
+          <RegisterLauncher className="rounded-full bg-coral px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#d94a33]" />
+        </div>
         <p>© {new Date().getFullYear()} Price my Prang · Crash · Quote · Claim</p>
       </footer>
     </main>

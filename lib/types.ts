@@ -45,6 +45,10 @@ export interface PanelBeater {
   email?: string;
   phone?: string;
   active: boolean;
+  /** Approval workflow. Public self-registrations start as "pending". */
+  status?: "pending" | "approved" | "declined";
+  /** True when submitted via the public "Become a registered panel beater" form. */
+  submittedByPublic?: boolean;
   createdAt: string;
 }
 

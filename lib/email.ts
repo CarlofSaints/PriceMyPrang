@@ -140,3 +140,45 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
     html: shell("New quote request", body),
   });
 }
+
+export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
+  const resend = client();
+  if (!resend) return;
+
+  const to = (process.env.ADMIN_NOTIFY_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (to.length === 0) return;
+
+  const body = `
+    <p style="font-size:15px;">A panel beater has applied to join Price my Prang and is awaiting approval.</p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:16px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Company", pb.companyName)}
+        ${detailRow("Trading as", pb.tradingAs || "")}
+        ${detailRow("Reg number", pb.companyRegNumber)}
+        ${detailRow("VAT number", pb.vatNumber || "")}
+        ${detailRow("Address", pb.physicalAddress)}
+        ${detailRow("MIBCO", pb.mibcoNumber)}
+        ${detailRow("RMI", pb.rmiNumber)}
+        ${detailRow("SAMBRA", pb.sambraNumber)}
+        ${detailRow("MIWA", pb.miwaNumber || "")}
+        ${detailRow("Contact", [pb.email, pb.phone].filter(Boolean).join(" · "))}
+      </table>
+    </div>
+    <p style="margin-top:20px;">
+      <a href="${baseUrl()}/portal/panel-beaters"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Review & approve
+      </a>
+    </p>
+  `;
+
+  await resend.emails.send({
+    from: fromAddress(),
+    to,
+    subject: `New panel beater application — ${pb.tradingAs || pb.companyName}`,
+    html: shell("Panel beater application", body),
+  });
+}

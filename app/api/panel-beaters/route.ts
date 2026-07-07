@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById } from "@/lib/store";
+import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById, getPanelBeater } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
 import type { PanelBeater } from "@/lib/types";
 
@@ -85,5 +85,34 @@ export async function POST(request: Request) {
     }
   }
 
+  return NextResponse.json(pb);
+}
+
+// Approve / decline a (public) registration, or toggle active.
+export async function PATCH(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!can(user, "manage_panel_beaters"))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id, status, active } = (await request.json()) as {
+    id?: string;
+    status?: "pending" | "approved" | "declined";
+    active?: boolean;
+  };
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const pb = await getPanelBeater(id);
+  if (!pb) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (status) {
+    pb.status = status;
+    // Approving makes it live on the map; declining hides it.
+    if (status === "approved") pb.active = true;
+    if (status === "declined") pb.active = false;
+  }
+  if (typeof active === "boolean") pb.active = active;
+
+  await upsertPanelBeater(pb);
   return NextResponse.json(pb);
 }

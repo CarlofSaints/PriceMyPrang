@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { getPanelBeaters } from "@/lib/store";
 import { zar } from "@/lib/format";
 import { Button } from "@/components/ui";
+import PanelBeaterApproval from "@/components/PanelBeaterApproval";
 
 export default async function PanelBeatersPage() {
   const user = await getCurrentUser();
@@ -16,6 +17,9 @@ export default async function PanelBeatersPage() {
   if (!canManage && user.panelBeaterId) {
     list = list.filter((p) => p.id === user.panelBeaterId);
   }
+
+  const pending = canManage ? list.filter((p) => p.status === "pending") : [];
+  const approved = list.filter((p) => p.status !== "pending");
 
   return (
     <div className="space-y-6">
@@ -35,11 +39,48 @@ export default async function PanelBeatersPage() {
         )}
       </div>
 
-      {list.length === 0 ? (
+      {pending.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-lg font-semibold text-ink">
+            Pending applications
+            <span className="ml-2 rounded-full bg-amber/30 px-2 py-0.5 text-xs text-ink">
+              {pending.length}
+            </span>
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pending.map((p) => (
+              <div key={p.id} className="pmp-card space-y-2 border-amber/40">
+                <h3 className="font-display text-lg font-semibold text-ink">
+                  {p.tradingAs || p.companyName}
+                </h3>
+                <p className="text-sm text-ink/70">{p.physicalAddress}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/50">
+                  <span>Reg {p.companyRegNumber}</span>
+                  <span>MIBCO {p.mibcoNumber}</span>
+                  <span>RMI {p.rmiNumber}</span>
+                  <span>SAMBRA {p.sambraNumber}</span>
+                  {p.miwaNumber && <span>MIWA {p.miwaNumber}</span>}
+                </div>
+                {(p.email || p.phone) && (
+                  <p className="text-xs text-ink/50">{[p.email, p.phone].filter(Boolean).join(" · ")}</p>
+                )}
+                <div className="flex items-center justify-between pt-2">
+                  <Link href={`/portal/panel-beaters/${p.id}`} className="text-sm font-semibold text-teal hover:underline">
+                    View / edit
+                  </Link>
+                  <PanelBeaterApproval id={p.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {approved.length === 0 ? (
         <div className="pmp-card text-center text-ink/50">No panel beaters yet.</div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {list.map((p) => (
+          {approved.map((p) => (
             <div key={p.id} className="pmp-card space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div>
