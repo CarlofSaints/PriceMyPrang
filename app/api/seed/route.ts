@@ -23,25 +23,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "name, email, password required" }, { status: 400 });
   }
 
-  const users = await getUsers();
-  if (users.some((u) => u.role === "admin") && !force) {
-    return NextResponse.json({ error: "Admin already exists" }, { status: 409 });
-  }
-  if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    return NextResponse.json({ error: "Email already in use" }, { status: 409 });
-  }
+  try {
+    const users = await getUsers();
+    if (users.some((u) => u.role === "admin") && !force) {
+      return NextResponse.json({ error: "Admin already exists" }, { status: 409 });
+    }
+    if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    }
 
-  const user: User = {
-    id: crypto.randomUUID(),
-    name,
-    email,
-    passwordHash: await hashPassword(password),
-    role: "admin",
-    active: true,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  await saveUsers(users);
+    const user: User = {
+      id: crypto.randomUUID(),
+      name,
+      email,
+      passwordHash: await hashPassword(password),
+      role: "admin",
+      active: true,
+      createdAt: new Date().toISOString(),
+    };
+    users.push(user);
+    await saveUsers(users);
 
-  return NextResponse.json({ ok: true, id: user.id, email: user.email });
+    return NextResponse.json({ ok: true, id: user.id, email: user.email });
+  } catch (err) {
+    // Surface the real reason (secret already validated above, so this is safe).
+    return NextResponse.json(
+      { error: "Seed failed", detail: (err as Error).message },
+      { status: 500 }
+    );
+  }
 }
