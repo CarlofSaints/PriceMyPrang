@@ -10,6 +10,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { BuiltQuote, PanelBeater, QuoteRequest } from "./types";
+import { readMediaBytes } from "./blob";
 
 const TEAL = "#00848D";
 const CORAL = "#F05940";
@@ -84,15 +85,9 @@ async function localImageDataUri(rel: string): Promise<string | null> {
 
 async function remoteImageDataUri(url?: string): Promise<string | null> {
   if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    const ct = res.headers.get("content-type") || "image/png";
-    return `data:${ct};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  }
+  const media = await readMediaBytes(url);
+  if (!media) return null;
+  return `data:${media.contentType || "image/png"};base64,${media.buffer.toString("base64")}`;
 }
 
 export async function buildQuotePdf(

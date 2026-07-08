@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { PanelBeater } from "@/lib/types";
+import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import { Button, Field, inputClass } from "./ui";
 
 export default function PanelBeaterForm({
@@ -29,12 +30,16 @@ export default function PanelBeaterForm({
 
   async function uploadLogo(file: File) {
     try {
-      const blob = await upload(`panel-beaters/logos/${Date.now()}-${file.name}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/media/upload",
-        contentType: file.type,
-      });
-      setLogoUrl(blob.url);
+      const blob = await upload(
+        `panel-beaters/logos/${Date.now()}-${safeFileName(file.name)}`,
+        file,
+        {
+          access: "private",
+          handleUploadUrl: "/api/media/upload",
+          contentType: file.type,
+        }
+      );
+      setLogoUrl(mediaPath(blob.pathname));
     } catch {
       setError("Logo upload failed.");
     }

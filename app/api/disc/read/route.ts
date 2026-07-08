@@ -1,21 +1,35 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { VehicleDetails } from "@/lib/types";
+import { readMediaBytes } from "@/lib/blob";
 
 export const maxDuration = 60;
+
+const ALLOWED_MEDIA = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 
 // Reads a South African vehicle licence disc and extracts vehicle identity.
 // NOTE: MVP approach — Claude reads the disc directly. The VIN lookup will be
 // upgraded to a proper VIN → vehicle-details API later (firstcheck / vindocs).
 export async function POST(request: Request) {
-  const { url } = (await request.json()) as { url?: string };
-  if (!url) return NextResponse.json({ error: "Missing url" }, { status: 400 });
+  const { pathname, url } = (await request.json()) as {
+    pathname?: string;
+    url?: string;
+  };
+  const ref = pathname || url;
+  if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     // No key configured — return empty so the flow still works.
     return NextResponse.json({} satisfies VehicleDetails);
   }
+
+  // Read the private disc image bytes with the server token.
+  const media = await readMediaBytes(ref);
+  if (!media) return NextResponse.json({} satisfies VehicleDetails);
+  const mediaType = (ALLOWED_MEDIA as readonly string[]).includes(media.contentType)
+    ? (media.contentType as (typeof ALLOWED_MEDIA)[number])
+    : "image/jpeg";
 
   try {
     const anthropic = new Anthropic({ apiKey });
@@ -35,7 +49,11 @@ export async function POST(request: Request) {
           content: [
             {
               type: "image",
-              source: { type: "url", url },
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: media.buffer.toString("base64"),
+              },
             },
             {
               type: "text",

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import type { MediaRef, PanelBeater, VehicleDetails, YesNo, YesNoUnsure } from "@/lib/types";
+import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import { Button, Field, inputClass } from "./ui";
 import PanelBeaterMap from "./PanelBeaterMap";
 
@@ -36,14 +37,19 @@ const EMPTY: FormState = {
 };
 
 async function uploadFile(file: File | Blob, prefix: string): Promise<MediaRef> {
-  const name =
-    file instanceof File ? file.name : `${prefix}-${Date.now()}.webm`;
+  const name = safeFileName(
+    file instanceof File ? file.name : `${prefix}-${Date.now()}.webm`
+  );
   const blob = await upload(`requests/tmp/${prefix}/${Date.now()}-${name}`, file, {
-    access: "public",
+    access: "private",
     handleUploadUrl: "/api/media/upload",
     contentType: (file as File).type || "application/octet-stream",
   });
-  return { url: blob.url, pathname: blob.pathname, contentType: (file as File).type };
+  return {
+    url: mediaPath(blob.pathname),
+    pathname: blob.pathname,
+    contentType: (file as File).type,
+  };
 }
 
 export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
@@ -81,7 +87,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
       const res = await fetch("/api/disc/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: ref.url }),
+        body: JSON.stringify({ pathname: ref.pathname }),
       });
       if (res.ok) {
         const data = (await res.json()) as VehicleDetails;

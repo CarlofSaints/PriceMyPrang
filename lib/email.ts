@@ -120,10 +120,11 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
   const to = await notifyRecipients();
   if (to.length === 0) return;
 
+  const abs = (u?: string) => (u && u.startsWith("/") ? `${baseUrl()}${u}` : u || "");
   const photos = req.damagePhotos
     .map(
       (p) =>
-        `<a href="${p.url}" style="color:${BRAND.teal};font-size:12px;margin-right:8px;">photo</a>`
+        `<a href="${abs(p.url)}" style="color:${BRAND.teal};font-size:12px;margin-right:8px;">photo</a>`
     )
     .join("");
 
@@ -146,8 +147,8 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
       </table>
     </div>
     <p style="font-size:13px;">Damage photos: ${photos || "—"}</p>
-    ${req.video ? `<p style="font-size:13px;">Video: <a href="${req.video.url}" style="color:${BRAND.teal};">watch</a></p>` : ""}
-    ${req.discImage ? `<p style="font-size:13px;">Licence disc: <a href="${req.discImage.url}" style="color:${BRAND.teal};">view</a></p>` : ""}
+    ${req.video ? `<p style="font-size:13px;">Video: <a href="${abs(req.video.url)}" style="color:${BRAND.teal};">watch</a></p>` : ""}
+    ${req.discImage ? `<p style="font-size:13px;">Licence disc: <a href="${abs(req.discImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
     <p style="margin-top:20px;">
       <a href="${baseUrl()}/portal/requests/${req.reference}"
          style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
