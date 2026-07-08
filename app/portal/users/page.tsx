@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getUsers, getPanelBeaters } from "@/lib/store";
+import { getUsers, getPanelBeaters, getRoles } from "@/lib/store";
 import UsersManager from "@/components/UsersManager";
 
 export default async function UsersPage() {
@@ -9,7 +9,11 @@ export default async function UsersPage() {
   if (!user) redirect("/login");
   if (!can(user, "manage_users")) redirect("/portal");
 
-  const [users, panelBeaters] = await Promise.all([getUsers(), getPanelBeaters()]);
+  const [users, panelBeaters, roles] = await Promise.all([
+    getUsers(),
+    getPanelBeaters(),
+    getRoles(),
+  ]);
   const safe = users.map(({ passwordHash, ...rest }) => {
     void passwordHash;
     return rest;
@@ -21,7 +25,7 @@ export default async function UsersPage() {
         <h1 className="font-display text-3xl font-bold text-ink">Users & roles</h1>
         <p className="text-ink/60">Assessors, admins and panel-beater logins.</p>
       </div>
-      <UsersManager initialUsers={safe} panelBeaters={panelBeaters} />
+      <UsersManager initialUsers={safe} panelBeaters={panelBeaters} roles={roles} />
     </div>
   );
 }

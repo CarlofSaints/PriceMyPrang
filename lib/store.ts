@@ -1,6 +1,8 @@
 import { readJson, writeJson, PATHS } from "./blob";
+import { DEFAULT_ROLES } from "./permissions";
 import type {
   User,
+  Role,
   PanelBeater,
   Part,
   QuoteRequest,
@@ -27,6 +29,20 @@ export async function upsertUser(user: User): Promise<void> {
   if (i >= 0) users[i] = user;
   else users.push(user);
   await saveUsers(users);
+}
+
+// ---- Roles ----
+export async function getRoles(): Promise<Role[]> {
+  const existing = await readJson<Role[]>(PATHS.roles);
+  if (existing && existing.length) return existing;
+  await writeJson(PATHS.roles, DEFAULT_ROLES); // seed on first use
+  return DEFAULT_ROLES;
+}
+export async function saveRoles(roles: Role[]): Promise<void> {
+  await writeJson(PATHS.roles, roles);
+}
+export async function getRole(id: string): Promise<Role | null> {
+  return (await getRoles()).find((r) => r.id === id) ?? null;
 }
 
 // ---- Panel beaters ----

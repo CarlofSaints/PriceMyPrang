@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getUsers, saveUsers } from "@/lib/store";
-import type { Permission, RoleName, User } from "@/lib/types";
+import { getUsers, saveUsers, getRoles } from "@/lib/store";
+import type { User } from "@/lib/types";
 
 function scrub(u: User) {
   const { passwordHash, ...rest } = u;
@@ -26,12 +26,15 @@ export async function POST(request: Request) {
     name?: string;
     email?: string;
     password?: string;
-    role?: RoleName;
-    extraPermissions?: Permission[];
+    role?: string;
     panelBeaterId?: string;
   };
   if (!b.name || !b.email || !b.password || !b.role)
     return NextResponse.json({ error: "name, email, password, role required" }, { status: 400 });
+
+  const roles = await getRoles();
+  if (!roles.some((r) => r.id === b.role))
+    return NextResponse.json({ error: "Unknown role" }, { status: 400 });
 
   const users = await getUsers();
   if (users.some((u) => u.email.toLowerCase() === b.email!.toLowerCase()))
@@ -43,7 +46,6 @@ export async function POST(request: Request) {
     email: b.email,
     passwordHash: await hashPassword(b.password),
     role: b.role,
-    extraPermissions: b.extraPermissions,
     panelBeaterId: b.panelBeaterId || undefined,
     active: true,
     createdAt: new Date().toISOString(),
@@ -60,9 +62,8 @@ export async function PATCH(request: Request) {
 
   const b = (await request.json()) as {
     id?: string;
-    role?: RoleName;
+    role?: string;
     active?: boolean;
-    extraPermissions?: Permission[];
     password?: string;
   };
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -71,9 +72,13 @@ export async function PATCH(request: Request) {
   const u = users.find((x) => x.id === b.id);
   if (!u) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (b.role) u.role = b.role;
+  if (b.role) {
+    const roles = await getRoles();
+    if (!roles.some((r) => r.id === b.role))
+      return NextResponse.json({ error: "Unknown role" }, { status: 400 });
+    u.role = b.role;
+  }
   if (typeof b.active === "boolean") u.active = b.active;
-  if (b.extraPermissions) u.extraPermissions = b.extraPermissions;
   if (b.password) u.passwordHash = await hashPassword(b.password);
 
   await saveUsers(users);

@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import type { PanelBeater, QuoteRequest } from "./types";
-import { getUsers } from "./store";
-import { can } from "./permissions";
+import { getUsers, getRoles } from "./store";
+import { permissionsForRole } from "./permissions";
 
 const BRAND = {
   teal: "#00848D",
@@ -63,9 +63,14 @@ function client(): Resend | null {
 async function notifyRecipients(): Promise<string[]> {
   const set = new Set<string>();
   try {
-    const users = await getUsers();
+    const [users, roles] = await Promise.all([getUsers(), getRoles()]);
     users
-      .filter((u) => u.active && can(u, "view_dashboard") && u.email)
+      .filter(
+        (u) =>
+          u.active &&
+          u.email &&
+          permissionsForRole(u.role, roles).includes("view_dashboard")
+      )
       .forEach((u) => set.add(u.email));
   } catch {
     // ignore — fall back to env below

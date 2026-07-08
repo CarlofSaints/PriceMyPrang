@@ -3,7 +3,7 @@ import { Logo } from "@/components/Logo";
 import PortalNav, { type NavItem } from "@/components/PortalNav";
 import LogoutButton from "@/components/LogoutButton";
 import { getCurrentUser } from "@/lib/auth";
-import { can, ROLE_LABELS } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 
 export default async function PortalLayout({
   children,
@@ -20,6 +20,7 @@ export default async function PortalLayout({
     items.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
   if (can(user, "manage_parts")) items.push({ href: "/portal/parts", label: "Parts" });
   if (can(user, "manage_users")) items.push({ href: "/portal/users", label: "Users" });
+  if (can(user, "manage_roles")) items.push({ href: "/portal/roles", label: "Roles" });
 
   return (
     <div className="min-h-dvh bg-offwhite">
@@ -32,7 +33,7 @@ export default async function PortalLayout({
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-semibold text-white">{user.name}</p>
-              <p className="text-xs text-teal-light">{ROLE_LABELS[user.role]}</p>
+              <p className="text-xs text-teal-light">{user.roleName}</p>
             </div>
             <LogoutButton />
           </div>

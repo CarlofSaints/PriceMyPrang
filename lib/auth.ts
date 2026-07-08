@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { findUserById } from "./store";
-import type { User } from "./types";
+import { findUserById, getRoles } from "./store";
+import { permissionsForRole } from "./permissions";
+import type { AuthUser } from "./types";
 
 const COOKIE_NAME = "pmp_session";
 const DAY = 60 * 60 * 24;
@@ -41,8 +42,8 @@ export async function destroySession(): Promise<void> {
   jar.delete(COOKIE_NAME);
 }
 
-/** Returns the logged-in user (minus password hash concerns) or null. */
-export async function getCurrentUser(): Promise<User | null> {
+/** Returns the logged-in user with their role's permissions resolved, or null. */
+export async function getCurrentUser(): Promise<AuthUser | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
@@ -52,7 +53,13 @@ export async function getCurrentUser(): Promise<User | null> {
     if (!userId) return null;
     const user = await findUserById(userId);
     if (!user || !user.active) return null;
-    return user;
+    const roles = await getRoles();
+    const role = roles.find((r) => r.id === user.role);
+    return {
+      ...user,
+      permissions: permissionsForRole(user.role, roles),
+      roleName: role?.name ?? user.role,
+    };
   } catch {
     return null;
   }

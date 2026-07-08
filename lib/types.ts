@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export type Permission =
+  | "manage_roles"
   | "manage_users"
   | "manage_panel_beaters"
   | "onboard_self" // a panel beater editing their own listing
@@ -10,20 +11,35 @@ export type Permission =
   | "build_quotes"
   | "manage_parts";
 
-export type RoleName = "admin" | "assessor" | "panel_beater";
+// Roles are DATA (created/edited in the portal), not hardcoded.
+export interface Role {
+  id: string; // stable key, e.g. "admin" or a uuid
+  name: string; // display label
+  permissions: Permission[];
+  /** Built-in role that can't be deleted/edited (the Admin superuser). */
+  system?: boolean;
+}
+
+/** A role id (kept as a string alias so existing call sites still compile). */
+export type RoleName = string;
 
 export interface User {
   id: string;
   name: string;
   email: string;
   passwordHash: string;
-  role: RoleName;
-  /** Extra permissions granted on top of the role defaults. */
-  extraPermissions?: Permission[];
+  /** The id of the Role assigned to this user. */
+  role: string;
   /** If this user is a panel beater login, the panel beater they own. */
   panelBeaterId?: string;
   active: boolean;
   createdAt: string;
+}
+
+/** A logged-in user with their role's permissions resolved. */
+export interface AuthUser extends User {
+  permissions: Permission[];
+  roleName: string;
 }
 
 export interface PanelBeater {

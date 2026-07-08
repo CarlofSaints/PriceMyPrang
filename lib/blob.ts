@@ -83,6 +83,7 @@ export async function readMediaBytes(
 // ---- Collection paths ----
 export const PATHS = {
   users: "data/users.json",
+  roles: "data/roles.json",
   panelBeaters: "data/panel-beaters.json",
   parts: "data/parts.json",
   counters: "data/counters.json",
