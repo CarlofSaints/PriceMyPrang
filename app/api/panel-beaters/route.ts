@@ -41,10 +41,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Geocode if address changed or coords missing.
+  // Coordinates: prefer ones supplied by the "Get coordinates" button; else
+  // (re)geocode when the address changed or coords are missing.
   let lat = existing?.lat;
   let lng = existing?.lng;
-  if (!existing || existing.physicalAddress !== b.physicalAddress || lat == null) {
+  if (typeof b.lat === "number" && typeof b.lng === "number") {
+    lat = b.lat;
+    lng = b.lng;
+  } else if (!existing || existing.physicalAddress !== b.physicalAddress || lat == null) {
     const geo = await geocodeAddress(String(b.physicalAddress));
     if (geo) {
       lat = geo.lat;

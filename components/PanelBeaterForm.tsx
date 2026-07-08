@@ -7,6 +7,23 @@ import type { PanelBeater } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import { Button, Field, inputClass } from "./ui";
 
+function friendlyGeoError(status: string, error?: string): string {
+  switch (status) {
+    case "NO_KEY":
+      return "Geocoding isn't configured on the server (GEOCODING_API_KEY is missing).";
+    case "NO_ADDRESS":
+      return "Enter the physical address first.";
+    case "ZERO_RESULTS":
+      return "Google couldn't find that address — check the spelling / add a suburb & city.";
+    case "REQUEST_DENIED":
+      return `Google rejected the request: ${error || "the key is restricted or the Geocoding API isn't enabled on it."}`;
+    case "OVER_QUERY_LIMIT":
+      return "Google quota/billing issue on the Maps project.";
+    default:
+      return `Couldn't get coordinates (${status}${error ? `: ${error}` : ""}).`;
+  }
+}
+
 export default function PanelBeaterForm({
   existing,
   mode = "admin",
@@ -24,8 +41,38 @@ export default function PanelBeaterForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   function set<K extends keyof PanelBeater>(key: K, value: PanelBeater[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function getCoordinates() {
+    if (!form.physicalAddress?.trim()) {
+      setGeoMsg({ ok: false, text: "Enter the physical address first." });
+      return;
+    }
+    setGeoBusy(true);
+    setGeoMsg(null);
+    try {
+      const res = await fetch("/api/panel-beaters/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: form.physicalAddress }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setForm((f) => ({ ...f, lat: data.lat, lng: data.lng }));
+        setGeoMsg({ ok: true, text: `📍 Located at ${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}` });
+      } else {
+        setGeoMsg({ ok: false, text: friendlyGeoError(data.status, data.error) });
+      }
+    } catch {
+      setGeoMsg({ ok: false, text: "Couldn't reach the geocoder. Try again." });
+    } finally {
+      setGeoBusy(false);
+    }
   }
 
   async function uploadLogo(file: File) {
@@ -89,7 +136,33 @@ export default function PanelBeaterForm({
       </div>
 
       <Field label="Physical address" hint="Used to map your workshop for consumers." required>
-        <input className={inputClass} value={form.physicalAddress ?? ""} onChange={(e) => set("physicalAddress", e.target.value)} required />
+        <input
+          className={inputClass}
+          value={form.physicalAddress ?? ""}
+          onChange={(e) => {
+            set("physicalAddress", e.target.value);
+            setGeoMsg(null);
+          }}
+          required
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" size="md" onClick={getCoordinates} disabled={geoBusy}>
+            {geoBusy ? "Locating…" : "📍 Get coordinates"}
+          </Button>
+          {form.lat != null && form.lng != null && (
+            <span className="text-xs text-ink/60">
+              {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
+            </span>
+          )}
+        </div>
+        {geoMsg && (
+          <p className={`mt-2 text-sm ${geoMsg.ok ? "text-teal" : "text-coral"}`}>{geoMsg.text}</p>
+        )}
+        {form.lat == null && (
+          <p className="mt-1 text-xs text-ink/50">
+            Tip: click “Get coordinates” to place this workshop on the consumer map.
+          </p>
+        )}
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
