@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   },
   // @react-pdf/renderer is a heavy Node-only dependency; keep it external so
   // Turbopack/Next doesn't try to bundle it into the server build.
-  serverExternalPackages: ["@react-pdf/renderer"],
+  serverExternalPackages: ["@react-pdf/renderer", "exceljs"],
 };
 
 export default nextConfig;

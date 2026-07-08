@@ -65,6 +65,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
   const [video, setVideo] = useState<MediaRef | null>(null);
   const [photos, setPhotos] = useState<MediaRef[]>([]);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Map
   const [panelBeaters, setPanelBeaters] = useState<PanelBeater[]>([]);
@@ -308,42 +309,59 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
 
           <Field
             label="Photos of the damage"
-            hint={`Add as many angles as you can — close-ups and wider shots. Up to ${MAX_PHOTOS}.`}
+            hint={`Add as many angles as you can — close-ups and wider shots. Tap ＋ each time to add another. Up to ${MAX_PHOTOS}.`}
             required
           >
+            {/* hidden input, triggered by the + tile so it's clear each tap ADDS */}
             <input
-              className={inputClass}
+              ref={photoInputRef}
+              className="hidden"
               type="file"
               accept="image/*"
               capture="environment"
               multiple
-              disabled={photos.length >= MAX_PHOTOS}
-              onChange={(e) => e.target.files && handlePhotos(e.target.files)}
+              onChange={(e) => {
+                if (e.target.files) handlePhotos(e.target.files);
+                e.target.value = ""; // reset so the same file can be re-picked & it's clearly additive
+              }}
             />
-            {uploadingPhotos && <p className="mt-2 text-sm text-teal">Uploading photos…</p>}
-            {photos.length > 0 && (
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {photos.map((p, i) => (
-                  <div key={p.url} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.url}
-                      alt={`Damage ${i + 1}`}
-                      className="h-16 w-full rounded-lg object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPhotos((ps) => ps.filter((x) => x.url !== p.url))}
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-coral text-xs text-white"
-                      aria-label="Remove photo"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="mt-1 text-xs text-ink/50">{photos.length}/{MAX_PHOTOS} added</p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {photos.map((p, i) => (
+                <div key={p.url} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.url}
+                    alt={`Damage ${i + 1}`}
+                    className="h-20 w-full rounded-lg border border-teal/15 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhotos((ps) => ps.filter((x) => x.url !== p.url))}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-coral text-xs text-white shadow"
+                    aria-label="Remove photo"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              {photos.length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhotos}
+                  className="flex h-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-teal/40 text-teal transition-colors hover:bg-teal/5 disabled:opacity-50"
+                >
+                  <span className="text-2xl leading-none">＋</span>
+                  <span className="text-xs font-semibold">
+                    {uploadingPhotos ? "Uploading…" : photos.length === 0 ? "Add photos" : "Add more"}
+                  </span>
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-ink/50">
+              {photos.length}/{MAX_PHOTOS} added{photos.length > 0 ? " — tap ＋ to add another angle" : ""}
+            </p>
           </Field>
 
           <Field label="How many quotes would you like?" required>

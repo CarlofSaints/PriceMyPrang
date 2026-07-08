@@ -16,7 +16,7 @@ export default async function UsersPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Users & roles</h1>
         <p className="text-ink/60">Assessors, admins and panel-beater logins.</p>

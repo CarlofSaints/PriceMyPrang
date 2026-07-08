@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import type { PanelBeater } from "@/lib/types";
-import { Button } from "./ui";
+import { Button, inputClass } from "./ui";
 
 // Johannesburg fallback centre.
 const DEFAULT_CENTER = { lat: -26.2041, lng: 28.0473 };
@@ -18,6 +18,10 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
     Math.sin(dLat / 2) ** 2 +
     Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function hasCoords(p: PanelBeater): p is PanelBeater & { lat: number; lng: number } {
+  return typeof p.lat === "number" && typeof p.lng === "number";
 }
 
 export default function PanelBeaterMap({
@@ -36,101 +40,134 @@ export default function PanelBeaterMap({
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const mapped = useMemo(
-    () => panelBeaters.filter((p) => typeof p.lat === "number" && typeof p.lng === "number"),
-    [panelBeaters]
-  );
+  const mapped = useMemo(() => panelBeaters.filter(hasCoords), [panelBeaters]);
 
-  const sorted = useMemo(() => {
+  const sortedMapped = useMemo(() => {
     if (!userLocation) return mapped;
     return [...mapped].sort(
-      (a, b) =>
-        distanceKm(userLocation, { lat: a.lat!, lng: a.lng! }) -
-        distanceKm(userLocation, { lat: b.lat!, lng: b.lng! })
+      (a, b) => distanceKm(userLocation, a) - distanceKm(userLocation, b)
     );
   }, [mapped, userLocation]);
 
   const center = userLocation ?? DEFAULT_CENTER;
-  const active = sorted.find((p) => p.id === activeId) ?? null;
+  const active = mapped.find((p) => p.id === activeId) ?? null;
+
+  const atMax = selectedIds.length >= quotesRequested;
 
   function toggle(id: string) {
     if (selectedIds.includes(id)) {
       onChange(selectedIds.filter((x) => x !== id));
-    } else if (selectedIds.length < quotesRequested) {
+    } else if (!atMax) {
       onChange([...selectedIds, id]);
     }
   }
 
-  if (!apiKey) {
-    // Graceful fallback: no maps key configured → plain selectable list.
-    return (
-      <ListPicker
-        list={sorted}
-        userLocation={userLocation}
-        selectedIds={selectedIds}
-        quotesRequested={quotesRequested}
-        toggle={toggle}
-      />
-    );
-  }
+  const nameFor = (id: string) => {
+    const p = panelBeaters.find((x) => x.id === id);
+    return p ? p.tradingAs || p.companyName : id;
+  };
+
+  // Workshops that could still be added via the dropdown.
+  const addable = panelBeaters.filter((p) => !selectedIds.includes(p.id));
 
   return (
     <div className="space-y-3">
-      <div className="relative h-[46vh] min-h-[300px] w-full overflow-hidden rounded-2xl border border-teal/20">
-        <APIProvider apiKey={apiKey}>
-          <Map
-            defaultCenter={center}
-            defaultZoom={userLocation ? 12 : 10}
-            gestureHandling="greedy"
-            disableDefaultUI
-            style={{ width: "100%", height: "100%" }}
-          >
-            {userLocation && <Marker position={userLocation} title="You are here" />}
-            {sorted.map((p) => (
-              <Marker
-                key={p.id}
-                position={{ lat: p.lat!, lng: p.lng! }}
-                onClick={() => setActiveId(p.id)}
-              />
-            ))}
-          </Map>
-        </APIProvider>
+      {apiKey && (
+        <div className="relative h-[46vh] min-h-[300px] w-full overflow-hidden rounded-2xl border border-teal/20">
+          <APIProvider apiKey={apiKey}>
+            <Map
+              defaultCenter={center}
+              defaultZoom={userLocation ? 12 : 10}
+              gestureHandling="greedy"
+              disableDefaultUI
+              style={{ width: "100%", height: "100%" }}
+            >
+              {userLocation && <Marker position={userLocation} title="You are here" />}
+              {sortedMapped.map((p) => (
+                <Marker
+                  key={p.id}
+                  position={{ lat: p.lat, lng: p.lng }}
+                  onClick={() => setActiveId(p.id)}
+                />
+              ))}
+            </Map>
+          </APIProvider>
 
-        {active && (
-          <div className="absolute inset-x-2 bottom-2 rounded-xl bg-white p-4 shadow-lg">
-            <button
-              onClick={() => setActiveId(null)}
-              className="absolute right-3 top-3 text-ink/40"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <PBSummary pb={active} userLocation={userLocation} />
-            <Button
-              variant={selectedIds.includes(active.id) ? "coral" : "primary"}
-              className="mt-3 w-full"
-              onClick={() => toggle(active.id)}
-              disabled={
-                !selectedIds.includes(active.id) && selectedIds.length >= quotesRequested
-              }
-            >
-              {selectedIds.includes(active.id) ? "Remove selection" : "Select this workshop"}
-            </Button>
-          </div>
-        )}
+          {active && (
+            <div className="absolute inset-x-2 bottom-2 rounded-xl bg-white p-4 shadow-lg">
+              <button
+                onClick={() => setActiveId(null)}
+                className="absolute right-3 top-3 text-ink/40"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+              <PBSummary pb={active} userLocation={userLocation} />
+              <Button
+                variant={selectedIds.includes(active.id) ? "coral" : "primary"}
+                className="mt-3 w-full"
+                onClick={() => toggle(active.id)}
+                disabled={!selectedIds.includes(active.id) && atMax}
+              >
+                {selectedIds.includes(active.id) ? "Remove selection" : "Select this workshop"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dropdown — works for ANY workshop, including those not on the map */}
+      <div>
+        <label className="block text-sm font-semibold text-ink mb-1.5">
+          Can&apos;t see your workshop on the map? Choose it here
+        </label>
+        <select
+          className={inputClass}
+          value=""
+          disabled={atMax}
+          onChange={(e) => {
+            if (e.target.value) toggle(e.target.value);
+          }}
+        >
+          <option value="">
+            {atMax ? `Selected ${quotesRequested} — remove one to change` : "Select a workshop…"}
+          </option>
+          {addable.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.tradingAs || p.companyName}
+              {!hasCoords(p) ? " (not on map)" : ""}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <p className="text-sm text-ink/70">
-        Selected {selectedIds.length} of {quotesRequested}. Tap a pin to review a workshop.
-      </p>
+      {/* Selected summary */}
+      <div className="text-sm text-ink/70">
+        Selected {selectedIds.length} of {quotesRequested}.
+      </div>
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedIds.map((id) => (
+            <span
+              key={id}
+              className="inline-flex items-center gap-2 rounded-full bg-coral/10 px-3 py-1.5 text-sm font-semibold text-coral"
+            >
+              {nameFor(id)}
+              <button onClick={() => toggle(id)} aria-label="Remove">
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
+      {/* Full selectable list (mapped, sorted by distance) */}
       <ListPicker
-        list={sorted}
+        list={sortedMapped}
         userLocation={userLocation}
         selectedIds={selectedIds}
-        quotesRequested={quotesRequested}
+        atMax={atMax}
         toggle={toggle}
-        compact
       />
     </div>
   );
@@ -144,9 +181,7 @@ function PBSummary({
   userLocation: { lat: number; lng: number } | null;
 }) {
   const dist =
-    userLocation && pb.lat && pb.lng
-      ? distanceKm(userLocation, { lat: pb.lat, lng: pb.lng })
-      : null;
+    userLocation && hasCoords(pb) ? distanceKm(userLocation, pb) : null;
   return (
     <div>
       <h4 className="font-display text-lg font-semibold text-ink">
@@ -166,21 +201,19 @@ function ListPicker({
   list,
   userLocation,
   selectedIds,
-  quotesRequested,
+  atMax,
   toggle,
-  compact,
 }: {
-  list: PanelBeater[];
+  list: (PanelBeater & { lat: number; lng: number })[];
   userLocation: { lat: number; lng: number } | null;
   selectedIds: string[];
-  quotesRequested: number;
+  atMax: boolean;
   toggle: (id: string) => void;
-  compact?: boolean;
 }) {
   if (list.length === 0) {
     return (
       <p className="rounded-xl bg-amber/20 p-4 text-sm text-ink">
-        No panel beaters are on the map yet. Please check back soon.
+        No panel beaters are on the map yet — use the dropdown above to choose one.
       </p>
     );
   }
@@ -188,7 +221,6 @@ function ListPicker({
     <ul className="space-y-2">
       {list.map((pb) => {
         const selected = selectedIds.includes(pb.id);
-        const atMax = !selected && selectedIds.length >= quotesRequested;
         return (
           <li
             key={pb.id}
@@ -199,12 +231,11 @@ function ListPicker({
             <div className="min-w-0">
               <PBSummary pb={pb} userLocation={userLocation} />
             </div>
-            {!compact && null}
             <Button
               size="md"
               variant={selected ? "coral" : "outline"}
               onClick={() => toggle(pb.id)}
-              disabled={atMax}
+              disabled={!selected && atMax}
               className="shrink-0"
             >
               {selected ? "Remove" : "Select"}

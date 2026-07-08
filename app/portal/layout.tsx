@@ -26,7 +26,7 @@ export default async function PortalLayout({
       <header className="bg-ink">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Logo variant="horizontal-dark" className="h-8 w-auto" />
+            <Logo variant="horizontal-dark" className="h-12 w-auto sm:h-16" />
             <PortalNav items={items} />
           </div>
           <div className="flex items-center gap-4">

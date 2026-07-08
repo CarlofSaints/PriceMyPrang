@@ -54,11 +54,22 @@ export interface PanelBeater {
 
 export interface Part {
   id: string;
-  supplier: string;
-  name: string;
+  supplier: string; // entered at import / add time, not in the import file
   partNumber?: string;
+  name: string; // "Part Name - Description"
+  category?: string; // Bumper, Fender, Light, etc.
+  listPrice: number;
+  discountPercentage?: number;
+  /** Net unit price used in quotes = listPrice * (1 - discount/100). */
   price: number;
+  avgLeadTime?: string; // "Ave Lead time"
   createdAt: string;
+}
+
+export function netPrice(listPrice: number, discountPercentage?: number): number {
+  const list = Number(listPrice) || 0;
+  const disc = Number(discountPercentage) || 0;
+  return Math.round(list * (1 - disc / 100) * 100) / 100;
 }
 
 export type YesNo = "yes" | "no";
