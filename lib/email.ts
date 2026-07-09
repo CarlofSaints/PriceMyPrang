@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import type { PanelBeater, QuoteRequest } from "./types";
+import type { PanelBeater, QuoteRequest, WarrantyApproval } from "./types";
 import { getUsers, getRoles } from "./store";
 import { permissionsForRole } from "./permissions";
 
@@ -217,6 +217,62 @@ export async function sendUserCredentials(opts: {
         ? "Your Price my Prang password was reset"
         : "Your Price my Prang portal login",
       html: shell(opts.isReset ? "Password reset" : "Welcome to Price my Prang", body),
+    });
+    if (error) return { sent: false, error: (error as { message?: string }).message || "send failed" };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
+export async function sendWarrantyExpiryReminder(
+  pb: PanelBeater,
+  w: WarrantyApproval,
+  windowLabel: string
+): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+
+  const to = Array.from(
+    new Set([pb.completedByEmail, pb.ownerEmail, pb.email].filter(Boolean) as string[])
+  );
+  if (to.length === 0) return { sent: false, error: "no contact email on this panel beater" };
+
+  const prettyDate = w.expiryDate
+    ? new Date(`${w.expiryDate}T00:00:00Z`).toLocaleDateString("en-ZA", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${pb.completedByName || pb.ownerName || "there"},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      This is a friendly reminder that your <strong>${w.manufacturer}</strong> warranty-approval
+      certificate for <strong>${pb.tradingAs || pb.companyName}</strong> is due to expire
+      <strong>${windowLabel}</strong>.
+    </p>
+    <div style="background:${BRAND.ink};border-radius:12px;padding:16px;text-align:center;margin:18px 0;">
+      <div style="color:${BRAND.teal};font-size:11px;letter-spacing:2px;text-transform:uppercase;">Certificate expires</div>
+      <div style="color:#fff;font-size:20px;font-weight:bold;margin-top:4px;">${w.manufacturer} · ${prettyDate}</div>
+    </div>
+    <p style="font-size:14px;line-height:1.5;color:#41575b;">
+      Please arrange to renew this certificate with ${w.manufacturer} before it lapses, and update
+      your details on Price my Prang once renewed.
+    </p>
+    <p style="font-size:13px;line-height:1.5;color:#6b7f82;background:${BRAND.offwhite};border-radius:10px;padding:12px;">
+      <strong>Please note:</strong> this is only a reminder. Price my Prang cannot renew, extend or take
+      any action on this certificate on your behalf — renewal is between you and the manufacturer.
+    </p>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to,
+      subject: `Reminder: your ${w.manufacturer} warranty certificate expires ${windowLabel}`,
+      html: shell("Warranty certificate reminder", body),
     });
     if (error) return { sent: false, error: (error as { message?: string }).message || "send failed" };
     return { sent: true };

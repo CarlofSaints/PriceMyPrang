@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import type { PanelBeater } from "@/lib/types";
+import type { PanelBeater, WarrantyApproval } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
+import { MANUFACTURERS } from "@/lib/manufacturers";
 import { Button, Field, inputClass } from "./ui";
 
 function friendlyGeoError(status: string, error?: string): string {
@@ -38,6 +39,7 @@ export default function PanelBeaterForm({
   const router = useRouter();
   const [form, setForm] = useState<Partial<PanelBeater>>(existing ?? { active: true });
   const [logoUrl, setLogoUrl] = useState<string | undefined>(existing?.logoUrl);
+  const [warranties, setWarranties] = useState<WarrantyApproval[]>(existing?.warranties ?? []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -75,6 +77,36 @@ export default function PanelBeaterForm({
     }
   }
 
+  // ---- Warranty approvals ----
+  const availableManufacturers = MANUFACTURERS.filter(
+    (m) => !warranties.some((w) => w.manufacturer === m)
+  );
+
+  function addManufacturer(m: string) {
+    if (!m || warranties.some((w) => w.manufacturer === m)) return;
+    setWarranties((ws) => [...ws, { manufacturer: m, remind: false }]);
+  }
+  function updateWarranty(i: number, patch: Partial<WarrantyApproval>) {
+    setWarranties((ws) => ws.map((w, idx) => (idx === i ? { ...w, ...patch } : w)));
+  }
+  function removeWarranty(i: number) {
+    setWarranties((ws) => ws.filter((_, idx) => idx !== i));
+  }
+  async function uploadCertificate(i: number, file: File) {
+    try {
+      const blob = await upload(
+        `panel-beaters/certificates/${Date.now()}-${safeFileName(file.name)}`,
+        file,
+        { access: "private", handleUploadUrl: "/api/media/upload", contentType: file.type }
+      );
+      updateWarranty(i, {
+        certificate: { url: mediaPath(blob.pathname), pathname: blob.pathname, contentType: file.type },
+      });
+    } catch {
+      setError("Certificate upload failed.");
+    }
+  }
+
   async function uploadLogo(file: File) {
     try {
       const blob = await upload(
@@ -100,7 +132,7 @@ export default function PanelBeaterForm({
       const res = await fetch(submitUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, logoUrl }),
+        body: JSON.stringify({ ...form, logoUrl, warranties }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -120,6 +152,24 @@ export default function PanelBeaterForm({
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <div className="rounded-2xl border border-teal/15 bg-white p-4">
+        <h3 className="mb-3 font-display text-base font-semibold text-ink">Contact people</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Name of person completing this form">
+            <input className={inputClass} value={form.completedByName ?? ""} onChange={(e) => set("completedByName", e.target.value)} />
+          </Field>
+          <Field label="Email of person completing this form">
+            <input className={inputClass} type="email" value={form.completedByEmail ?? ""} onChange={(e) => set("completedByEmail", e.target.value)} />
+          </Field>
+          <Field label="Name of business owner">
+            <input className={inputClass} value={form.ownerName ?? ""} onChange={(e) => set("ownerName", e.target.value)} />
+          </Field>
+          <Field label="Email of business owner">
+            <input className={inputClass} type="email" value={form.ownerEmail ?? ""} onChange={(e) => set("ownerEmail", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Company name" required>
           <input className={inputClass} value={form.companyName ?? ""} onChange={(e) => set("companyName", e.target.value)} required />
@@ -205,6 +255,100 @@ export default function PanelBeaterForm({
           <img src={logoUrl} alt="Logo" className="mt-2 h-14 w-auto rounded" />
         )}
       </Field>
+
+      {/* Warranty approvals */}
+      <div className="rounded-2xl border border-teal/15 bg-white p-4">
+        <h3 className="font-display text-base font-semibold text-ink">
+          Manufacturer warranty approvals
+        </h3>
+        <p className="mb-3 text-sm text-ink/60">
+          Tick the manufacturers for which you are an approved warranty supplier, then add each
+          certificate&apos;s dates and file.
+        </p>
+
+        <Field label="Add a manufacturer you're approved for">
+          <select
+            className={inputClass}
+            value=""
+            onChange={(e) => {
+              addManufacturer(e.target.value);
+              e.target.value = "";
+            }}
+          >
+            <option value="">Select a manufacturer…</option>
+            {availableManufacturers.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        {warranties.length > 0 && (
+          <div className="mt-4 space-y-4">
+            {warranties.map((w, i) => (
+              <div key={w.manufacturer} className="rounded-xl border border-teal/20 bg-offwhite/50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-display font-semibold text-ink">{w.manufacturer}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeWarranty(i)}
+                    className="text-xs font-semibold text-coral hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Start date">
+                    <input
+                      className={inputClass}
+                      type="date"
+                      value={w.startDate ?? ""}
+                      onChange={(e) => updateWarranty(i, { startDate: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Expiry date">
+                    <input
+                      className={inputClass}
+                      type="date"
+                      value={w.expiryDate ?? ""}
+                      onChange={(e) => updateWarranty(i, { expiryDate: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                <Field label="Certificate">
+                  <input
+                    className={inputClass}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => e.target.files?.[0] && uploadCertificate(i, e.target.files[0])}
+                  />
+                  {w.certificate && (
+                    <a href={w.certificate.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-teal underline">
+                      ✓ Certificate uploaded — view
+                    </a>
+                  )}
+                </Field>
+                <label className="mt-1 flex items-start gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={w.remind ?? false}
+                    onChange={(e) => updateWarranty(i, { remind: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 accent-[#00848d]"
+                  />
+                  <span>
+                    Remind me to update this certificate
+                    <span className="block text-xs text-ink/50">
+                      We&apos;ll email reminders at 3 months, 2 months, 1 month, 2 weeks and the day
+                      before it expires.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {mode === "admin" && (
         <label className="flex items-center gap-2 text-sm font-semibold text-ink">

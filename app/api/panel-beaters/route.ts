@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById, getPanelBeater } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
+import { mergeWarranties } from "@/lib/warrantyReminders";
 import type { PanelBeater } from "@/lib/types";
 
 export async function GET() {
@@ -58,6 +59,11 @@ export async function POST(request: Request) {
 
   const pb: PanelBeater = {
     id: existing?.id ?? crypto.randomUUID(),
+    completedByName: b.completedByName?.trim() || undefined,
+    completedByEmail: b.completedByEmail?.trim() || undefined,
+    ownerName: b.ownerName?.trim() || undefined,
+    ownerEmail: b.ownerEmail?.trim() || undefined,
+    warranties: mergeWarranties(b.warranties ?? [], existing?.warranties),
     companyName: String(b.companyName).trim(),
     tradingAs: b.tradingAs?.trim() || undefined,
     companyRegNumber: String(b.companyRegNumber).trim(),

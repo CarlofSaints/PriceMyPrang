@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPanelBeaters, upsertPanelBeater } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
+import { mergeWarranties } from "@/lib/warrantyReminders";
 import { sendPanelBeaterRegistrationNotification } from "@/lib/email";
 import type { PanelBeater } from "@/lib/types";
 
@@ -26,6 +27,11 @@ export async function POST(request: Request) {
 
   const pb: PanelBeater = {
     id: crypto.randomUUID(),
+    completedByName: b.completedByName?.trim() || undefined,
+    completedByEmail: b.completedByEmail?.trim() || undefined,
+    ownerName: b.ownerName?.trim() || undefined,
+    ownerEmail: b.ownerEmail?.trim() || undefined,
+    warranties: mergeWarranties(b.warranties ?? []),
     companyName: String(b.companyName).trim(),
     tradingAs: b.tradingAs?.trim() || undefined,
     companyRegNumber: String(b.companyRegNumber).trim(),

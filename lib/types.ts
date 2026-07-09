@@ -42,8 +42,24 @@ export interface AuthUser extends User {
   roleName: string;
 }
 
+export interface WarrantyApproval {
+  manufacturer: string;
+  startDate?: string; // yyyy-mm-dd
+  expiryDate?: string; // yyyy-mm-dd
+  certificate?: MediaRef;
+  remind?: boolean;
+  /** Reminder milestones already emailed: "3m","2m","1m","2w","1d". */
+  remindersSent?: string[];
+}
+
 export interface PanelBeater {
   id: string;
+  // Who filled the form / who owns the business
+  completedByName?: string;
+  completedByEmail?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+
   companyName: string; // mandatory
   tradingAs?: string;
   companyRegNumber: string; // mandatory
@@ -60,6 +76,8 @@ export interface PanelBeater {
   logoUrl?: string;
   email?: string;
   phone?: string;
+  /** Manufacturers this workshop is an approved warranty supplier for. */
+  warranties?: WarrantyApproval[];
   active: boolean;
   /** Approval workflow. Public self-registrations start as "pending". */
   status?: "pending" | "approved" | "declined";
