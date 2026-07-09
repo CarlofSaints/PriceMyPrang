@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getUsers, saveUsers, getRoles } from "@/lib/store";
+import { sendUserCredentials } from "@/lib/email";
 import type { User } from "@/lib/types";
 
 function scrub(u: User) {
@@ -33,8 +34,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "name, email, password, role required" }, { status: 400 });
 
   const roles = await getRoles();
-  if (!roles.some((r) => r.id === b.role))
-    return NextResponse.json({ error: "Unknown role" }, { status: 400 });
+  const role = roles.find((r) => r.id === b.role);
+  if (!role) return NextResponse.json({ error: "Unknown role" }, { status: 400 });
 
   const users = await getUsers();
   if (users.some((u) => u.email.toLowerCase() === b.email!.toLowerCase()))
@@ -52,7 +53,16 @@ export async function POST(request: Request) {
   };
   users.push(user);
   await saveUsers(users);
-  return NextResponse.json(scrub(user));
+
+  // Email the new user their login details.
+  const mail = await sendUserCredentials({
+    name: user.name,
+    email: user.email,
+    password: b.password,
+    roleName: role.name,
+  });
+
+  return NextResponse.json({ ...scrub(user), emailSent: mail.sent, emailError: mail.error });
 }
 
 export async function PATCH(request: Request) {
@@ -79,8 +89,17 @@ export async function PATCH(request: Request) {
     u.role = b.role;
   }
   if (typeof b.active === "boolean") u.active = b.active;
-  if (b.password) u.passwordHash = await hashPassword(b.password);
+  let mail: { sent: boolean; error?: string } | null = null;
+  if (b.password) {
+    u.passwordHash = await hashPassword(b.password);
+    mail = await sendUserCredentials({
+      name: u.name,
+      email: u.email,
+      password: b.password,
+      isReset: true,
+    });
+  }
 
   await saveUsers(users);
-  return NextResponse.json(scrub(u));
+  return NextResponse.json({ ...scrub(u), emailSent: mail?.sent, emailError: mail?.error });
 }

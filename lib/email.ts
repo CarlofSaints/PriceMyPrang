@@ -170,6 +170,61 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
   });
 }
 
+export async function sendUserCredentials(opts: {
+  name: string;
+  email: string;
+  password: string;
+  roleName?: string;
+  isReset?: boolean;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+
+  const loginUrl = `${baseUrl()}/login`;
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      ${
+        opts.isReset
+          ? "Your Price my Prang portal password has been reset."
+          : "An account has been created for you on the Price my Prang portal" +
+            (opts.roleName ? ` as <strong>${opts.roleName}</strong>` : "") +
+            "."
+      }
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Login", opts.email)}
+        ${detailRow("Temporary password", opts.password)}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${loginUrl}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Sign in to the portal
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      Please sign in and change your password. If you weren&apos;t expecting this, you can ignore this email.
+    </p>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to: opts.email,
+      subject: opts.isReset
+        ? "Your Price my Prang password was reset"
+        : "Your Price my Prang portal login",
+      html: shell(opts.isReset ? "Password reset" : "Welcome to Price my Prang", body),
+    });
+    if (error) return { sent: false, error: (error as { message?: string }).message || "send failed" };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
 export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
   const resend = client();
   if (!resend) return;

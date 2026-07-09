@@ -26,16 +26,20 @@ export default function UsersManager({
     panelBeaterId: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name || id;
   const selectedRole = roles.find((r) => r.id === form.role);
   const roleWantsPanelBeater = selectedRole?.permissions.includes("onboard_self");
 
+  type UserResponse = SafeUser & { emailSent?: boolean; emailError?: string };
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/users", {
         method: "POST",
@@ -43,8 +47,16 @@ export default function UsersManager({
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      const u = (await res.json()) as SafeUser;
+      const u = (await res.json()) as UserResponse;
       setUsers((list) => [...list, u]);
+      setNotice(
+        u.emailSent
+          ? { ok: true, text: `User created — login details emailed to ${u.email}.` }
+          : {
+              ok: false,
+              text: `User created, but the email didn't send${u.emailError ? ` (${u.emailError})` : ""}. Share the password with them manually: ${form.password}`,
+            }
+      );
       setForm({ name: "", email: "", password: "", role: defaultRole, panelBeaterId: "" });
     } catch (err) {
       setError((err as Error).message);
@@ -53,25 +65,49 @@ export default function UsersManager({
     }
   }
 
-  async function patch(id: string, patch: Record<string, unknown>) {
+  async function patch(id: string, patch: Record<string, unknown>): Promise<UserResponse | null> {
     const res = await fetch("/api/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...patch }),
     });
     if (res.ok) {
-      const u = (await res.json()) as SafeUser;
-      setUsers((list) => list.map((x) => (x.id === u.id ? u : x)));
+      const u = (await res.json()) as UserResponse;
+      setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, ...u } : x)));
+      return u;
     }
+    return null;
   }
 
   async function resetPw(id: string) {
     const pw = prompt("New password for this user:");
-    if (pw) await patch(id, { password: pw });
+    if (!pw) return;
+    const u = await patch(id, { password: pw });
+    if (u) {
+      setNotice(
+        u.emailSent
+          ? { ok: true, text: `Password reset — new details emailed to ${u.email}.` }
+          : {
+              ok: false,
+              text: `Password reset, but the email didn't send${u.emailError ? ` (${u.emailError})` : ""}. New password: ${pw}`,
+            }
+      );
+    }
   }
 
   return (
     <div className="space-y-6">
+      {notice && (
+        <p
+          className={`rounded-xl border p-3 text-sm ${
+            notice.ok
+              ? "border-teal/30 bg-teal/10 text-teal"
+              : "border-amber/50 bg-amber/20 text-ink"
+          }`}
+        >
+          {notice.text}
+        </p>
+      )}
       <form onSubmit={create} className="pmp-card space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-ink">Add a user</h2>
