@@ -46,6 +46,9 @@ export default function PanelBeaterForm({
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [mfQuery, setMfQuery] = useState("");
+  const [mfOpen, setMfOpen] = useState(false);
+
   function set<K extends keyof PanelBeater>(key: K, value: PanelBeater[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -267,21 +270,46 @@ export default function PanelBeaterForm({
         </p>
 
         <Field label="Add a manufacturer you're approved for">
-          <select
-            className={inputClass}
-            value=""
-            onChange={(e) => {
-              addManufacturer(e.target.value);
-              e.target.value = "";
-            }}
-          >
-            <option value="">Select a manufacturer…</option>
-            {availableManufacturers.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              className={inputClass}
+              placeholder="Search manufacturers…"
+              value={mfQuery}
+              onChange={(e) => {
+                setMfQuery(e.target.value);
+                setMfOpen(true);
+              }}
+              onFocus={() => setMfOpen(true)}
+              onBlur={() => setTimeout(() => setMfOpen(false), 150)}
+            />
+            {mfOpen && (
+              <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-teal/20 bg-white shadow-lg">
+                {(() => {
+                  const q = mfQuery.trim().toLowerCase();
+                  const matches = availableManufacturers.filter((m) =>
+                    m.toLowerCase().includes(q)
+                  );
+                  if (matches.length === 0)
+                    return <div className="px-4 py-3 text-sm text-ink/50">No matches</div>;
+                  return matches.map((m) => (
+                    <button
+                      type="button"
+                      key={m}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        addManufacturer(m);
+                        setMfQuery("");
+                        setMfOpen(false);
+                      }}
+                      className="block w-full px-4 py-2 text-left text-sm hover:bg-teal/10"
+                    >
+                      {m}
+                    </button>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
         </Field>
 
         {warranties.length > 0 && (
