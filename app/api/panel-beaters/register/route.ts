@@ -54,6 +54,13 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
   };
 
+  const missingCert = pb.warranties?.find((w) => !w.certificate);
+  if (missingCert)
+    return NextResponse.json(
+      { error: `Upload a certificate for the ${missingCert.manufacturer} warranty.` },
+      { status: 400 }
+    );
+
   // Guard against obvious duplicate spam (same reg number already pending/active).
   const existing = await getPanelBeaters();
   if (existing.some((p) => p.companyRegNumber === pb.companyRegNumber)) {

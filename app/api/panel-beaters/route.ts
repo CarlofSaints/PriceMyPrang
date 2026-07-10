@@ -84,6 +84,13 @@ export async function POST(request: Request) {
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
 
+  const missingCert = pb.warranties?.find((w) => !w.certificate);
+  if (missingCert)
+    return NextResponse.json(
+      { error: `Upload a certificate for the ${missingCert.manufacturer} warranty.` },
+      { status: 400 }
+    );
+
   await upsertPanelBeater(pb);
 
   // Link a self-onboarding user to the listing they just created.

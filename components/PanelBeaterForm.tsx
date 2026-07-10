@@ -129,6 +129,11 @@ export default function PanelBeaterForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const missingCert = warranties.find((w) => !w.certificate);
+    if (missingCert) {
+      setError(`Please upload the ${missingCert.manufacturer} warranty certificate before saving.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -344,17 +349,19 @@ export default function PanelBeaterForm({
                     />
                   </Field>
                 </div>
-                <Field label="Certificate">
+                <Field label="Certificate" required>
                   <input
                     className={inputClass}
                     type="file"
                     accept="image/*,application/pdf"
                     onChange={(e) => e.target.files?.[0] && uploadCertificate(i, e.target.files[0])}
                   />
-                  {w.certificate && (
+                  {w.certificate ? (
                     <a href={w.certificate.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-teal underline">
                       ✓ Certificate uploaded — view
                     </a>
+                  ) : (
+                    <p className="mt-1 text-xs text-coral">Certificate required.</p>
                   )}
                 </Field>
                 <label className="mt-1 flex items-start gap-2 text-sm text-ink">
