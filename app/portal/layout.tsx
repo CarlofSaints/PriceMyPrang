@@ -22,6 +22,8 @@ export default async function PortalLayout({
   if (can(user, "build_quotes")) items.push({ href: "/portal/quote-builder", label: "Quote builder" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
+  if (can(user, "manage_panel_beaters"))
+    items.push({ href: "/portal/warranties", label: "Warranties" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/rates", label: "Rates" });
   if (can(user, "manage_parts")) items.push({ href: "/portal/parts", label: "Parts" });
