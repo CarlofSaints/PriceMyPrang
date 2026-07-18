@@ -5,6 +5,7 @@ import type {
   User,
   Role,
   RateType,
+  InsuranceCompany,
   PanelBeater,
   Part,
   QuoteRequest,
@@ -56,6 +57,24 @@ export async function getRateTypes(): Promise<RateType[]> {
 }
 export async function saveRateTypes(rateTypes: RateType[]): Promise<void> {
   await writeJson(PATHS.rateTypes, rateTypes);
+}
+
+// ---- Insurance companies ----
+export async function getInsurers(): Promise<InsuranceCompany[]> {
+  return (await readJson<InsuranceCompany[]>(PATHS.insurers)) ?? [];
+}
+export async function saveInsurers(insurers: InsuranceCompany[]): Promise<void> {
+  await writeJson(PATHS.insurers, insurers);
+}
+export async function getInsurer(id: string): Promise<InsuranceCompany | null> {
+  return (await getInsurers()).find((i) => i.id === id) ?? null;
+}
+export async function upsertInsurer(insurer: InsuranceCompany): Promise<void> {
+  const list = await getInsurers();
+  const i = list.findIndex((x) => x.id === insurer.id);
+  if (i >= 0) list[i] = insurer;
+  else list.push(insurer);
+  await saveInsurers(list);
 }
 
 // ---- Panel beaters ----

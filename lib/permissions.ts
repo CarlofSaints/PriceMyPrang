@@ -5,6 +5,7 @@ import type { Permission, Role } from "./types";
 export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_roles: "Manage roles & permissions",
   manage_rate_types: "Manage rate types",
+  manage_insurers: "Manage insurance companies",
   manage_users: "Manage users",
   manage_panel_beaters: "Add / edit panel beaters",
   onboard_self: "Edit own panel beater listing",
@@ -16,6 +17,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
   manage_roles: "Create and edit roles and their permissions.",
   manage_rate_types: "Super Admin: define the rate types panel beaters fill in on the Rates page.",
+  manage_insurers: "Super Admin: add insurance companies and set their shared rate cards.",
   manage_users: "Create users and assign their role.",
   view_dashboard: "See the dashboard cards and all quote requests.",
   build_quotes: "Use the quote builder and generate PDF quotes.",

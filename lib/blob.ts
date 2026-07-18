@@ -85,6 +85,7 @@ export const PATHS = {
   users: "data/users.json",
   roles: "data/roles.json",
   rateTypes: "data/rate-types.json",
+  insurers: "data/insurers.json",
   panelBeaters: "data/panel-beaters.json",
   parts: "data/parts.json",
   counters: "data/counters.json",

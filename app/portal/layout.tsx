@@ -32,6 +32,8 @@ export default async function PortalLayout({
   if (can(user, "manage_roles")) adminItems.push({ href: "/portal/admin/roles", label: "Roles" });
   if (can(user, "manage_rate_types"))
     adminItems.push({ href: "/portal/admin/rate-types", label: "Rate types" });
+  if (can(user, "manage_insurers"))
+    adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
 
   return (
     <div className="min-h-dvh bg-offwhite">

@@ -5,6 +5,7 @@
 export type Permission =
   | "manage_roles"
   | "manage_rate_types" // Super Admin: define the rate types panel beaters can set
+  | "manage_insurers" // Super Admin: add insurance companies + set their rates
   | "manage_users"
   | "manage_panel_beaters"
   | "onboard_self" // a panel beater editing their own listing
@@ -42,6 +43,19 @@ export interface RateType {
   active: boolean;
   /** Seeded default — still editable/deletable, flagged for reference only. */
   system?: boolean;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Insurance companies — created by Super Admins, with a shared rate card that
+// ALL panel beaters can see/use. Consumers pick their insurer from a dropdown.
+// ---------------------------------------------------------------------------
+export interface InsuranceCompany {
+  id: string;
+  name: string;
+  active: boolean;
+  /** Rate card, keyed by RateType id (same rate types as panel beaters). */
+  rates?: Record<string, number>;
   createdAt: string;
 }
 
