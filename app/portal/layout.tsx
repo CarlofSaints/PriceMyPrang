@@ -17,6 +17,8 @@ export default async function PortalLayout({
   // Top bar — the panel-beater / operational menu.
   const items: NavItem[] = [];
   if (can(user, "view_dashboard")) items.push({ href: "/portal", label: "Dashboard" });
+  if (can(user, "build_quotes") || can(user, "onboard_self"))
+    items.push({ href: "/portal/new-quote", label: "New quote" });
   if (can(user, "build_quotes")) items.push({ href: "/portal/quote-builder", label: "Quote builder" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/panel-beaters", label: "Panel beaters" });

@@ -10,7 +10,9 @@ export default async function QuoteBuilderPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!can(user, "build_quotes")) redirect("/portal");
+  // Assessors/admins build any quote; panel-beater logins may build their own
+  // (the API scopes them to requests assigned to their listing).
+  if (!can(user, "build_quotes") && !can(user, "onboard_self")) redirect("/portal");
 
   const { ref } = await searchParams;
 

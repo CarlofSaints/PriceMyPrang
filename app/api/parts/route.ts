@@ -7,7 +7,7 @@ import { netPrice, type Part } from "@/lib/types";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!can(user, "build_quotes") && !can(user, "manage_parts"))
+  if (!can(user, "build_quotes") && !can(user, "manage_parts") && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json(await getParts());
 }

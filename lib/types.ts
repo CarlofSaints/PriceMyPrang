@@ -191,6 +191,9 @@ export interface QuoteRequest {
   /** Optional extra close-ups of the damage. */
   damagePhotos: MediaRef[];
 
+  /** True when a panel beater started this quote themselves (not a consumer). */
+  repairerInitiated?: boolean;
+
   // Location + chosen panel beaters
   location?: { lat: number; lng: number };
   /** True when the client asked us to pick the workshops for them. */

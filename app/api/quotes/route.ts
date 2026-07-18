@@ -19,7 +19,8 @@ interface Payload {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!can(user, "build_quotes"))
+  const canBuild = can(user, "build_quotes");
+  if (!canBuild && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const p = (await request.json()) as Payload;
@@ -27,6 +28,16 @@ export async function POST(request: Request) {
   if (!req) return NextResponse.json({ error: "Request not found" }, { status: 404 });
   const pb = await getPanelBeater(p.panelBeaterId);
   if (!pb) return NextResponse.json({ error: "Panel beater not found" }, { status: 404 });
+
+  // A panel-beater login may only build a quote for their OWN listing on a
+  // request assigned to them.
+  if (!canBuild) {
+    const ownsBoth =
+      !!user.panelBeaterId &&
+      p.panelBeaterId === user.panelBeaterId &&
+      req.selectedPanelBeaterIds.includes(user.panelBeaterId);
+    if (!ownsBoth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const parts = (p.parts || []).filter((x) => x.name?.trim());
   const seniorHours = Number(p.seniorHours) || 0;

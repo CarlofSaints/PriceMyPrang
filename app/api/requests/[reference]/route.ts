@@ -10,12 +10,21 @@ export async function GET(
 ) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!can(user, "view_dashboard") && !can(user, "build_quotes"))
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { reference } = await params;
   const req = await getRequest(reference);
   if (!req) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Assessors/admins see any request. A panel-beater login may only see requests
+  // assigned to their own listing (so they can quote their own walk-ins).
+  const privileged = can(user, "view_dashboard") || can(user, "build_quotes");
+  if (!privileged) {
+    const ownsIt =
+      can(user, "onboard_self") &&
+      !!user.panelBeaterId &&
+      req.selectedPanelBeaterIds.includes(user.panelBeaterId);
+    if (!ownsIt) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   return NextResponse.json(req);
 }
 

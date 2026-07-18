@@ -78,7 +78,18 @@ async function uploadFile(file: File | Blob, prefix: string): Promise<MediaRef> 
   };
 }
 
-export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
+export default function QuoteFlow({
+  onClose,
+  mode = "consumer",
+  onCreated,
+}: {
+  onClose?: () => void;
+  /** "repairer" = a panel beater self-quoting: client details only, no map step. */
+  mode?: "consumer" | "repairer";
+  /** Called with the new reference after a repairer-initiated quote is created. */
+  onCreated?: (reference: string) => void;
+}) {
+  const repairer = mode === "repairer";
   const [step, setStep] = useState<Step>("form");
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -159,9 +170,21 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
   }
 
   function validateForm(): string | null {
-    if (!form.firstName.trim() || !form.lastName.trim()) return "Please enter your name and surname.";
+    const who = repairer ? "the client's" : "your";
+    if (!form.firstName.trim() || !form.lastName.trim()) return `Please enter ${who} name and surname.`;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return "Please enter a valid email address.";
     if (form.phone.replace(/\D/g, "").length < 9) return "Please enter a valid contact number.";
+
+    // Conditional fields apply in both modes — only if the answer was "yes".
+    if (form.hasInsurance === "yes" && !form.insurerName.trim())
+      return `Please enter the name of ${repairer ? "the client's" : "your"} insurance company.`;
+    if (form.isInsuranceClaim === "yes" && !form.claimNumber.trim() && !form.noClaimNumberYet)
+      return "Please enter the claim number, or tick that there isn't one yet.";
+
+    // Repairer self-quotes: only client details are mandatory. Everything else
+    // (answers, licence disc, photos) is optional.
+    if (repairer) return null;
+
     for (const [k, label] of [
       ["hasInsurance", "if you have insurance"],
       ["underWarranty", "if your vehicle is under warranty"],
@@ -171,14 +194,44 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
     ] as const) {
       if (!form[k]) return `Please answer: ${label}.`;
     }
-    if (form.hasInsurance === "yes" && !form.insurerName.trim())
-      return "Please enter the name of your insurance company.";
-    if (form.isInsuranceClaim === "yes" && !form.claimNumber.trim() && !form.noClaimNumberYet)
-      return "Please enter your claim number, or tick that you don't have one yet.";
     if (!disc) return "Please add a photo of your licence disc.";
     const missingSide = REQUIRED_SIDES.find((s) => !requiredPhotos[s.key]);
     if (missingSide) return `Please add the ${missingSide.label.toLowerCase()} photo of the vehicle.`;
     return null;
+  }
+
+  async function submitRepairer() {
+    const v = validateForm();
+    if (v) {
+      setError(v);
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          vehicle,
+          discImage: disc,
+          video,
+          requiredPhotos,
+          damagePhotos: photos,
+          repairerQuote: true,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Could not create the quote.");
+      const data = (await res.json()) as { reference: string };
+      setReference(data.reference);
+      if (onCreated) onCreated(data.reference);
+      else setStep("done");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function goToMap() {
@@ -256,13 +309,17 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
       {step === "form" && (
         <div className="space-y-5">
           <Header
-            title="Price my Prang"
-            subtitle="Tell us what happened and we'll line up your quotes."
+            title={repairer ? "New quote" : "Price my Prang"}
+            subtitle={
+              repairer
+                ? "Capture a vehicle to quote. Client details are required — everything else is optional."
+                : "Tell us what happened and we'll line up your quotes."
+            }
             onClose={onClose}
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="First name" required>
+            <Field label={repairer ? "Client first name" : "First name"} required>
               <input
                 className={inputClass}
                 value={form.firstName}
@@ -270,7 +327,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
                 autoComplete="given-name"
               />
             </Field>
-            <Field label="Surname" required>
+            <Field label={repairer ? "Client surname" : "Surname"} required>
               <input
                 className={inputClass}
                 value={form.lastName}
@@ -323,6 +380,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
               hint="Only choose “Yes” if the policy is your own."
               value={form.hasInsurance}
               onChange={(v) => set("hasInsurance", v as YesNo)}
+              required={!repairer}
             />
             {form.hasInsurance === "yes" && (
               <div className="mt-3">
@@ -347,6 +405,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
             value={form.underWarranty}
             onChange={(v) => set("underWarranty", v as YesNoUnsure)}
             options={["yes", "no", "unsure"]}
+            required={!repairer}
           />
 
           <div>
@@ -354,6 +413,7 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
               label="Is this for your insurance claim?"
               value={form.isInsuranceClaim}
               onChange={(v) => set("isInsuranceClaim", v as YesNo)}
+              required={!repairer}
             />
             {form.isInsuranceClaim === "yes" && (
               <div className="mt-3">
@@ -387,12 +447,13 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
             hint="A “3rd party” is another person or their insurer — e.g. someone else drove into you and their insurance should pay. If the accident was your fault or you're claiming from your own insurer, choose “No”."
             value={form.isThirdPartyClaim}
             onChange={(v) => set("isThirdPartyClaim", v as YesNo)}
+            required={!repairer}
           />
 
           <Field
             label="Photo of your licence disc"
             hint="We read this to identify your vehicle (make, model, VIN)."
-            required
+            required={!repairer}
           >
             <input
               className={inputClass}
@@ -434,12 +495,18 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
             label="Do you suspect any engine damage?"
             value={form.suspectedEngineDamage}
             onChange={(v) => set("suspectedEngineDamage", v as YesNo)}
+            required={!repairer}
           />
 
           {/* Four mandatory full-vehicle photos */}
           <div className="rounded-2xl border border-teal/20 bg-white p-4">
             <p className="text-sm font-semibold text-ink">
-              4 full photos of your car <span className="text-coral">*</span>
+              4 full photos of {repairer ? "the" : "your"} car{" "}
+              {repairer ? (
+                <span className="text-ink/50">(optional)</span>
+              ) : (
+                <span className="text-coral">*</span>
+              )}
             </p>
             <p className="mt-1 text-xs text-ink/60">
               Most insurers require one clear photo of each side of the vehicle. Stand back so the
@@ -522,16 +589,24 @@ export default function QuoteFlow({ onClose }: { onClose?: () => void }) {
             </p>
           </Field>
 
-          <QuotesCountField
-            value={form.quotesRequested}
-            onChange={(n) => set("quotesRequested", n)}
-          />
+          {!repairer && (
+            <QuotesCountField
+              value={form.quotesRequested}
+              onChange={(n) => set("quotesRequested", n)}
+            />
+          )}
 
           {error && <ErrorBox message={error} />}
 
-          <Button size="lg" className="w-full" onClick={goToMap} disabled={busy}>
-            {busy ? "Please wait…" : "Next — choose your workshop"}
-          </Button>
+          {repairer ? (
+            <Button size="lg" className="w-full" onClick={submitRepairer} disabled={busy}>
+              {busy ? "Creating…" : "Create quote & price it"}
+            </Button>
+          ) : (
+            <Button size="lg" className="w-full" onClick={goToMap} disabled={busy}>
+              {busy ? "Please wait…" : "Next — choose your workshop"}
+            </Button>
+          )}
         </div>
       )}
 
@@ -790,15 +865,17 @@ function YesNoField({
   value,
   onChange,
   options = ["yes", "no"],
+  required = true,
 }: {
   label: string;
   hint?: string;
   value: string;
   onChange: (v: string) => void;
   options?: string[];
+  required?: boolean;
 }) {
   return (
-    <Field label={label} hint={hint} required>
+    <Field label={label} hint={hint} required={required}>
       <div className="flex gap-2">
         {options.map((opt) => (
           <button
