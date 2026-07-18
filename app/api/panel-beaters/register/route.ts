@@ -11,12 +11,14 @@ export async function POST(request: Request) {
   const b = (await request.json()) as Partial<PanelBeater>;
 
   for (const req of [
+    "completedByName",
+    "completedByEmail",
+    "ownerName",
+    "ownerEmail",
     "companyName",
     "companyRegNumber",
     "physicalAddress",
-    "mibcoNumber",
     "rmiNumber",
-    "sambraNumber",
   ] as const) {
     if (!b[req] || !String(b[req]).trim()) {
       return NextResponse.json({ error: `Missing required field: ${req}` }, { status: 400 });
@@ -39,9 +41,9 @@ export async function POST(request: Request) {
     physicalAddress: String(b.physicalAddress).trim(),
     lat: geo?.lat,
     lng: geo?.lng,
-    mibcoNumber: String(b.mibcoNumber).trim(),
+    mibcoNumber: b.mibcoNumber?.trim() || undefined,
     rmiNumber: String(b.rmiNumber).trim(),
-    sambraNumber: String(b.sambraNumber).trim(),
+    sambraNumber: b.sambraNumber?.trim() || undefined,
     miwaNumber: b.miwaNumber?.trim() || undefined,
     labourRateSenior: b.labourRateSenior != null ? Number(b.labourRateSenior) : undefined,
     labourRateJunior: b.labourRateJunior != null ? Number(b.labourRateJunior) : undefined,

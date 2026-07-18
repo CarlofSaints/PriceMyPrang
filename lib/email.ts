@@ -106,8 +106,12 @@ export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelB
       ${detailRow("Vehicle", [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" "))}
       ${detailRow("Quotes requested", String(req.quotesRequested))}
     </table>
-    <p style="font-size:14px;margin-top:16px;">Your selected workshop${chosen.length > 1 ? "s" : ""}:</p>
-    <ul style="font-size:14px;padding-left:18px;">${workshops}</ul>
+    ${
+      req.letUsChoose
+        ? `<p style="font-size:14px;margin-top:16px;">You asked us to choose your workshop${req.quotesRequested > 1 ? "s" : ""} — we'll line up ${req.quotesRequested} suitable repairer${req.quotesRequested > 1 ? "s" : ""} near you.</p>`
+        : `<p style="font-size:14px;margin-top:16px;">Your selected workshop${chosen.length > 1 ? "s" : ""}:</p>
+    <ul style="font-size:14px;padding-left:18px;">${workshops}</ul>`
+    }
   `;
 
   await resend.emails.send({
@@ -132,6 +136,20 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
         `<a href="${abs(p.url)}" style="color:${BRAND.teal};font-size:12px;margin-right:8px;">photo</a>`
     )
     .join("");
+  const sidePhotos = (["front", "back", "left", "right"] as const)
+    .map((side) => {
+      const ref = req.requiredPhotos?.[side];
+      return ref
+        ? `<a href="${abs(ref.url)}" style="color:${BRAND.teal};font-size:12px;margin-right:8px;">${side}</a>`
+        : `<span style="color:#b45309;font-size:12px;margin-right:8px;">${side}: missing</span>`;
+    })
+    .join("");
+  const claimNumberText =
+    req.isInsuranceClaim === "yes"
+      ? req.noClaimNumberYet
+        ? "not yet available"
+        : req.claimNumber || "—"
+      : "—";
 
   const body = `
     <p style="font-size:15px;">A new quote request has come in and needs assessment.</p>
@@ -139,19 +157,24 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
       <table style="width:100%;border-collapse:collapse;">
         ${detailRow("Reference", req.reference)}
         ${detailRow("Client", `${req.firstName} ${req.lastName}`)}
+        ${detailRow("Company", req.companyName || "")}
         ${detailRow("Email", req.email)}
+        ${detailRow("Contact number", req.phone || "")}
         ${detailRow("Vehicle", [req.vehicle.make, req.vehicle.model, req.vehicle.year, req.vehicle.colour].filter(Boolean).join(" "))}
         ${detailRow("VIN", req.vehicle.vin || "")}
         ${detailRow("Insurance", req.hasInsurance)}
+        ${detailRow("Insurer", req.insurerName || "")}
         ${detailRow("Insurance claim", req.isInsuranceClaim)}
+        ${detailRow("Claim number", claimNumberText)}
         ${detailRow("3rd party claim", req.isThirdPartyClaim)}
         ${detailRow("Under warranty", req.underWarranty)}
         ${detailRow("Suspected engine damage", req.suspectedEngineDamage)}
-        ${detailRow("Quotes requested", String(req.quotesRequested))}
-        ${detailRow("Workshops", chosen.map((p) => p.tradingAs || p.companyName).join(", "))}
+        ${detailRow("Quotes requested", `${req.quotesRequested}${req.letUsChoose ? " (we choose)" : ""}`)}
+        ${detailRow("Workshops", req.letUsChoose ? "Client asked us to choose" : chosen.map((p) => p.tradingAs || p.companyName).join(", "))}
       </table>
     </div>
-    <p style="font-size:13px;">Damage photos: ${photos || "—"}</p>
+    <p style="font-size:13px;">Full vehicle photos: ${sidePhotos}</p>
+    <p style="font-size:13px;">Damage close-ups: ${photos || "—"}</p>
     ${req.video ? `<p style="font-size:13px;">Video: <a href="${abs(req.video.url)}" style="color:${BRAND.teal};">watch</a></p>` : ""}
     ${req.discImage ? `<p style="font-size:13px;">Licence disc: <a href="${abs(req.discImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
     <p style="margin-top:20px;">
@@ -297,9 +320,9 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
         ${detailRow("Reg number", pb.companyRegNumber)}
         ${detailRow("VAT number", pb.vatNumber || "")}
         ${detailRow("Address", pb.physicalAddress)}
-        ${detailRow("MIBCO", pb.mibcoNumber)}
+        ${detailRow("MIBCO", pb.mibcoNumber || "")}
         ${detailRow("RMI", pb.rmiNumber)}
-        ${detailRow("SAMBRA", pb.sambraNumber)}
+        ${detailRow("SAMBRA", pb.sambraNumber || "")}
         ${detailRow("MIWA", pb.miwaNumber || "")}
         ${detailRow("Contact", [pb.email, pb.phone].filter(Boolean).join(" · "))}
       </table>

@@ -12,7 +12,8 @@ const APPROVALS = [
 const STEPS = [
   { n: "1", t: "Snap the damage", d: "Answer a few quick questions and upload photos of the prang." },
   { n: "2", t: "Pick your workshop", d: "Choose nearby panel beaters from the map — as many quotes as you like." },
-  { n: "3", t: "Get your quote", d: "Our assessors do the legwork and come back to you within 24 hours." },
+  { n: "3", t: "Pay & confirm", d: "A flat R350 per quote — quick, secure checkout to lock in your request." },
+  { n: "4", t: "Get your quote", d: "Our assessors do the legwork and come back to you within 24 hours." },
 ];
 
 export default function Home() {
@@ -49,7 +50,7 @@ export default function Home() {
 
       {/* How it works */}
       <section className="mx-auto max-w-5xl px-5 pb-20">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
             <div key={s.n} className="pmp-card p-6">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-teal font-display text-lg font-bold text-white">
@@ -59,6 +60,26 @@ export default function Home() {
               <p className="mt-1 text-sm text-ink/70">{s.d}</p>
             </div>
           ))}
+        </div>
+
+        {/* About us */}
+        <div className="mt-8 rounded-2xl border border-teal/15 bg-white p-6 sm:p-8">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-teal">
+            About us
+          </p>
+          <h2 className="font-display text-2xl font-bold text-ink sm:text-3xl">
+            Quotes you can trust, from people who know the trade.
+          </h2>
+          <p className="mt-3 max-w-2xl text-ink/70">
+            Price my Prang takes the phone calls and guesswork out of getting your car repaired.
+            We connect you with trusted panel beaters near you and handle the legwork, so you can
+            compare quotes and get back on the road faster.
+          </p>
+          <p className="mt-3 max-w-2xl text-ink/70">
+            Every estimate is backed by our own team of{" "}
+            <span className="font-semibold text-ink">VDQ-approved vehicle damage estimators</span>,
+            so the numbers you receive are accurate, fair and independently assessed.
+          </p>
         </div>
 
         {/* Accreditation */}

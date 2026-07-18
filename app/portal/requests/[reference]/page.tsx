@@ -84,12 +84,56 @@ export default async function RequestDetailPage({
             <h2 className="mb-3 font-display text-lg font-semibold text-ink">Claim details</h2>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <Detail label="Has insurance" value={req.hasInsurance} />
+              <Detail label="Insurer" value={req.insurerName} />
               <Detail label="Insurance claim" value={req.isInsuranceClaim} />
+              <Detail
+                label="Claim number"
+                value={
+                  req.isInsuranceClaim === "yes"
+                    ? req.noClaimNumberYet
+                      ? "Not yet available"
+                      : req.claimNumber
+                    : undefined
+                }
+              />
               <Detail label="3rd party claim" value={req.isThirdPartyClaim} />
               <Detail label="Under warranty" value={req.underWarranty} />
               <Detail label="Suspected engine damage" value={req.suspectedEngineDamage} />
-              <Detail label="Quotes requested" value={String(req.quotesRequested)} />
+              <Detail
+                label="Quotes requested"
+                value={`${req.quotesRequested}${req.letUsChoose ? " (we choose)" : ""}`}
+              />
             </dl>
+          </section>
+
+          <section className="pmp-card">
+            <h2 className="mb-3 font-display text-lg font-semibold text-ink">Full vehicle photos</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(["front", "back", "left", "right"] as const).map((side) => {
+                const photo = req.requiredPhotos?.[side];
+                return (
+                  <div key={side}>
+                    {photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <a href={photo.url} target="_blank" rel="noreferrer">
+                        <img
+                          src={photo.url}
+                          alt={side}
+                          className="h-28 w-full rounded-lg object-cover"
+                        />
+                      </a>
+                    ) : (
+                      <div className="flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-ink/20 text-xs text-ink/40">
+                        Missing
+                      </div>
+                    )}
+                    <p className="mt-1 text-center text-xs font-semibold capitalize text-ink/60">
+                      {side}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           <section className="pmp-card">
@@ -133,7 +177,9 @@ export default async function RequestDetailPage({
             <h2 className="mb-3 font-display text-lg font-semibold text-ink">Client</h2>
             <dl className="space-y-3">
               <Detail label="Name" value={`${req.firstName} ${req.lastName}`} />
+              <Detail label="Company" value={req.companyName} />
               <Detail label="Email" value={req.email} />
+              <Detail label="Contact number" value={req.phone} />
             </dl>
           </section>
 
@@ -141,12 +187,24 @@ export default async function RequestDetailPage({
             <h2 className="mb-3 font-display text-lg font-semibold text-ink">
               Selected workshops
             </h2>
+            {req.letUsChoose && (
+              <p className="mb-3 rounded-lg bg-amber/20 px-3 py-2 text-sm text-ink">
+                Client asked us to choose {req.quotesRequested} workshop
+                {req.quotesRequested > 1 ? "s" : ""} for them.
+              </p>
+            )}
             <ul className="space-y-2 text-sm">
-              {chosen.map((p) => (
-                <li key={p.id} className="rounded-lg bg-ink/5 px-3 py-2">
-                  {p.tradingAs || p.companyName}
+              {chosen.length === 0 ? (
+                <li className="text-ink/50">
+                  {req.letUsChoose ? "None assigned yet." : "None."}
                 </li>
-              ))}
+              ) : (
+                chosen.map((p) => (
+                  <li key={p.id} className="rounded-lg bg-ink/5 px-3 py-2">
+                    {p.tradingAs || p.companyName}
+                  </li>
+                ))
+              )}
             </ul>
           </section>
 

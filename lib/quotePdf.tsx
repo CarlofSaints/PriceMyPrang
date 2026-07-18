@@ -122,7 +122,7 @@ export async function buildQuotePdf(
             <Text>{pb.physicalAddress}</Text>
             <Text>Reg: {pb.companyRegNumber}</Text>
             {pb.vatNumber ? <Text>VAT: {pb.vatNumber}</Text> : null}
-            <Text>RMI {pb.rmiNumber} · SAMBRA {pb.sambraNumber}</Text>
+            <Text>RMI {pb.rmiNumber}{pb.sambraNumber ? ` · SAMBRA ${pb.sambraNumber}` : ""}</Text>
             {pb.email ? <Text>{pb.email}</Text> : null}
             {pb.phone ? <Text>{pb.phone}</Text> : null}
           </View>

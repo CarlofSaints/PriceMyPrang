@@ -1,8 +1,10 @@
 import { readJson, writeJson, PATHS } from "./blob";
 import { DEFAULT_ROLES } from "./permissions";
+import { DEFAULT_RATE_TYPES } from "./rateTypes";
 import type {
   User,
   Role,
+  RateType,
   PanelBeater,
   Part,
   QuoteRequest,
@@ -43,6 +45,17 @@ export async function saveRoles(roles: Role[]): Promise<void> {
 }
 export async function getRole(id: string): Promise<Role | null> {
   return (await getRoles()).find((r) => r.id === id) ?? null;
+}
+
+// ---- Rate types ----
+export async function getRateTypes(): Promise<RateType[]> {
+  const existing = await readJson<RateType[]>(PATHS.rateTypes);
+  if (existing && existing.length) return existing;
+  await writeJson(PATHS.rateTypes, DEFAULT_RATE_TYPES); // seed on first use
+  return DEFAULT_RATE_TYPES;
+}
+export async function saveRateTypes(rateTypes: RateType[]): Promise<void> {
+  await writeJson(PATHS.rateTypes, rateTypes);
 }
 
 // ---- Panel beaters ----

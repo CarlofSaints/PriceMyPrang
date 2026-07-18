@@ -56,9 +56,9 @@ export default async function PanelBeatersPage() {
                 <p className="text-sm text-ink/70">{p.physicalAddress}</p>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/50">
                   <span>Reg {p.companyRegNumber}</span>
-                  <span>MIBCO {p.mibcoNumber}</span>
+                  {p.mibcoNumber && <span>MIBCO {p.mibcoNumber}</span>}
                   <span>RMI {p.rmiNumber}</span>
-                  <span>SAMBRA {p.sambraNumber}</span>
+                  {p.sambraNumber && <span>SAMBRA {p.sambraNumber}</span>}
                   {p.miwaNumber && <span>MIWA {p.miwaNumber}</span>}
                 </div>
                 {(p.email || p.phone) && (
@@ -98,7 +98,7 @@ export default async function PanelBeatersPage() {
               <p className="text-sm text-ink/70">{p.physicalAddress}</p>
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/50">
                 <span>RMI {p.rmiNumber}</span>
-                <span>SAMBRA {p.sambraNumber}</span>
+                {p.sambraNumber && <span>SAMBRA {p.sambraNumber}</span>}
                 {p.lat == null && <span className="text-coral">⚠ not geocoded</span>}
               </div>
               <div className="flex items-center justify-between pt-2 text-sm">

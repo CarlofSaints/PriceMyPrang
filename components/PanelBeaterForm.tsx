@@ -163,17 +163,17 @@ export default function PanelBeaterForm({
       <div className="rounded-2xl border border-teal/15 bg-white p-4">
         <h3 className="mb-3 font-display text-base font-semibold text-ink">Contact people</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name of person completing this form">
-            <input className={inputClass} value={form.completedByName ?? ""} onChange={(e) => set("completedByName", e.target.value)} />
+          <Field label="Name of person completing this form" required={mode === "public"}>
+            <input className={inputClass} value={form.completedByName ?? ""} onChange={(e) => set("completedByName", e.target.value)} required={mode === "public"} />
           </Field>
-          <Field label="Email of person completing this form">
-            <input className={inputClass} type="email" value={form.completedByEmail ?? ""} onChange={(e) => set("completedByEmail", e.target.value)} />
+          <Field label="Email of person completing this form" required={mode === "public"}>
+            <input className={inputClass} type="email" value={form.completedByEmail ?? ""} onChange={(e) => set("completedByEmail", e.target.value)} required={mode === "public"} />
           </Field>
-          <Field label="Name of business owner">
-            <input className={inputClass} value={form.ownerName ?? ""} onChange={(e) => set("ownerName", e.target.value)} />
+          <Field label="Name of business owner" required={mode === "public"}>
+            <input className={inputClass} value={form.ownerName ?? ""} onChange={(e) => set("ownerName", e.target.value)} required={mode === "public"} />
           </Field>
-          <Field label="Email of business owner">
-            <input className={inputClass} type="email" value={form.ownerEmail ?? ""} onChange={(e) => set("ownerEmail", e.target.value)} />
+          <Field label="Email of business owner" required={mode === "public"}>
+            <input className={inputClass} type="email" value={form.ownerEmail ?? ""} onChange={(e) => set("ownerEmail", e.target.value)} required={mode === "public"} />
           </Field>
         </div>
       </div>
@@ -224,14 +224,14 @@ export default function PanelBeaterForm({
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="MIBCO number" required>
-          <input className={inputClass} value={form.mibcoNumber ?? ""} onChange={(e) => set("mibcoNumber", e.target.value)} required />
+        <Field label="MIBCO number">
+          <input className={inputClass} value={form.mibcoNumber ?? ""} onChange={(e) => set("mibcoNumber", e.target.value)} />
         </Field>
         <Field label="RMI number" required>
           <input className={inputClass} value={form.rmiNumber ?? ""} onChange={(e) => set("rmiNumber", e.target.value)} required />
         </Field>
-        <Field label="SAMBRA number" required>
-          <input className={inputClass} value={form.sambraNumber ?? ""} onChange={(e) => set("sambraNumber", e.target.value)} required />
+        <Field label="SAMBRA number">
+          <input className={inputClass} value={form.sambraNumber ?? ""} onChange={(e) => set("sambraNumber", e.target.value)} />
         </Field>
         <Field label="MIWA number">
           <input className={inputClass} value={form.miwaNumber ?? ""} onChange={(e) => set("miwaNumber", e.target.value)} />

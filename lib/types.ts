@@ -4,6 +4,7 @@
 
 export type Permission =
   | "manage_roles"
+  | "manage_rate_types" // Super Admin: define the rate types panel beaters can set
   | "manage_users"
   | "manage_panel_beaters"
   | "onboard_self" // a panel beater editing their own listing
@@ -22,6 +23,27 @@ export interface Role {
 
 /** A role id (kept as a string alias so existing call sites still compile). */
 export type RoleName = string;
+
+// ---------------------------------------------------------------------------
+// Rate types — DATA, created by Super Admins. Each becomes a row on the panel
+// beater Rates page. Panel beaters set a value per active rate type.
+// ---------------------------------------------------------------------------
+export type RateUnit = "rand_per_hour" | "rand" | "percent";
+
+export interface RateType {
+  id: string;
+  label: string;
+  unit: RateUnit;
+  /** Optional heading the rate is shown under on the Rates page. */
+  group?: string;
+  /** Sort order within the list (lower first). */
+  order: number;
+  /** Inactive rate types are hidden from the Rates page but keep saved values. */
+  active: boolean;
+  /** Seeded default — still editable/deletable, flagged for reference only. */
+  system?: boolean;
+  createdAt: string;
+}
 
 export interface User {
   id: string;
@@ -67,12 +89,14 @@ export interface PanelBeater {
   physicalAddress: string; // mandatory — geocoded for the map
   lat?: number;
   lng?: number;
-  mibcoNumber: string; // mandatory
+  mibcoNumber?: string;
   rmiNumber: string; // mandatory
-  sambraNumber: string; // mandatory
+  sambraNumber?: string;
   miwaNumber?: string;
   labourRateSenior?: number;
   labourRateJunior?: number;
+  /** Values keyed by RateType id — the panel beater's own rate card. */
+  rates?: Record<string, number>;
   logoUrl?: string;
   email?: string;
   phone?: string;
@@ -115,6 +139,10 @@ export interface MediaRef {
   contentType?: string;
 }
 
+/** The four full-vehicle photos most insurers require, one per side. */
+export type PhotoSide = "front" | "back" | "left" | "right";
+export type RequiredPhotos = Partial<Record<PhotoSide, MediaRef>>;
+
 export interface VehicleDetails {
   vin?: string;
   make?: string; // from disc / VIN
@@ -138,21 +166,35 @@ export interface QuoteRequest {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string;
+  /** Optional — for self- or partially-insured businesses quoting under a company. */
+  companyName?: string;
   hasInsurance: YesNo;
+  /** Free-text insurer name, captured when hasInsurance = "yes" (affects rates). */
+  insurerName?: string;
   underWarranty: YesNoUnsure;
   isInsuranceClaim: YesNo;
+  /** Claim number, captured when isInsuranceClaim = "yes". */
+  claimNumber?: string;
+  /** True when it's an insurance claim but the client has no claim number yet. */
+  noClaimNumberYet?: boolean;
   isThirdPartyClaim: YesNo;
   suspectedEngineDamage: YesNo;
-  quotesRequested: number; // 1-4
+  quotesRequested: number; // 1+
 
   vehicle: VehicleDetails;
 
   discImage?: MediaRef;
   video?: MediaRef;
+  /** The four mandatory full-vehicle photos (front/back/left/right). */
+  requiredPhotos: RequiredPhotos;
+  /** Optional extra close-ups of the damage. */
   damagePhotos: MediaRef[];
 
   // Location + chosen panel beaters
   location?: { lat: number; lng: number };
+  /** True when the client asked us to pick the workshops for them. */
+  letUsChoose?: boolean;
   selectedPanelBeaterIds: string[];
 
   // Quotes built by assessors (one per selected panel beater)
