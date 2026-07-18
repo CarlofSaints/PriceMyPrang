@@ -11,10 +11,16 @@ export const maxDuration = 60;
 interface Payload {
   reference: string;
   panelBeaterId: string;
-  parts: QuoteLineItem[];
-  seniorHours: number;
-  juniorHours: number;
+  lines: QuoteLineItem[];
+  sundries?: number;
+  consumables?: number;
+  notes?: string;
 }
+
+const num = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -39,15 +45,46 @@ export async function POST(request: Request) {
     if (!ownsBoth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const parts = (p.parts || []).filter((x) => x.name?.trim());
-  const seniorHours = Number(p.seniorHours) || 0;
-  const juniorHours = Number(p.juniorHours) || 0;
-  const rateSenior = pb.labourRateSenior || 0;
-  const rateJunior = pb.labourRateJunior || 0;
+  // Keep lines that carry a description or any value.
+  const lines: QuoteLineItem[] = (p.lines || [])
+    .map((x) => ({
+      code: x.code?.trim() || undefined,
+      description: (x.description || "").trim(),
+      quantity: Math.max(1, num(x.quantity) || 1),
+      partsAmount: num(x.partsAmount),
+      partId: x.partId,
+      supplier: x.supplier,
+      partNumber: x.partNumber,
+      panelCode: x.panelCode?.trim() || undefined,
+      panelAmount: num(x.panelAmount),
+      panelHours: num(x.panelHours),
+      paintCode: x.paintCode?.trim() || undefined,
+      paintAmount: num(x.paintAmount),
+      paintHours: num(x.paintHours),
+      stripCode: x.stripCode?.trim() || undefined,
+      stripAmount: num(x.stripAmount),
+      stripHours: num(x.stripHours),
+    }))
+    .filter(
+      (x) =>
+        x.description ||
+        x.partsAmount ||
+        x.panelAmount ||
+        x.paintAmount ||
+        x.stripAmount
+    );
 
-  const partsTotal = parts.reduce((s, x) => s + (Number(x.unitPrice) || 0) * (Number(x.quantity) || 0), 0);
-  const labourTotal = seniorHours * rateSenior + juniorHours * rateJunior;
-  const subtotal = partsTotal + labourTotal;
+  const sundries = num(p.sundries);
+  const consumables = num(p.consumables);
+
+  const partsTotal = lines.reduce((s, x) => s + x.partsAmount, 0);
+  const panelTotal = lines.reduce((s, x) => s + x.panelAmount, 0);
+  const paintTotal = lines.reduce((s, x) => s + x.paintAmount, 0);
+  const stripTotal = lines.reduce((s, x) => s + x.stripAmount, 0);
+  const labourTotal = panelTotal + paintTotal + stripTotal;
+  const totalHours = lines.reduce((s, x) => s + x.panelHours + x.paintHours + x.stripHours, 0);
+
+  const subtotal = partsTotal + labourTotal + sundries + consumables;
   const vat = subtotal * 0.15;
   const total = subtotal + vat;
 
@@ -55,23 +92,20 @@ export async function POST(request: Request) {
     id: crypto.randomUUID(),
     reference: req.reference,
     panelBeaterId: pb.id,
-    parts: parts.map((x) => ({
-      partId: x.partId,
-      supplier: x.supplier,
-      name: x.name,
-      partNumber: x.partNumber,
-      quantity: Number(x.quantity) || 1,
-      unitPrice: Number(x.unitPrice) || 0,
-    })),
-    seniorHours,
-    juniorHours,
-    labourRateSenior: rateSenior,
-    labourRateJunior: rateJunior,
+    lines,
+    sundries,
+    consumables,
     partsTotal,
+    panelTotal,
+    paintTotal,
+    stripTotal,
     labourTotal,
+    totalHours,
     subtotal,
     vat,
     total,
+    notes: p.notes?.trim() || undefined,
+    estimatorName: user.name,
     createdAt: new Date().toISOString(),
     createdByName: user.name,
   };

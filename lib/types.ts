@@ -218,29 +218,68 @@ export interface QuoteRequest {
   quotes: BuiltQuote[];
 }
 
+/** Suggested CODE values for a quote line (free text — not enforced). */
+export const QUOTE_LINE_CODES = [
+  "New",
+  "Alt",
+  "Used",
+  "Repair",
+  "Out Work",
+  "Paint",
+  "Note",
+] as const;
+
 export interface QuoteLineItem {
+  /** Category code: New / Alt / Used / Repair / Out Work / Paint / Note (free text). */
+  code?: string;
+  description: string;
+  quantity: number;
+  /** Parts cost (Rand) for this line. */
+  partsAmount: number;
+
+  // Optional parts-catalogue link (from the parts picker).
   partId?: string;
   supplier?: string;
-  name: string;
   partNumber?: string;
-  quantity: number;
-  unitPrice: number;
+
+  // Panel beating work on this line.
+  panelCode?: string;
+  panelAmount: number;
+  panelHours: number;
+
+  // Paint work on this line.
+  paintCode?: string;
+  paintAmount: number;
+  paintHours: number;
+
+  // Strip & assemble work on this line.
+  stripCode?: string;
+  stripAmount: number;
+  stripHours: number;
 }
 
 export interface BuiltQuote {
   id: string;
   reference: string;
   panelBeaterId: string;
-  parts: QuoteLineItem[];
-  seniorHours: number;
-  juniorHours: number;
-  labourRateSenior: number;
-  labourRateJunior: number;
+  lines: QuoteLineItem[];
+
+  sundries: number;
+  consumables: number;
+
   partsTotal: number;
-  labourTotal: number;
-  subtotal: number;
+  panelTotal: number;
+  paintTotal: number;
+  stripTotal: number;
+  labourTotal: number; // panel + paint + strip
+  totalHours: number;
+
+  subtotal: number; // parts + labour + sundries + consumables (ex VAT)
   vat: number;
-  total: number;
+  total: number; // incl VAT
+
+  notes?: string;
+  estimatorName?: string;
   pdfUrl?: string;
   createdAt: string;
   createdByName?: string;

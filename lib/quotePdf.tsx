@@ -13,66 +13,87 @@ import type { BuiltQuote, PanelBeater, QuoteRequest } from "./types";
 import { readMediaBytes } from "./blob";
 
 const TEAL = "#00848D";
-const CORAL = "#F05940";
 const INK = "#052F35";
+const MUTE = "#6b7f82";
+const LINE = "#e3edee";
+
+// Column widths (percent of the table). Grouped: Parts | Panel | Paint | Strip.
+const W = {
+  code: "6%",
+  desc: "23%",
+  qty: "4%",
+  parts: "10%",
+  cCode: "5%",
+  cAmt: "9%",
+  cHrs: "5%",
+} as const;
+// Grouped-header spans (must equal the sum of their sub-columns).
+const PARTS_SPAN = "43%"; // code + desc + qty + parts
+const CAT_SPAN = "19%"; // cCode + cAmt + cHrs
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 10, color: INK, fontFamily: "Helvetica" },
+  page: { padding: 28, fontSize: 8, color: INK, fontFamily: "Helvetica" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  brandLogo: { height: 34 },
-  quoteTitle: { fontSize: 22, fontFamily: "Helvetica-Bold", color: INK },
-  quoteMeta: { fontSize: 9, color: "#6b7f82", textAlign: "right" },
-  bar: { height: 3, backgroundColor: TEAL, marginVertical: 14 },
-  cols: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
-  colBox: { width: "48%" },
-  label: { fontSize: 8, color: "#6b7f82", textTransform: "uppercase", marginBottom: 3 },
+  brandLogo: { height: 30 },
+  title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: INK },
+  bar: { height: 3, backgroundColor: TEAL, marginVertical: 10 },
+
+  boxes: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  box: { flex: 1, border: `1px solid ${LINE}`, borderRadius: 6, padding: 8 },
+  label: { fontSize: 7, color: MUTE, textTransform: "uppercase", marginBottom: 2 },
   strong: { fontFamily: "Helvetica-Bold" },
-  pbLogo: { height: 26, marginBottom: 6 },
-  tableHead: {
-    flexDirection: "row",
-    backgroundColor: "#eef6f6",
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    marginTop: 6,
+  quoteNo: { fontSize: 13, fontFamily: "Helvetica-Bold", color: TEAL },
+  pbLogo: { height: 22, marginBottom: 4 },
+  line: { marginBottom: 1 },
+
+  groupHead: { flexDirection: "row", marginTop: 4 },
+  groupCell: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8,
+    color: "#fff",
+    backgroundColor: TEAL,
+    textAlign: "center",
+    paddingVertical: 3,
+    borderRight: "1px solid #fff",
   },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 5,
-    paddingHorizontal: 6,
-    borderBottom: "1px solid #eee",
-  },
-  th: { fontFamily: "Helvetica-Bold", fontSize: 8, color: INK },
-  cDesc: { width: "44%" },
-  cNum: { width: "18%" },
-  cQty: { width: "12%", textAlign: "right" },
-  cPrice: { width: "13%", textAlign: "right" },
-  cLine: { width: "13%", textAlign: "right" },
-  totals: { marginTop: 12, alignSelf: "flex-end", width: "45%" },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+  subHead: { flexDirection: "row", backgroundColor: "#eef6f6", paddingVertical: 3 },
+  th: { fontFamily: "Helvetica-Bold", fontSize: 7, color: INK, paddingHorizontal: 3 },
+  row: { flexDirection: "row", paddingVertical: 3, borderBottom: `1px solid ${LINE}` },
+  cell: { fontSize: 7.5, paddingHorizontal: 3 },
+  right: { textAlign: "right" },
+  center: { textAlign: "center" },
+  note: { fontStyle: "italic", color: MUTE },
+
+  totals: { marginTop: 10, alignSelf: "flex-end", width: "38%" },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   grand: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 6,
-    marginTop: 4,
+    paddingVertical: 5,
+    marginTop: 3,
     borderTop: `2px solid ${TEAL}`,
   },
-  grandText: { fontFamily: "Helvetica-Bold", fontSize: 13, color: TEAL },
+  grandText: { fontFamily: "Helvetica-Bold", fontSize: 12, color: TEAL },
+
   footer: {
     position: "absolute",
-    bottom: 24,
-    left: 36,
-    right: 36,
+    bottom: 18,
+    left: 28,
+    right: 28,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  footNote: { fontSize: 8, color: "#9aa8aa", width: "70%" },
-  footLogo: { height: 30 },
+  footNote: { fontSize: 7, color: "#9aa8aa", width: "72%" },
+  footLogo: { height: 24 },
 });
 
 function zar(n: number) {
   return "R " + (n || 0).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+// Money in a cell — dash when zero, to match an estimate sheet.
+const money = (n: number) => (n ? zar(n) : "–");
+const hrs = (n: number) => (n ? String(n) : "");
 
 async function localImageDataUri(rel: string): Promise<string | null> {
   try {
@@ -99,81 +120,123 @@ export async function buildQuotePdf(
   const brandIcon = await localImageDataUri("brand/png/icon-fullcolour.png");
   const pbLogo = await remoteImageDataUri(pb.logoUrl);
 
+  const vehicle = [req.vehicle.make, req.vehicle.model, req.vehicle.series, req.vehicle.year]
+    .filter(Boolean)
+    .join(" ");
+
   const doc = (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={styles.page}>
+        {/* Brand header */}
         <View style={styles.headerRow}>
-          {brandLogo ? <Image src={brandLogo} style={styles.brandLogo} /> : <Text style={styles.quoteTitle}>Price my Prang</Text>}
+          {brandLogo ? (
+            <Image src={brandLogo} style={styles.brandLogo} />
+          ) : (
+            <Text style={styles.title}>Price my Prang</Text>
+          )}
           <View>
-            <Text style={styles.quoteTitle}>QUOTATION</Text>
-            <Text style={styles.quoteMeta}>Ref: {req.reference}</Text>
-            <Text style={styles.quoteMeta}>Date: {new Date(quote.createdAt).toLocaleDateString("en-ZA")}</Text>
+            <Text style={styles.title}>QUOTATION</Text>
+            <Text style={{ fontSize: 8, color: MUTE, textAlign: "right" }}>
+              {new Date(quote.createdAt).toLocaleDateString("en-ZA")}
+            </Text>
           </View>
         </View>
-
         <View style={styles.bar} />
 
-        <View style={styles.cols}>
-          <View style={styles.colBox}>
-            <Text style={styles.label}>Prepared by</Text>
-            {pbLogo && <Image src={pbLogo} style={styles.pbLogo} />}
+        {/* Three info boxes: client | quote+PMP+estimator | repairer */}
+        <View style={styles.boxes}>
+          <View style={styles.box}>
+            <Text style={styles.label}>Client</Text>
+            <Text style={styles.strong}>
+              {req.firstName} {req.lastName}
+            </Text>
+            {req.companyName ? <Text style={styles.line}>{req.companyName}</Text> : null}
+            {req.phone ? <Text style={styles.line}>{req.phone}</Text> : null}
+            {req.email ? <Text style={styles.line}>{req.email}</Text> : null}
+            {vehicle ? <Text style={[styles.line, { marginTop: 3 }]}>{vehicle}</Text> : null}
+            {req.vehicle.registration ? (
+              <Text style={styles.line}>Reg: {req.vehicle.registration}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.box}>
+            <Text style={styles.label}>Quote number</Text>
+            <Text style={styles.quoteNo}>{req.reference}</Text>
+            <Text style={[styles.line, { marginTop: 4 }]}>
+              A Price my Prang quotation · Crash · Quote · Claim
+            </Text>
+            <Text style={[styles.label, { marginTop: 6 }]}>Estimator</Text>
+            <Text style={styles.strong}>{quote.estimatorName || quote.createdByName || "—"}</Text>
+          </View>
+
+          <View style={styles.box}>
+            <Text style={styles.label}>Repairer</Text>
+            {pbLogo ? <Image src={pbLogo} style={styles.pbLogo} /> : null}
             <Text style={styles.strong}>{pb.tradingAs || pb.companyName}</Text>
-            {pb.tradingAs ? <Text>{pb.companyName}</Text> : null}
-            <Text>{pb.physicalAddress}</Text>
-            <Text>Reg: {pb.companyRegNumber}</Text>
-            {pb.vatNumber ? <Text>VAT: {pb.vatNumber}</Text> : null}
-            <Text>RMI {pb.rmiNumber}{pb.sambraNumber ? ` · SAMBRA ${pb.sambraNumber}` : ""}</Text>
-            {pb.email ? <Text>{pb.email}</Text> : null}
-            {pb.phone ? <Text>{pb.phone}</Text> : null}
-          </View>
-          <View style={styles.colBox}>
-            <Text style={styles.label}>Prepared for</Text>
-            <Text style={styles.strong}>{req.firstName} {req.lastName}</Text>
-            <Text>{req.email}</Text>
-            <Text style={{ marginTop: 6 }}>
-              {[req.vehicle.make, req.vehicle.model, req.vehicle.series].filter(Boolean).join(" ")}
+            {pb.tradingAs ? <Text style={styles.line}>{pb.companyName}</Text> : null}
+            {pb.physicalAddress ? <Text style={styles.line}>{pb.physicalAddress}</Text> : null}
+            <Text style={styles.line}>Reg: {pb.companyRegNumber}</Text>
+            {pb.vatNumber ? <Text style={styles.line}>VAT: {pb.vatNumber}</Text> : null}
+            <Text style={styles.line}>
+              RMI {pb.rmiNumber}
+              {pb.sambraNumber ? ` · SAMBRA ${pb.sambraNumber}` : ""}
             </Text>
-            <Text>
-              {[req.vehicle.year, req.vehicle.colour].filter(Boolean).join(" · ")}
-            </Text>
-            {req.vehicle.registration ? <Text>Reg: {req.vehicle.registration}</Text> : null}
-            {req.vehicle.vin ? <Text>VIN: {req.vehicle.vin}</Text> : null}
+            {pb.phone ? <Text style={styles.line}>{pb.phone}</Text> : null}
+            {pb.email ? <Text style={styles.line}>{pb.email}</Text> : null}
           </View>
         </View>
 
-        {/* Parts */}
-        <View style={styles.tableHead}>
-          <Text style={[styles.th, styles.cDesc]}>Description</Text>
-          <Text style={[styles.th, styles.cNum]}>Part no.</Text>
-          <Text style={[styles.th, styles.cQty]}>Qty</Text>
-          <Text style={[styles.th, styles.cPrice]}>Unit</Text>
-          <Text style={[styles.th, styles.cLine]}>Line</Text>
+        {/* Grouped table header */}
+        <View style={styles.groupHead}>
+          <Text style={[styles.groupCell, { width: PARTS_SPAN, backgroundColor: INK }]}>Parts</Text>
+          <Text style={[styles.groupCell, { width: CAT_SPAN }]}>Panel Beating</Text>
+          <Text style={[styles.groupCell, { width: CAT_SPAN }]}>Paint</Text>
+          <Text style={[styles.groupCell, { width: CAT_SPAN, marginRight: 0 }]}>
+            Strip &amp; Assemble
+          </Text>
         </View>
-        {quote.parts.map((p, i) => (
-          <View key={i} style={styles.tableRow}>
-            <Text style={styles.cDesc}>{p.name}{p.supplier ? ` (${p.supplier})` : ""}</Text>
-            <Text style={styles.cNum}>{p.partNumber || "—"}</Text>
-            <Text style={styles.cQty}>{p.quantity}</Text>
-            <Text style={styles.cPrice}>{zar(p.unitPrice)}</Text>
-            <Text style={styles.cLine}>{zar(p.unitPrice * p.quantity)}</Text>
-          </View>
-        ))}
 
-        {/* Labour */}
-        <View style={styles.tableRow}>
-          <Text style={styles.cDesc}>Labour — senior</Text>
-          <Text style={styles.cNum}>—</Text>
-          <Text style={styles.cQty}>{quote.seniorHours}h</Text>
-          <Text style={styles.cPrice}>{zar(quote.labourRateSenior)}</Text>
-          <Text style={styles.cLine}>{zar(quote.seniorHours * quote.labourRateSenior)}</Text>
+        {/* Sub header */}
+        <View style={styles.subHead}>
+          <Text style={[styles.th, { width: W.code }]}>Code</Text>
+          <Text style={[styles.th, { width: W.desc }]}>Description</Text>
+          <Text style={[styles.th, { width: W.qty }, styles.center]}>Qty</Text>
+          <Text style={[styles.th, { width: W.parts }, styles.right]}>Parts</Text>
+          {["Panel", "Paint", "Strip"].map((g) => (
+            <View key={g} style={{ flexDirection: "row", width: CAT_SPAN }}>
+              <Text style={[styles.th, { width: W.cCode }]}>Code</Text>
+              <Text style={[styles.th, { width: W.cAmt }, styles.right]}>Amount</Text>
+              <Text style={[styles.th, { width: W.cHrs }, styles.right]}>Hrs</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.tableRow}>
-          <Text style={styles.cDesc}>Labour — junior</Text>
-          <Text style={styles.cNum}>—</Text>
-          <Text style={styles.cQty}>{quote.juniorHours}h</Text>
-          <Text style={styles.cPrice}>{zar(quote.labourRateJunior)}</Text>
-          <Text style={styles.cLine}>{zar(quote.juniorHours * quote.labourRateJunior)}</Text>
-        </View>
+
+        {/* Rows */}
+        {quote.lines.map((l, i) => {
+          const isNote = (l.code || "").toLowerCase() === "note";
+          return (
+            <View key={i} style={styles.row} wrap={false}>
+              <Text style={[styles.cell, { width: W.code }]}>{l.code || ""}</Text>
+              <Text style={[styles.cell, { width: W.desc }, isNote ? styles.note : {}]}>
+                {l.description}
+              </Text>
+              <Text style={[styles.cell, { width: W.qty }, styles.center]}>{l.quantity || ""}</Text>
+              <Text style={[styles.cell, { width: W.parts }, styles.right]}>{money(l.partsAmount)}</Text>
+
+              <Text style={[styles.cell, { width: W.cCode }]}>{l.panelCode || ""}</Text>
+              <Text style={[styles.cell, { width: W.cAmt }, styles.right]}>{money(l.panelAmount)}</Text>
+              <Text style={[styles.cell, { width: W.cHrs }, styles.right]}>{hrs(l.panelHours)}</Text>
+
+              <Text style={[styles.cell, { width: W.cCode }]}>{l.paintCode || ""}</Text>
+              <Text style={[styles.cell, { width: W.cAmt }, styles.right]}>{money(l.paintAmount)}</Text>
+              <Text style={[styles.cell, { width: W.cHrs }, styles.right]}>{hrs(l.paintHours)}</Text>
+
+              <Text style={[styles.cell, { width: W.cCode }]}>{l.stripCode || ""}</Text>
+              <Text style={[styles.cell, { width: W.cAmt }, styles.right]}>{money(l.stripAmount)}</Text>
+              <Text style={[styles.cell, { width: W.cHrs }, styles.right]}>{hrs(l.stripHours)}</Text>
+            </View>
+          );
+        })}
 
         {/* Totals */}
         <View style={styles.totals}>
@@ -182,19 +245,27 @@ export async function buildQuotePdf(
             <Text>{zar(quote.partsTotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text>Labour</Text>
+            <Text>Labour (panel · paint · strip)</Text>
             <Text>{zar(quote.labourTotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text>Subtotal</Text>
-            <Text>{zar(quote.subtotal)}</Text>
+            <Text>Sundries</Text>
+            <Text>{zar(quote.sundries)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text>Consumables</Text>
+            <Text>{zar(quote.consumables)}</Text>
+          </View>
+          <View style={[styles.totalRow, { borderTop: `1px solid ${LINE}`, marginTop: 2, paddingTop: 3 }]}>
+            <Text style={styles.strong}>Total ex VAT</Text>
+            <Text style={styles.strong}>{zar(quote.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text>VAT (15%)</Text>
             <Text>{zar(quote.vat)}</Text>
           </View>
           <View style={styles.grand}>
-            <Text style={styles.grandText}>TOTAL</Text>
+            <Text style={styles.grandText}>TOTAL INCL VAT</Text>
             <Text style={styles.grandText}>{zar(quote.total)}</Text>
           </View>
         </View>
@@ -202,7 +273,7 @@ export async function buildQuotePdf(
         <View style={styles.footer} fixed>
           <Text style={styles.footNote}>
             This quotation is an estimate prepared via Price my Prang and is valid for 30 days.
-            E&amp;OE. All prices include VAT where indicated.
+            E&amp;OE. Prices include VAT where indicated.
           </Text>
           {brandIcon ? <Image src={brandIcon} style={styles.footLogo} /> : null}
         </View>
