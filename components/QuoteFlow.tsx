@@ -86,14 +86,24 @@ export default function QuoteFlow({
   onClose,
   mode = "consumer",
   onCreated,
+  repairerPanelBeaters = [],
+  repairerLockedPbId,
 }: {
   onClose?: () => void;
   /** "repairer" = a panel beater self-quoting: client details only, no map step. */
   mode?: "consumer" | "repairer";
   /** Called with the new reference after a repairer-initiated quote is created. */
   onCreated?: (reference: string) => void;
+  /** Repairer mode: workshops a manager can pick from (empty when locked to own). */
+  repairerPanelBeaters?: { id: string; name: string }[];
+  /** Repairer mode: the panel beater this quote is locked to (a PB's own listing). */
+  repairerLockedPbId?: string;
 }) {
   const repairer = mode === "repairer";
+  const [repairerPbId, setRepairerPbId] = useState(repairerLockedPbId ?? "");
+  // Which workshop the quote is for (locked to own, or the manager's pick).
+  const pbForQuote = repairerLockedPbId || repairerPbId;
+  const needsPbChoice = repairer && !repairerLockedPbId && repairerPanelBeaters.length > 0;
   const [step, setStep] = useState<Step>("form");
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -249,6 +259,10 @@ export default function QuoteFlow({
   }
 
   async function submitRepairer() {
+    if (needsPbChoice && !repairerPbId) {
+      setError("Please choose which workshop this quote is for.");
+      return;
+    }
     const v = validateForm();
     if (v) {
       setError(v);
@@ -269,6 +283,7 @@ export default function QuoteFlow({
           requiredPhotos,
           damagePhotos: photos,
           repairerQuote: true,
+          selectedPanelBeaterIds: pbForQuote ? [pbForQuote] : undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Could not create the quote.");
@@ -367,6 +382,23 @@ export default function QuoteFlow({
             }
             onClose={onClose}
           />
+
+          {needsPbChoice && (
+            <Field label="Which workshop is this quote for?" required>
+              <select
+                className={inputClass}
+                value={repairerPbId}
+                onChange={(e) => setRepairerPbId(e.target.value)}
+              >
+                <option value="">Select a panel beater…</option>
+                {repairerPanelBeaters.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={repairer ? "Client first name" : "First name"} required>

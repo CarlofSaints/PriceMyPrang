@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import type { BuiltQuote, PanelBeater, QuoteLineItem, QuoteRequest } from "@/lib/types";
 import { QUOTE_LINE_CODES } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
@@ -175,6 +176,12 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
           </Button>
         </div>
         {error && <p className="mt-3 text-sm text-coral">{error}</p>}
+        <p className="mt-3 text-sm text-ink/60">
+          No consumer request?{" "}
+          <Link href="/portal/new-quote" className="font-semibold text-teal hover:underline">
+            Start a new quote →
+          </Link>
+        </p>
       </div>
 
       {request && (

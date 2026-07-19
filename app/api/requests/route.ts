@@ -53,18 +53,24 @@ export async function POST(request: Request) {
     // listing (or a manager who supplies a target workshop). Assigned to them.
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const canManage = can(user, "manage_panel_beaters");
-    if (!canManage && !can(user, "onboard_self") && !can(user, "build_quotes"))
+    // Managers and quote-builders may quote for any workshop (chosen in the form);
+    // a panel-beater login may only quote for their own listing.
+    const canChooseAny = can(user, "manage_panel_beaters") || can(user, "build_quotes");
+    if (!canChooseAny && !can(user, "onboard_self"))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const targetId = user.panelBeaterId || (canManage ? p.selectedPanelBeaterIds?.[0] : undefined);
+    const targetId = user.panelBeaterId || (canChooseAny ? p.selectedPanelBeaterIds?.[0] : undefined);
     if (!targetId)
       return NextResponse.json(
-        { error: "Link your login to a panel beater listing to create your own quotes." },
+        {
+          error: canChooseAny
+            ? "Please choose which workshop this quote is for."
+            : "Link your login to a panel beater listing to create your own quotes.",
+        },
         { status: 400 }
       );
     // Self-service users may only quote for their own listing.
-    if (!canManage && targetId !== user.panelBeaterId)
+    if (!canChooseAny && targetId !== user.panelBeaterId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     selectedPanelBeaterIds = [targetId];
