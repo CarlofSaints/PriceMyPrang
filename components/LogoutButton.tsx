@@ -12,7 +12,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={logout}
-      className="text-sm font-semibold text-white/70 hover:text-white"
+      className="whitespace-nowrap text-sm font-semibold text-white/70 hover:text-white"
     >
       Sign out
     </button>
