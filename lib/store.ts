@@ -7,7 +7,7 @@ import type {
   RateType,
   InsuranceCompany,
   PanelBeater,
-  Part,
+  Supplier,
   QuoteRequest,
 } from "./types";
 
@@ -95,12 +95,22 @@ export async function upsertPanelBeater(pb: PanelBeater): Promise<void> {
   await savePanelBeaters(list);
 }
 
-// ---- Parts ----
-export async function getParts(): Promise<Part[]> {
-  return (await readJson<Part[]>(PATHS.parts)) ?? [];
+// ---- Suppliers ----
+export async function getSuppliers(): Promise<Supplier[]> {
+  return (await readJson<Supplier[]>(PATHS.suppliers)) ?? [];
 }
-export async function saveParts(parts: Part[]): Promise<void> {
-  await writeJson(PATHS.parts, parts);
+export async function saveSuppliers(suppliers: Supplier[]): Promise<void> {
+  await writeJson(PATHS.suppliers, suppliers);
+}
+export async function getSupplier(id: string): Promise<Supplier | null> {
+  return (await getSuppliers()).find((s) => s.id === id) ?? null;
+}
+export async function upsertSupplier(supplier: Supplier): Promise<void> {
+  const list = await getSuppliers();
+  const i = list.findIndex((s) => s.id === supplier.id);
+  if (i >= 0) list[i] = supplier;
+  else list.push(supplier);
+  await saveSuppliers(list);
 }
 
 // ---- Requests ----

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BuiltQuote, PanelBeater, Part, QuoteLineItem, QuoteRequest } from "@/lib/types";
+import type { BuiltQuote, PanelBeater, QuoteLineItem, QuoteRequest } from "@/lib/types";
 import { QUOTE_LINE_CODES } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 import { zar } from "@/lib/format";
@@ -28,7 +28,6 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const [refInput, setRefInput] = useState(initialRef ?? "");
   const [request, setRequest] = useState<QuoteRequest | null>(null);
   const [panelBeaters, setPanelBeaters] = useState<PanelBeater[]>([]);
-  const [parts, setParts] = useState<Part[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -62,16 +61,14 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
       setLoading(true);
       setRequest(null);
       try {
-        const [rReq, rPb, rParts] = await Promise.all([
+        const [rReq, rPb] = await Promise.all([
           fetch(`/api/requests/${encodeURIComponent(reference.trim())}`),
           fetch("/api/panel-beaters"),
-          fetch("/api/parts"),
         ]);
         if (!rReq.ok) throw new Error("Request not found — check the reference.");
         const req = (await rReq.json()) as QuoteRequest;
         setRequest(req);
         setPanelBeaters(rPb.ok ? await rPb.json() : []);
-        setParts(rParts.ok ? await rParts.json() : []);
         // Preselect the first not-yet-quoted workshop.
         const quotedIds = new Set(req.quotes.map((q) => q.panelBeaterId));
         const next = req.selectedPanelBeaterIds.find((id) => !quotedIds.has(id));
@@ -104,21 +101,6 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
 
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  }
-  function pickPart(i: number, partId: string) {
-    const part = parts.find((p) => p.id === partId);
-    if (!part) {
-      updateLine(i, { partId: undefined, supplier: undefined, partNumber: undefined });
-      return;
-    }
-    updateLine(i, {
-      partId: part.id,
-      supplier: part.supplier,
-      partNumber: part.partNumber,
-      description: part.name,
-      partsAmount: part.price,
-      code: emptyLine.code || "New",
-    });
   }
 
   // Live totals
@@ -270,9 +252,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                 <LineCard
                   key={i}
                   line={line}
-                  parts={parts}
                   onChange={(patch) => updateLine(i, patch)}
-                  onPickPart={(id) => pickPart(i, id)}
                   onRemove={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls))}
                 />
               ))}
@@ -394,15 +374,11 @@ function TotalRow({ label, value }: { label: string; value: number }) {
 
 function LineCard({
   line,
-  parts,
   onChange,
-  onPickPart,
   onRemove,
 }: {
   line: Line;
-  parts: Part[];
   onChange: (patch: Partial<Line>) => void;
-  onPickPart: (partId: string) => void;
   onRemove: () => void;
 }) {
   const cat = "rounded-xl border border-teal/15 bg-offwhite/40 p-3";
@@ -453,22 +429,6 @@ function LineCard({
           ✕
         </button>
       </div>
-
-      {/* Optional: prefill from parts catalogue */}
-      {parts.length > 0 && (
-        <select
-          className={`${inputClass} mt-2 text-xs`}
-          value={line.partId ?? ""}
-          onChange={(e) => onPickPart(e.target.value)}
-        >
-          <option value="">— prefill parts from catalogue —</option>
-          {parts.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.supplier}: {p.name} ({zar(p.price)})
-            </option>
-          ))}
-        </select>
-      )}
 
       {/* Work categories */}
       <div className="mt-2 grid gap-2 sm:grid-cols-3">

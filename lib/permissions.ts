@@ -11,7 +11,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   onboard_self: "Edit own panel beater listing",
   view_dashboard: "View dashboard & requests",
   build_quotes: "Build quotations",
-  manage_parts: "Manage parts & suppliers",
+  manage_parts: "Manage suppliers",
 };
 
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
@@ -21,7 +21,7 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
   manage_users: "Create users and assign their role.",
   view_dashboard: "See the dashboard cards and all quote requests.",
   build_quotes: "Use the quote builder and generate PDF quotes.",
-  manage_parts: "Import and manage the parts catalogue.",
+  manage_parts: "Maintain the list of parts suppliers (part types, makes covered, what they supply).",
   manage_panel_beaters: "Onboard and edit panel beaters, approve applications.",
   onboard_self: "A panel-beater login editing only their own listing.",
 };

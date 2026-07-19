@@ -87,7 +87,7 @@ export const PATHS = {
   rateTypes: "data/rate-types.json",
   insurers: "data/insurers.json",
   panelBeaters: "data/panel-beaters.json",
-  parts: "data/parts.json",
+  suppliers: "data/suppliers.json",
   counters: "data/counters.json",
   requestIndex: "data/request-index.json",
   request: (ref: string) => `data/requests/${ref}.json`,
