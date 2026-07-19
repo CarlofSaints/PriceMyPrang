@@ -7,9 +7,12 @@ import WarrantyCertificates, { type WarrantyRow } from "@/components/WarrantyCer
 export default async function WarrantiesPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!can(user, "manage_panel_beaters")) redirect("/portal");
+  const canManage = can(user, "manage_panel_beaters");
+  if (!canManage && !can(user, "onboard_self")) redirect("/portal");
 
-  const panelBeaters = await getPanelBeaters();
+  const all = await getPanelBeaters();
+  // Managers see every panel beater's certificates; a panel-beater login sees only their own.
+  const panelBeaters = canManage ? all : all.filter((pb) => pb.id === user.panelBeaterId);
   const rows: WarrantyRow[] = panelBeaters.flatMap((pb) =>
     (pb.warranties ?? []).map((w) => ({
       panelBeaterId: pb.id,
@@ -28,11 +31,12 @@ export default async function WarrantiesPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Warranty certificates</h1>
         <p className="text-ink/60">
-          Every manufacturer warranty approval captured across panel beaters. View or download each
-          certificate, and keep an eye on what&apos;s expiring.
+          {canManage
+            ? "Every manufacturer warranty approval captured across panel beaters. View or download each certificate, and keep an eye on what's expiring."
+            : "Your manufacturer warranty approvals. View or download each certificate and keep an eye on what's expiring."}
         </p>
       </div>
-      <WarrantyCertificates rows={rows} />
+      <WarrantyCertificates rows={rows} showPanelBeater={canManage} />
     </div>
   );
 }

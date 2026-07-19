@@ -42,10 +42,17 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "missing", label: "Missing certificate" },
 ];
 
-export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) {
+export default function WarrantyCertificates({
+  rows,
+  showPanelBeater = true,
+}: {
+  rows: WarrantyRow[];
+  showPanelBeater?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const now = useMemo(() => new Date(), []);
+  const colCount = showPanelBeater ? 8 : 7;
 
   const enriched = useMemo(
     () =>
@@ -76,6 +83,51 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
     });
   }, [enriched, query, filter]);
 
+  function exportCsv() {
+    const headers = [
+      ...(showPanelBeater ? ["Panel beater"] : []),
+      "Manufacturer",
+      "Start date",
+      "Expiry date",
+      "Status",
+      "Days to expiry",
+      "Certificate",
+      "Reminders",
+    ];
+    const esc = (v: string | number) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const lines = visible.map((r) =>
+      [
+        ...(showPanelBeater ? [r.panelBeaterName] : []),
+        r.manufacturer,
+        r.startDate ? shortDate(r.startDate) : "",
+        r.expiryDate ? shortDate(r.expiryDate) : "",
+        r.status.label,
+        Number.isFinite(r.status.days) ? r.status.days : "",
+        r.certificateUrl ? origin + r.certificateUrl : "Missing",
+        r.remind ? (r.remindersSent?.length ? `${r.remindersSent.length} sent` : "On") : "Off",
+      ]
+        .map(esc)
+        .join(",")
+    );
+    // Prefix a BOM so Excel opens the UTF-8 file correctly.
+    const csv = "﻿" + [headers.join(","), ...lines].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `warranty-certificates-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (rows.length === 0) {
     return (
       <p className="rounded-xl bg-amber/20 p-4 text-sm text-ink">
@@ -99,7 +151,7 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="min-w-[220px] flex-1 rounded-xl border border-teal/20 bg-white px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-teal focus:outline-none"
-          placeholder="Search panel beater or manufacturer…"
+          placeholder={showPanelBeater ? "Search panel beater or manufacturer…" : "Search manufacturer…"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -116,6 +168,13 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
             </button>
           ))}
         </div>
+        <button
+          onClick={exportCsv}
+          disabled={visible.length === 0}
+          className="rounded-full border border-teal/30 bg-white px-4 py-2 text-xs font-semibold text-teal transition-colors hover:bg-teal/5 disabled:opacity-50"
+        >
+          ⤓ Export CSV
+        </button>
       </div>
 
       {/* Table */}
@@ -124,7 +183,7 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-ink/5 text-left text-xs font-semibold uppercase tracking-wide text-ink/60">
-                <th className="px-4 py-3">Panel beater</th>
+                {showPanelBeater && <th className="px-4 py-3">Panel beater</th>}
                 <th className="px-4 py-3">Manufacturer</th>
                 <th className="px-4 py-3">Start</th>
                 <th className="px-4 py-3">Expiry</th>
@@ -137,7 +196,9 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
             <tbody className="divide-y divide-ink/5">
               {visible.map((r, i) => (
                 <tr key={`${r.panelBeaterId}-${r.manufacturer}-${i}`} className="hover:bg-teal/5">
-                  <td className="px-4 py-3 font-semibold text-ink">{r.panelBeaterName}</td>
+                  {showPanelBeater && (
+                    <td className="px-4 py-3 font-semibold text-ink">{r.panelBeaterName}</td>
+                  )}
                   <td className="px-4 py-3">{r.manufacturer}</td>
                   <td className="px-4 py-3 text-ink/70">{r.startDate ? shortDate(r.startDate) : "—"}</td>
                   <td className="px-4 py-3 text-ink/70">{r.expiryDate ? shortDate(r.expiryDate) : "—"}</td>
@@ -181,7 +242,7 @@ export default function WarrantyCertificates({ rows }: { rows: WarrantyRow[] }) 
               ))}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-ink/50">
+                  <td colSpan={colCount} className="px-4 py-6 text-center text-ink/50">
                     No certificates match your filter.
                   </td>
                 </tr>
