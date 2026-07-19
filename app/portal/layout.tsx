@@ -20,8 +20,10 @@ export default async function PortalLayout({
   if (can(user, "build_quotes") || can(user, "onboard_self"))
     items.push({ href: "/portal/new-quote", label: "New quote" });
   if (can(user, "build_quotes")) items.push({ href: "/portal/quote-builder", label: "Quote builder" });
-  if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
-    items.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
+  // A panel-beater login manages their OWN listing from the top bar. Managing the
+  // whole network lives in the Control Centre (below).
+  if (can(user, "onboard_self") && !can(user, "manage_panel_beaters"))
+    items.push({ href: "/portal/panel-beaters", label: "My listing" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/warranties", label: "Warranties" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
@@ -31,6 +33,8 @@ export default async function PortalLayout({
 
   // Left sidebar — Super Admin (PriceMyPrang employee) Control Centre.
   const adminItems: NavItem[] = [];
+  if (can(user, "manage_panel_beaters"))
+    adminItems.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
   if (can(user, "manage_roles")) adminItems.push({ href: "/portal/admin/roles", label: "Roles" });
   if (can(user, "manage_rate_types"))
     adminItems.push({ href: "/portal/admin/rate-types", label: "Rate types" });
