@@ -71,6 +71,10 @@ export default async function RequestDetailPage({
               <Detail label="Colour" value={req.vehicle.colour} />
               <Detail label="Registration" value={req.vehicle.registration} />
               <Detail label="VIN" value={req.vehicle.vin} />
+              <Detail
+                label="Mileage"
+                value={req.mileageKm ? `${req.mileageKm.toLocaleString("en-ZA")} km` : undefined}
+              />
             </dl>
             {req.vehicle.discRawText && (
               <details className="mt-3 text-sm text-ink/60">
@@ -160,6 +164,11 @@ export default async function RequestDetailPage({
               {req.discImage && (
                 <a href={req.discImage.url} target="_blank" rel="noreferrer" className="text-teal underline">
                   View licence disc
+                </a>
+              )}
+              {req.odometerImage && (
+                <a href={req.odometerImage.url} target="_blank" rel="noreferrer" className="text-teal underline">
+                  View odometer
                 </a>
               )}
               {req.video && (

@@ -22,6 +22,8 @@ interface Payload {
   suspectedEngineDamage: "yes" | "no";
   quotesRequested: number;
   vehicle: VehicleDetails;
+  mileageKm?: number | string;
+  odometerImage?: MediaRef | null;
   discImage?: MediaRef | null;
   video?: MediaRef | null;
   requiredPhotos?: RequiredPhotos;
@@ -98,6 +100,8 @@ export async function POST(request: Request) {
     suspectedEngineDamage: p.suspectedEngineDamage,
     quotesRequested,
     vehicle: p.vehicle || {},
+    mileageKm: Number(p.mileageKm) > 0 ? Math.round(Number(p.mileageKm)) : undefined,
+    odometerImage: p.odometerImage || undefined,
     discImage: p.discImage || undefined,
     video: p.video || undefined,
     requiredPhotos: p.requiredPhotos || {},

@@ -198,6 +198,11 @@ export interface QuoteRequest {
 
   vehicle: VehicleDetails;
 
+  /** Odometer reading in kilometres (typed by the consumer, optionally OCR-read). */
+  mileageKm?: number;
+  /** Photo of the odometer as proof of mileage. */
+  odometerImage?: MediaRef;
+
   discImage?: MediaRef;
   video?: MediaRef;
   /** The four mandatory full-vehicle photos (front/back/left/right). */

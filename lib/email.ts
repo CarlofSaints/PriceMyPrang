@@ -162,6 +162,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
         ${detailRow("Contact number", req.phone || "")}
         ${detailRow("Vehicle", [req.vehicle.make, req.vehicle.model, req.vehicle.year, req.vehicle.colour].filter(Boolean).join(" "))}
         ${detailRow("VIN", req.vehicle.vin || "")}
+        ${detailRow("Mileage", req.mileageKm ? `${req.mileageKm.toLocaleString("en-ZA")} km` : "")}
         ${detailRow("Insurance", req.hasInsurance)}
         ${detailRow("Insurer", req.insurerName || "")}
         ${detailRow("Insurance claim", req.isInsuranceClaim)}
@@ -177,6 +178,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
     <p style="font-size:13px;">Damage close-ups: ${photos || "—"}</p>
     ${req.video ? `<p style="font-size:13px;">Video: <a href="${abs(req.video.url)}" style="color:${BRAND.teal};">watch</a></p>` : ""}
     ${req.discImage ? `<p style="font-size:13px;">Licence disc: <a href="${abs(req.discImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
+    ${req.odometerImage ? `<p style="font-size:13px;">Odometer: <a href="${abs(req.odometerImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
     <p style="margin-top:20px;">
       <a href="${baseUrl()}/portal/requests/${req.reference}"
          style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">

@@ -42,6 +42,7 @@ interface FormState {
   noClaimNumberYet: boolean;
   isThirdPartyClaim: YesNo | "";
   suspectedEngineDamage: YesNo | "";
+  mileageKm: string;
   quotesRequested: number;
 }
 
@@ -59,6 +60,7 @@ const EMPTY: FormState = {
   noClaimNumberYet: false,
   isThirdPartyClaim: "",
   suspectedEngineDamage: "",
+  mileageKm: "",
   quotesRequested: 1,
 };
 
@@ -98,6 +100,9 @@ export default function QuoteFlow({
   // Media
   const [disc, setDisc] = useState<MediaRef | null>(null);
   const [discReading, setDiscReading] = useState(false);
+  const [odo, setOdo] = useState<MediaRef | null>(null);
+  const [odoReading, setOdoReading] = useState(false);
+  const [odoKm, setOdoKm] = useState<number | null>(null);
   const [vehicle, setVehicle] = useState<VehicleDetails>({});
   const [video, setVideo] = useState<MediaRef | null>(null);
   const [requiredPhotos, setRequiredPhotos] = useState<RequiredPhotos>({});
@@ -137,6 +142,34 @@ export default function QuoteFlow({
       setError("Could not upload the licence disc photo. Please try again.");
     } finally {
       setDiscReading(false);
+    }
+  }
+
+  async function handleOdometer(file: File) {
+    setError(null);
+    setOdoReading(true);
+    setOdoKm(null);
+    try {
+      const ref = await uploadFile(file, "odometer");
+      setOdo(ref);
+      // OCR the odometer reading via Claude (best-effort).
+      const res = await fetch("/api/odometer/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pathname: ref.pathname }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { km?: number };
+        if (typeof data.km === "number" && data.km > 0) {
+          setOdoKm(data.km);
+          // Prefill the mileage field only if the consumer hasn't typed one.
+          setForm((f) => (f.mileageKm.trim() ? f : { ...f, mileageKm: String(data.km) }));
+        }
+      }
+    } catch {
+      setError("Could not upload the odometer photo. Please try again.");
+    } finally {
+      setOdoReading(false);
     }
   }
 
@@ -195,6 +228,8 @@ export default function QuoteFlow({
       if (!form[k]) return `Please answer: ${label}.`;
     }
     if (!disc) return "Please add a photo of your licence disc.";
+    if (!(Number(form.mileageKm) > 0)) return "Please enter your current mileage in km.";
+    if (!odo) return "Please add a photo of your odometer as proof of mileage.";
     const missingSide = REQUIRED_SIDES.find((s) => !requiredPhotos[s.key]);
     if (missingSide) return `Please add the ${missingSide.label.toLowerCase()} photo of the vehicle.`;
     return null;
@@ -216,6 +251,7 @@ export default function QuoteFlow({
           ...form,
           vehicle,
           discImage: disc,
+          odometerImage: odo,
           video,
           requiredPhotos,
           damagePhotos: photos,
@@ -285,6 +321,7 @@ export default function QuoteFlow({
           ...form,
           vehicle,
           discImage: disc,
+          odometerImage: odo,
           video,
           requiredPhotos,
           damagePhotos: photos,
@@ -469,6 +506,49 @@ export default function QuoteFlow({
                 {vehicle.make || vehicle.model
                   ? ` — ${[vehicle.make, vehicle.model].filter(Boolean).join(" ")}`
                   : ""}
+              </p>
+            )}
+          </Field>
+
+          <Field
+            label="Current mileage (km)"
+            hint="The reading on your odometer right now."
+            required={!repairer}
+          >
+            <input
+              className={inputClass}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={form.mileageKm}
+              onChange={(e) => set("mileageKm", e.target.value)}
+              placeholder="e.g. 123456"
+            />
+          </Field>
+
+          <Field
+            label="Photo of your odometer"
+            hint="Take a clear photo of your dashboard showing the km reading — as proof of mileage."
+            required={!repairer}
+          >
+            <input
+              className={inputClass}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => e.target.files?.[0] && handleOdometer(e.target.files[0])}
+            />
+            {odoReading && <p className="mt-2 text-sm text-teal">Reading your odometer…</p>}
+            {odo && !odoReading && (
+              <p className="mt-2 text-sm text-teal">
+                ✓ Odometer uploaded
+                {odoKm ? ` — we read ${odoKm.toLocaleString("en-ZA")} km` : ""}
+              </p>
+            )}
+            {odoKm != null && Number(form.mileageKm) > 0 && Number(form.mileageKm) !== odoKm && (
+              <p className="mt-1 text-xs text-coral">
+                The photo reads {odoKm.toLocaleString("en-ZA")} km but you entered{" "}
+                {Number(form.mileageKm).toLocaleString("en-ZA")} km — please double-check.
               </p>
             )}
           </Field>
