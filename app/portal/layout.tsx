@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import PortalNav, { type NavItem } from "@/components/PortalNav";
-import AdminSidebar from "@/components/AdminSidebar";
+import ControlCentreMenu from "@/components/ControlCentreMenu";
 import LogoutButton from "@/components/LogoutButton";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -50,7 +50,8 @@ export default async function PortalLayout({
             <Logo variant="horizontal-dark" className="h-12 w-auto sm:h-16" />
             <PortalNav items={items} />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <ControlCentreMenu items={adminItems} />
             <div className="text-right">
               <p className="text-sm font-semibold text-white">{user.name}</p>
               <p className="text-xs text-teal-light">{user.roleName}</p>
@@ -59,10 +60,7 @@ export default async function PortalLayout({
           </div>
         </div>
       </header>
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-8 sm:flex-row">
-        {adminItems.length > 0 && <AdminSidebar items={adminItems} />}
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
+      <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
     </div>
   );
 }
