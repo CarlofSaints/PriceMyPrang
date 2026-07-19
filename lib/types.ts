@@ -184,8 +184,10 @@ export interface QuoteRequest {
   /** Optional — for self- or partially-insured businesses quoting under a company. */
   companyName?: string;
   hasInsurance: YesNo;
-  /** Free-text insurer name, captured when hasInsurance = "yes" (affects rates). */
+  /** Insurer name (from the dropdown or free text), captured when hasInsurance = "yes". */
   insurerName?: string;
+  /** Id of the chosen InsuranceCompany, when picked from the dropdown (not "Other"). */
+  insurerId?: string;
   underWarranty: YesNoUnsure;
   isInsuranceClaim: YesNo;
   /** Claim number, captured when isInsuranceClaim = "yes". */

@@ -36,6 +36,7 @@ interface FormState {
   companyName: string;
   hasInsurance: YesNo | "";
   insurerName: string;
+  insurerId: string;
   underWarranty: YesNoUnsure | "";
   isInsuranceClaim: YesNo | "";
   claimNumber: string;
@@ -54,6 +55,7 @@ const EMPTY: FormState = {
   companyName: "",
   hasInsurance: "",
   insurerName: "",
+  insurerId: "",
   underWarranty: "",
   isInsuranceClaim: "",
   claimNumber: "",
@@ -103,6 +105,17 @@ export default function QuoteFlow({
   const [odo, setOdo] = useState<MediaRef | null>(null);
   const [odoReading, setOdoReading] = useState(false);
   const [odoKm, setOdoKm] = useState<number | null>(null);
+
+  // Insurance companies for the dropdown (empty → free-text fallback).
+  const [insurers, setInsurers] = useState<{ id: string; name: string }[]>([]);
+  const [insurerOther, setInsurerOther] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/insurers/public")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setInsurers(Array.isArray(list) ? list : []))
+      .catch(() => {});
+  }, []);
   const [vehicle, setVehicle] = useState<VehicleDetails>({});
   const [video, setVideo] = useState<MediaRef | null>(null);
   const [requiredPhotos, setRequiredPhotos] = useState<RequiredPhotos>({});
@@ -426,12 +439,51 @@ export default function QuoteFlow({
                   hint="We use this to make sure your quotes are at the right rates."
                   required
                 >
-                  <input
-                    className={inputClass}
-                    value={form.insurerName}
-                    onChange={(e) => set("insurerName", e.target.value)}
-                    placeholder="e.g. Santam, Discovery Insure, OUTsurance…"
-                  />
+                  {insurers.length > 0 ? (
+                    <>
+                      <select
+                        className={inputClass}
+                        value={insurerOther ? "__other__" : form.insurerId}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "__other__") {
+                            setInsurerOther(true);
+                            setForm((f) => ({ ...f, insurerId: "", insurerName: "" }));
+                          } else if (v === "") {
+                            setInsurerOther(false);
+                            setForm((f) => ({ ...f, insurerId: "", insurerName: "" }));
+                          } else {
+                            const ins = insurers.find((x) => x.id === v);
+                            setInsurerOther(false);
+                            setForm((f) => ({ ...f, insurerId: v, insurerName: ins?.name ?? "" }));
+                          }
+                        }}
+                      >
+                        <option value="">Select your insurer…</option>
+                        {insurers.map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.name}
+                          </option>
+                        ))}
+                        <option value="__other__">Other / not listed</option>
+                      </select>
+                      {insurerOther && (
+                        <input
+                          className={`${inputClass} mt-2`}
+                          value={form.insurerName}
+                          onChange={(e) => set("insurerName", e.target.value)}
+                          placeholder="Type your insurance company"
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      className={inputClass}
+                      value={form.insurerName}
+                      onChange={(e) => set("insurerName", e.target.value)}
+                      placeholder="e.g. Santam, Discovery Insure, OUTsurance…"
+                    />
+                  )}
                 </Field>
               </div>
             )}

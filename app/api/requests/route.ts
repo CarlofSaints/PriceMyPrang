@@ -14,6 +14,7 @@ interface Payload {
   companyName?: string;
   hasInsurance: "yes" | "no";
   insurerName?: string;
+  insurerId?: string;
   underWarranty: "yes" | "no" | "unsure";
   isInsuranceClaim: "yes" | "no";
   claimNumber?: string;
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
     companyName: p.companyName?.trim() || undefined,
     hasInsurance: p.hasInsurance,
     insurerName: p.hasInsurance === "yes" ? p.insurerName?.trim() || undefined : undefined,
+    insurerId: p.hasInsurance === "yes" ? p.insurerId?.trim() || undefined : undefined,
     underWarranty: p.underWarranty,
     isInsuranceClaim: p.isInsuranceClaim,
     claimNumber:
