@@ -1,4 +1,5 @@
-import { readJson, writeJson, PATHS } from "./blob";
+import { readJson, writeJson, updateJson, createJsonIfAbsent, PATHS } from "./blob";
+import { nextReference } from "./reference";
 import { DEFAULT_ROLES } from "./permissions";
 import { DEFAULT_RATE_TYPES } from "./rateTypes";
 import type {
@@ -120,13 +121,43 @@ export async function getRequestIndex(): Promise<string[]> {
 export async function getRequest(ref: string): Promise<QuoteRequest | null> {
   return await readJson<QuoteRequest>(PATHS.request(ref));
 }
+
+/**
+ * Add a reference to the index, newest first. Uses a compare-and-swap write:
+ * a plain read-modify-write drops references when two submissions land at the
+ * same moment, leaving the request blob stored but invisible to the portal.
+ */
+async function addToRequestIndex(reference: string): Promise<void> {
+  await updateJson<string[]>(PATHS.requestIndex, (current) => {
+    const index = current ?? [];
+    return index.includes(reference) ? index : [reference, ...index];
+  });
+}
+
+/**
+ * Create a brand-new request, allocating a reference that is not already taken.
+ * Never overwrites an existing request — on a reference clash we take the next
+ * sequence number instead.
+ */
+export async function createRequest(
+  draft: Omit<QuoteRequest, "reference">
+): Promise<QuoteRequest> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const reference = await nextReference(draft.lastName);
+    const req: QuoteRequest = { ...draft, reference };
+
+    if (await createJsonIfAbsent(PATHS.request(reference), req)) {
+      await addToRequestIndex(reference);
+      return req;
+    }
+  }
+  throw new Error("Could not allocate a unique quote reference");
+}
+
+/** Update an existing request. */
 export async function saveRequest(req: QuoteRequest): Promise<void> {
   await writeJson(PATHS.request(req.reference), req);
-  const index = await getRequestIndex();
-  if (!index.includes(req.reference)) {
-    index.unshift(req.reference);
-    await writeJson(PATHS.requestIndex, index);
-  }
+  await addToRequestIndex(req.reference);
 }
 export async function getAllRequests(): Promise<QuoteRequest[]> {
   const index = await getRequestIndex();

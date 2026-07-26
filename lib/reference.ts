@@ -1,4 +1,4 @@
-import { readJson, writeJson, PATHS } from "./blob";
+import { updateJson, PATHS } from "./blob";
 
 interface Counters {
   [dateKey: string]: number;
@@ -16,10 +16,16 @@ export async function nextReference(lastName: string): Promise<string> {
   const d = String(now.getDate()).padStart(2, "0");
   const dateKey = `${y}${m}${d}`;
 
-  const counters = (await readJson<Counters>(PATHS.counters)) ?? {};
-  const seq = (counters[dateKey] ?? 0) + 1;
-  counters[dateKey] = seq;
-  await writeJson(PATHS.counters, counters);
+  // Claim the next sequence number atomically. Without this, two submissions in
+  // flight at once both read the same counter and produce the same reference —
+  // and the second request would then overwrite the first.
+  let seq = 0;
+  await updateJson<Counters>(PATHS.counters, (current) => {
+    const counters = { ...(current ?? {}) };
+    seq = (counters[dateKey] ?? 0) + 1;
+    counters[dateKey] = seq;
+    return counters;
+  });
 
   const surname = (lastName || "CLIENT")
     .toUpperCase()

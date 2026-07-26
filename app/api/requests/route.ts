@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, saveRequest } from "@/lib/store";
-import { nextReference } from "@/lib/reference";
+import { getPanelBeaters, createRequest } from "@/lib/store";
 import { sendConsumerConfirmation, sendAdminNotification } from "@/lib/email";
 import type { MediaRef, QuoteRequest, RequiredPhotos, VehicleDetails } from "@/lib/types";
 
@@ -83,10 +82,7 @@ export async function POST(request: Request) {
     selectedPanelBeaterIds = letUsChoose ? [] : p.selectedPanelBeaterIds ?? [];
   }
 
-  const reference = await nextReference(p.lastName);
-
-  const req: QuoteRequest = {
-    reference,
+  const draft: Omit<QuoteRequest, "reference"> = {
     createdAt: new Date().toISOString(),
     status: "new",
     firstName: p.firstName.trim(),
@@ -121,7 +117,7 @@ export async function POST(request: Request) {
     quotes: [],
   };
 
-  await saveRequest(req);
+  const req = await createRequest(draft);
 
   // Consumer/admin notification emails only apply to consumer-submitted requests.
   // A repairer self-quote is handled by the repairer, so we don't email anyone.
@@ -139,5 +135,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ reference });
+  return NextResponse.json({ reference: req.reference });
 }
