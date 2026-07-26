@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUsers, saveUsers } from "@/lib/store";
+import { getUsers, saveUsers, getRoles } from "@/lib/store";
 import { hashPassword } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -24,6 +24,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    // users.roleId is a foreign key now, so the built-in roles have to exist
+    // before the first admin can be inserted. getRoles() seeds them if empty.
+    await getRoles();
+
     const users = await getUsers();
     if (users.some((u) => u.role === "admin") && !force) {
       return NextResponse.json({ error: "Admin already exists" }, { status: 409 });

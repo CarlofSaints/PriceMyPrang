@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getRequest, saveRequest, getPanelBeater } from "@/lib/store";
+import { getRequest, upsertQuote, getPanelBeater } from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
 import { buildQuotePdf } from "@/lib/quotePdf";
 import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
@@ -125,13 +125,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Failed to generate PDF" }, { status: 500 });
   }
 
-  // Replace any existing quote for this panel beater, else append.
-  const idx = req.quotes.findIndex((q) => q.panelBeaterId === pb.id);
-  if (idx >= 0) req.quotes[idx] = quote;
-  else req.quotes.push(quote);
-
-  req.status = req.quotes.length >= req.quotesRequested ? "completed" : "in_progress";
-  await saveRequest(req);
+  // Inserts, or replaces this workshop's existing quote, and moves the
+  // request's status on once every requested quote is in.
+  await upsertQuote(req.reference, quote);
 
   return NextResponse.json(quote);
 }

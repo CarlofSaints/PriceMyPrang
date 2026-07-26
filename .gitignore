@@ -42,3 +42,5 @@ next-env.d.ts
 
 # keep the example env committed
 !.env.example
+
+/lib/generated/prisma

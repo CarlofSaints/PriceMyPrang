@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getRequest, saveRequest } from "@/lib/store";
+import { getRequest, updateRequestStatus } from "@/lib/store";
 import type { RequestStatus } from "@/lib/types";
 
 export async function GET(
@@ -47,7 +47,6 @@ export async function PATCH(
   const req = await getRequest(reference);
   if (!req) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  req.status = status;
-  await saveRequest(req);
+  await updateRequestStatus(reference, status);
   return NextResponse.json({ ok: true, status });
 }

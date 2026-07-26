@@ -1,0 +1,447 @@
+// ---------------------------------------------------------------------------
+// Price my Prang — relational schema (Neon Postgres).
+//
+// Structured records live here; BYTES stay in Vercel Blob. Media rows store the
+// blob pathname + the /api/media proxy URL, never the file itself.
+//
+// Deliberately normalised (quote lines and media are real tables, vehicle
+// fields are real columns) because Power BI is a first-class consumer and
+// handles JSONB badly. Only genuinely opaque text (OCR output) stays freeform.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---- Enums -----------------------------------------------------------------
+
+enum RateUnit {
+  rand_per_hour
+  rand
+  percent
+}
+
+enum PartType {
+  new
+  used
+  alternate
+}
+
+enum PanelBeaterStatus {
+  pending
+  approved
+  declined
+}
+
+enum RequestStatus {
+  new
+  in_progress
+  completed
+}
+
+enum YesNo {
+  yes
+  no
+}
+
+enum YesNoUnsure {
+  yes
+  no
+  unsure
+}
+
+/// Which slot a piece of request media fills. The four `photo_*` kinds are the
+/// mandatory full-vehicle shots; `damage` is the optional close-up set.
+enum MediaKind {
+  disc
+  odometer
+  video
+  photo_front
+  photo_back
+  photo_left
+  photo_right
+  damage
+}
+
+// ---- Access control --------------------------------------------------------
+
+/// Roles stay DATA (edited in the portal). Permission keys are code-defined in
+/// lib/permissions.ts and held here as a plain text[].
+model Role {
+  id          String   @id
+  name        String
+  permissions String[]
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id String @id @default(uuid())
+
+  name String
+  /// Stored lower-cased so uniqueness is genuinely case-insensitive.
+  email        String  @unique
+  passwordHash String
+  active       Boolean @default(true)
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  /// Set when this login belongs to a panel beater editing their own listing.
+  panelBeaterId String?
+  panelBeater   PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roleId])
+  @@index([panelBeaterId])
+  @@map("users")
+}
+
+// ---- Rate cards ------------------------------------------------------------
+
+model RateType {
+  id        String   @id @default(uuid())
+  label     String
+  unit      RateUnit
+  group     String?
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  system    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  panelBeaterRates PanelBeaterRate[]
+  insurerRates     InsurerRate[]
+
+  @@index([active, order])
+  @@map("rate_types")
+}
+
+model Insurer {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rates    InsurerRate[]
+  requests QuoteRequest[]
+
+  @@map("insurers")
+}
+
+/// An insurer's shared rate card — one value per rate type.
+model InsurerRate {
+  insurerId  String
+  rateTypeId String
+  value      Decimal @db.Decimal(12, 2)
+
+  insurer  Insurer  @relation(fields: [insurerId], references: [id], onDelete: Cascade)
+  rateType RateType @relation(fields: [rateTypeId], references: [id], onDelete: Cascade)
+
+  @@id([insurerId, rateTypeId])
+  @@index([rateTypeId])
+  @@map("insurer_rates")
+}
+
+// ---- Panel beaters ---------------------------------------------------------
+
+model PanelBeater {
+  id String @id @default(uuid())
+
+  completedByName  String?
+  completedByEmail String?
+  ownerName        String?
+  ownerEmail       String?
+
+  companyName      String
+  tradingAs        String?
+  companyRegNumber String
+  vatNumber        String?
+
+  physicalAddress String
+  lat             Float?
+  lng             Float?
+
+  mibcoNumber  String?
+  rmiNumber    String
+  sambraNumber String?
+  miwaNumber   String?
+
+  /// Legacy flat rates, superseded by PanelBeaterRate. Kept for the PB form.
+  labourRateSenior Decimal? @db.Decimal(12, 2)
+  labourRateJunior Decimal? @db.Decimal(12, 2)
+
+  logoUrl String?
+  email   String?
+  phone   String?
+
+  active            Boolean           @default(true)
+  status            PanelBeaterStatus @default(pending)
+  submittedByPublic Boolean           @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rates       PanelBeaterRate[]
+  warranties  Warranty[]
+  users       User[]
+  quotes      Quote[]
+  selectedFor RequestPanelBeater[]
+
+  @@index([active, status])
+  @@index([companyName])
+  @@map("panel_beaters")
+}
+
+model PanelBeaterRate {
+  panelBeaterId String
+  rateTypeId    String
+  value         Decimal @db.Decimal(12, 2)
+
+  panelBeater PanelBeater @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  rateType    RateType    @relation(fields: [rateTypeId], references: [id], onDelete: Cascade)
+
+  @@id([panelBeaterId, rateTypeId])
+  @@index([rateTypeId])
+  @@map("panel_beater_rates")
+}
+
+/// A manufacturer warranty approval held by a panel beater.
+model Warranty {
+  id            String @id @default(uuid())
+  panelBeaterId String
+
+  manufacturer String
+  startDate    DateTime? @db.Date
+  expiryDate   DateTime? @db.Date
+
+  /// Certificate lives in Blob; these are the proxy URL + blob pathname.
+  certificateUrl         String?
+  certificatePathname    String?
+  certificateContentType String?
+
+  remind Boolean @default(false)
+  /// Reminder milestones already emailed: "3m","2m","1m","2w","1d".
+  remindersSent String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  panelBeater PanelBeater @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+
+  @@index([panelBeaterId])
+  @@index([expiryDate])
+  @@map("warranties")
+}
+
+// ---- Suppliers -------------------------------------------------------------
+
+model Supplier {
+  id        String     @id @default(uuid())
+  name      String
+  partTypes PartType[]
+  makes     String[]
+  supplies  String?
+  email     String?
+  phone     String?
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([active])
+  @@map("suppliers")
+}
+
+// ---- Quote requests --------------------------------------------------------
+
+model QuoteRequest {
+  id        String        @id @default(uuid())
+  reference String        @unique
+  status    RequestStatus @default(new)
+
+  // Consumer
+  firstName   String
+  lastName    String
+  email       String
+  phone       String
+  companyName String?
+
+  hasInsurance          YesNo
+  insurerName           String?
+  insurerId             String?
+  underWarranty         YesNoUnsure
+  isInsuranceClaim      YesNo
+  claimNumber           String?
+  noClaimNumberYet      Boolean     @default(false)
+  isThirdPartyClaim     YesNo
+  suspectedEngineDamage YesNo
+  quotesRequested       Int         @default(1)
+
+  // Vehicle — flattened into columns so BI can slice on them directly.
+  vin          String?
+  make         String?
+  model        String?
+  series       String?
+  year         String?
+  colour       String?
+  registration String?
+  /// Raw OCR text off the licence disc — opaque, for the assessor only.
+  discRawText  String?
+
+  mileageKm Int?
+
+  /// True when a panel beater started this quote themselves (not a consumer).
+  repairerInitiated Boolean @default(false)
+
+  // Where the consumer was when they submitted.
+  lat Float?
+  lng Float?
+  /// True when the client asked us to pick the workshops for them.
+  letUsChoose Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  insurer              Insurer?             @relation(fields: [insurerId], references: [id], onDelete: SetNull)
+  media                RequestMedia[]
+  selectedPanelBeaters RequestPanelBeater[]
+  quotes               Quote[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([insurerId])
+  @@index([email])
+  @@index([lastName])
+  @@map("quote_requests")
+}
+
+/// Media attached to a request. One row per file; bytes stay in Blob.
+model RequestMedia {
+  id        String    @id @default(uuid())
+  requestId String
+  kind      MediaKind
+
+  url         String
+  pathname    String
+  contentType String?
+  /// Ordering within a multi-file kind (damage photos).
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  request QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, kind])
+  @@map("request_media")
+}
+
+/// Which panel beaters the consumer picked for a request.
+model RequestPanelBeater {
+  requestId     String
+  panelBeaterId String
+
+  request     QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater  @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+
+  @@id([requestId, panelBeaterId])
+  @@index([panelBeaterId])
+  @@map("request_panel_beaters")
+}
+
+// ---- Built quotes ----------------------------------------------------------
+
+model Quote {
+  id            String @id @default(uuid())
+  requestId     String
+  panelBeaterId String
+
+  sundries    Decimal @default(0) @db.Decimal(12, 2)
+  consumables Decimal @default(0) @db.Decimal(12, 2)
+
+  partsTotal  Decimal @default(0) @db.Decimal(12, 2)
+  panelTotal  Decimal @default(0) @db.Decimal(12, 2)
+  paintTotal  Decimal @default(0) @db.Decimal(12, 2)
+  stripTotal  Decimal @default(0) @db.Decimal(12, 2)
+  labourTotal Decimal @default(0) @db.Decimal(12, 2)
+  totalHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  subtotal Decimal @default(0) @db.Decimal(12, 2)
+  vat      Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @default(0) @db.Decimal(12, 2)
+
+  notes         String?
+  estimatorName String?
+  pdfUrl        String?
+  createdByName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request     QuoteRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater     @relation(fields: [panelBeaterId], references: [id])
+  lines       QuoteLineItem[]
+
+  /// One quote per workshop per request.
+  @@unique([requestId, panelBeaterId])
+  @@index([panelBeaterId])
+  @@index([createdAt(sort: Desc)])
+  @@map("quotes")
+}
+
+model QuoteLineItem {
+  id        String @id @default(uuid())
+  quoteId   String
+  sortOrder Int    @default(0)
+
+  /// New / Alt / Used / Repair / Out Work / Paint / Note (free text).
+  code        String?
+  description String
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  partsAmount Decimal @default(0) @db.Decimal(12, 2)
+
+  // Legacy parts-catalogue link (the catalogue itself is gone).
+  partId     String?
+  supplier   String?
+  partNumber String?
+
+  panelCode   String?
+  panelAmount Decimal @default(0) @db.Decimal(12, 2)
+  panelHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  paintCode   String?
+  paintAmount Decimal @default(0) @db.Decimal(12, 2)
+  paintHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  stripCode   String?
+  stripAmount Decimal @default(0) @db.Decimal(12, 2)
+  stripHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, sortOrder])
+  @@map("quote_line_items")
+}
+
+// ---- Reference allocation --------------------------------------------------
+
+/// Per-day counter behind PMP-YYYYMMDD-SURNAME-NN. Incremented atomically in
+/// the database, so concurrent submissions can no longer collide.
+model ReferenceCounter {
+  dateKey String @id
+  seq     Int    @default(0)
+
+  @@map("reference_counters")
+}
