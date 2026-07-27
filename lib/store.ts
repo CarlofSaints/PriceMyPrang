@@ -56,6 +56,7 @@ type UserRow = {
   roleId: string;
   panelBeaterId: string | null;
   active: boolean;
+  mustChangePassword: boolean;
   createdAt: Date;
 };
 
@@ -67,6 +68,7 @@ const toUser = (r: UserRow): User => ({
   role: r.roleId,
   panelBeaterId: r.panelBeaterId ?? undefined,
   active: r.active,
+  mustChangePassword: r.mustChangePassword,
   createdAt: iso(r.createdAt),
 });
 
@@ -90,6 +92,7 @@ export async function saveUsers(users: User[]): Promise<void> {
         roleId: u.role,
         panelBeaterId: u.panelBeaterId ?? null,
         active: u.active,
+        mustChangePassword: u.mustChangePassword ?? false,
       };
       await tx.user.upsert({
         where: { id: u.id },
@@ -111,6 +114,24 @@ export async function findUserById(id: string): Promise<User | null> {
   return row ? toUser(row) : null;
 }
 
+/**
+ * Change one user's password.
+ *
+ * Deliberately NOT saveUsers() — that replaces the whole collection and deletes
+ * anyone missing from the list, which is fine for the admin Users page but far
+ * too blunt for a self-service endpoint. This touches a single row.
+ */
+export async function setUserPassword(
+  id: string,
+  passwordHash: string,
+  mustChangePassword = false
+): Promise<void> {
+  await getDb().user.update({
+    where: { id },
+    data: { passwordHash, mustChangePassword },
+  });
+}
+
 export async function upsertUser(user: User): Promise<void> {
   const data = {
     name: user.name,
@@ -119,6 +140,7 @@ export async function upsertUser(user: User): Promise<void> {
     roleId: user.role,
     panelBeaterId: user.panelBeaterId ?? null,
     active: user.active,
+    mustChangePassword: user.mustChangePassword ?? false,
   };
   await getDb().user.upsert({
     where: { id: user.id },

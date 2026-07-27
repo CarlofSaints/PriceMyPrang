@@ -201,6 +201,7 @@ export async function sendUserCredentials(opts: {
   password: string;
   roleName?: string;
   isReset?: boolean;
+  mustChangePassword?: boolean;
 }): Promise<{ sent: boolean; error?: string }> {
   const resend = client();
   if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
@@ -230,7 +231,12 @@ export async function sendUserCredentials(opts: {
       </a>
     </p>
     <p style="font-size:13px;color:#6b7f82;">
-      Please sign in and change your password. If you weren&apos;t expecting this, you can ignore this email.
+      ${
+        opts.mustChangePassword
+          ? "You&apos;ll be asked to choose your own password as soon as you sign in."
+          : "Please sign in and change your password."
+      }
+      If you weren&apos;t expecting this, you can ignore this email.
     </p>
   `;
 

@@ -69,6 +69,8 @@ export interface User {
   /** If this user is a panel beater login, the panel beater they own. */
   panelBeaterId?: string;
   active: boolean;
+  /** True while the user is still on an admin-issued temporary password. */
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 

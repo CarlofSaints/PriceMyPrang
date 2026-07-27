@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import PortalChrome from "@/components/PortalChrome";
 import { type NavItem } from "@/components/PortalNav";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
+import LogoutButton from "@/components/LogoutButton";
+import { Logo } from "@/components/Logo";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
@@ -11,6 +14,33 @@ export default async function PortalLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // Still on an admin-issued temporary password: swap the whole portal for the
+  // change-password screen. Done by rendering instead of redirecting, so it
+  // covers every /portal route without pathname matching or a redirect loop
+  // (the layout has to run before any page either way, so it costs nothing).
+  if (user.mustChangePassword) {
+    return (
+      <div className="min-h-dvh bg-offwhite">
+        <header className="sticky top-0 z-30 bg-ink">
+          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-5">
+            <Logo variant="horizontal-dark" className="h-9 w-auto sm:h-11" />
+            <LogoutButton />
+          </div>
+        </header>
+        <main className="mx-auto max-w-md px-4 py-10 sm:py-16">
+          <h1 className="font-display text-2xl font-bold text-ink">Choose a password</h1>
+          <p className="mt-1 text-sm text-ink/70">
+            You&apos;re signed in with a temporary password. Pick your own to carry on to the
+            portal.
+          </p>
+          <div className="pmp-card mt-6">
+            <ChangePasswordForm forced />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // Main navigation (left sidebar).
   const items: NavItem[] = [];

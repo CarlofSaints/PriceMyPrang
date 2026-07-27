@@ -94,6 +94,10 @@ model User {
   passwordHash String
   active       Boolean @default(true)
 
+  /// Set when an admin issues a temporary password. The portal shows nothing
+  /// but the change-password screen until the user picks their own.
+  mustChangePassword Boolean @default(false)
+
   roleId String
   role   Role   @relation(fields: [roleId], references: [id])
 

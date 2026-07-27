@@ -74,6 +74,12 @@ export default function PortalChrome({
               <p className="whitespace-nowrap text-sm font-semibold text-white">{userName}</p>
               <p className="text-xs text-teal-light">{roleName}</p>
             </div>
+            <Link
+              href="/portal/change-password"
+              className="hidden whitespace-nowrap text-sm font-semibold text-white/70 hover:text-white sm:block"
+            >
+              Change password
+            </Link>
             <LogoutButton />
           </div>
         </div>
@@ -133,6 +139,17 @@ export default function PortalChrome({
               </p>
             </div>
           )}
+
+          {/* On phones the top bar has no room for this, so it lives here too. */}
+          <div className="border-t border-ink/10 p-3 sm:hidden">
+            <Link
+              href="/portal/change-password"
+              onClick={closeOnMobile}
+              className={linkClass(isActive("/portal/change-password"))}
+            >
+              Change password
+            </Link>
+          </div>
         </aside>
 
         {/* Content */}

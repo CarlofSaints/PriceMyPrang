@@ -18,13 +18,16 @@ export default function UsersManager({
 }) {
   const [users, setUsers] = useState<SafeUser[]>(initialUsers);
   const defaultRole = roles.find((r) => r.id === "assessor")?.id || roles[0]?.id || "";
-  const [form, setForm] = useState({
+  const blankForm = {
     name: "",
     email: "",
     password: "",
     role: defaultRole,
     panelBeaterId: "",
-  });
+    sendEmail: true,
+    mustChangePassword: true,
+  };
+  const [form, setForm] = useState(blankForm);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +36,37 @@ export default function UsersManager({
   const selectedRole = roles.find((r) => r.id === form.role);
   const roleWantsPanelBeater = selectedRole?.permissions.includes("onboard_self");
 
-  type UserResponse = SafeUser & { emailSent?: boolean; emailError?: string };
+  type UserResponse = SafeUser & {
+    emailSent?: boolean;
+    emailError?: string;
+    emailSkipped?: boolean;
+  };
+
+  /** What to tell the admin about a password they just issued. */
+  function passwordNotice(
+    u: UserResponse,
+    password: string,
+    what: "created" | "reset"
+  ): { ok: boolean; text: string } {
+    const subject = what === "created" ? "User created" : "Password reset";
+    if (u.emailSkipped)
+      return {
+        ok: true,
+        text: `${subject} — no email sent. Give them this password yourself: ${password}`,
+      };
+    if (u.emailSent)
+      return {
+        ok: true,
+        text:
+          what === "created"
+            ? `User created — login details emailed to ${u.email}.`
+            : `Password reset — new details emailed to ${u.email}.`,
+      };
+    return {
+      ok: false,
+      text: `${subject}, but the email didn't send${u.emailError ? ` (${u.emailError})` : ""}. Share the password with them manually: ${password}`,
+    };
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -49,15 +82,8 @@ export default function UsersManager({
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const u = (await res.json()) as UserResponse;
       setUsers((list) => [...list, u]);
-      setNotice(
-        u.emailSent
-          ? { ok: true, text: `User created — login details emailed to ${u.email}.` }
-          : {
-              ok: false,
-              text: `User created, but the email didn't send${u.emailError ? ` (${u.emailError})` : ""}. Share the password with them manually: ${form.password}`,
-            }
-      );
-      setForm({ name: "", email: "", password: "", role: defaultRole, panelBeaterId: "" });
+      setNotice(passwordNotice(u, form.password, "created"));
+      setForm(blankForm);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -80,19 +106,15 @@ export default function UsersManager({
   }
 
   async function resetPw(id: string) {
-    const pw = prompt("New password for this user:");
+    const pw = prompt("New temporary password for this user:");
     if (!pw) return;
-    const u = await patch(id, { password: pw });
-    if (u) {
-      setNotice(
-        u.emailSent
-          ? { ok: true, text: `Password reset — new details emailed to ${u.email}.` }
-          : {
-              ok: false,
-              text: `Password reset, but the email didn't send${u.emailError ? ` (${u.emailError})` : ""}. New password: ${pw}`,
-            }
-      );
-    }
+    // A reset always forces them to pick their own afterwards; the only choice
+    // is whether we email it or the admin hands it over.
+    const sendEmail = confirm(
+      `Email this password to the user?\n\nOK — email it to them.\nCancel — don't email; it'll be shown here for you to pass on.`
+    );
+    const u = await patch(id, { password: pw, sendEmail, mustChangePassword: true });
+    if (u) setNotice(passwordNotice(u, pw, "reset"));
   }
 
   return (
@@ -149,6 +171,38 @@ export default function UsersManager({
           </Field>
         )}
 
+        <div className="space-y-2 rounded-xl bg-offwhite p-3">
+          <label className="flex items-start gap-2.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.sendEmail}
+              onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })}
+            />
+            <span>
+              Email the login details to the user
+              <span className="block text-xs text-ink/60">
+                Uncheck to hand the password over yourself — it&apos;ll be shown here once after
+                you create them.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.mustChangePassword}
+              onChange={(e) => setForm({ ...form, mustChangePassword: e.target.checked })}
+            />
+            <span>
+              Make them choose their own password on first sign-in
+              <span className="block text-xs text-ink/60">
+                They see nothing but the change-password screen until they do.
+              </span>
+            </span>
+          </label>
+        </div>
+
         {error && <p className="text-sm text-coral">{error}</p>}
         <Button type="submit" disabled={busy}>
           {busy ? "Creating…" : "Create user"}
@@ -169,7 +223,17 @@ export default function UsersManager({
           <tbody className="divide-y divide-ink/5">
             {users.map((u) => (
               <tr key={u.id}>
-                <td className="px-4 py-3 font-semibold">{u.name}</td>
+                <td className="px-4 py-3 font-semibold">
+                  {u.name}
+                  {u.mustChangePassword && (
+                    <span
+                      title="Still on a temporary password — they must change it at next sign-in."
+                      className="ml-2 whitespace-nowrap rounded-full bg-amber/25 px-2 py-0.5 text-[11px] font-semibold text-ink/70"
+                    >
+                      temp password
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-ink/70">{u.email}</td>
                 <td className="px-4 py-3">
                   <select
