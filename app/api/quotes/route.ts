@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { getRequest, upsertQuote, getPanelBeater } from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
 import { buildQuotePdf } from "@/lib/quotePdf";
+import { sendConsumerQuoteReady } from "@/lib/email";
 import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -92,6 +93,10 @@ export async function POST(request: Request) {
     id: crypto.randomUUID(),
     reference: req.reference,
     panelBeaterId: pb.id,
+    // A freshly built quote is with the consumer. upsertQuote deliberately
+    // leaves the stored status alone on a rebuild, so re-pricing a job that's
+    // already been accepted doesn't quietly un-accept it.
+    status: "awaiting_approval",
     lines,
     sundries,
     consumables,
@@ -128,6 +133,17 @@ export async function POST(request: Request) {
   // Inserts, or replaces this workshop's existing quote, and moves the
   // request's status on once every requested quote is in.
   await upsertQuote(req.reference, quote);
+
+  // Let the consumer know there's something to look at. Best-effort — the quote
+  // is saved either way, and they can still reach it from an earlier link.
+  // Skipped for repairer-initiated jobs, where the workshop handles the client.
+  if (!req.repairerInitiated) {
+    try {
+      await sendConsumerQuoteReady(req, pb, quote.total);
+    } catch (err) {
+      console.error("quote-ready email failed", err);
+    }
+  }
 
   return NextResponse.json(quote);
 }

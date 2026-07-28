@@ -2,9 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { listRequests, getDashboardStats } from "@/lib/store";
+import {
+  listRequests,
+  getDashboardStats,
+  getPanelBeaterQuoteStats,
+  listPanelBeaterWork,
+  getPanelBeater,
+} from "@/lib/store";
 import { zar, shortDate } from "@/lib/format";
 import { Button } from "@/components/ui";
+import PanelBeaterDashboard from "@/components/PanelBeaterDashboard";
 import type { RequestStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,7 +30,26 @@ export default async function DashboardPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!can(user, "view_dashboard")) redirect("/portal/panel-beaters");
+
+  // A panel-beater login lands here too, but sees their own work rather than
+  // the whole network's. They used to be bounced to their listing page.
+  if (!can(user, "view_dashboard")) {
+    if (!user.panelBeaterId) redirect("/portal/panel-beaters");
+
+    const [pbStats, work, workshop] = await Promise.all([
+      getPanelBeaterQuoteStats(user.panelBeaterId),
+      listPanelBeaterWork(user.panelBeaterId, { pageSize: PAGE_SIZE }),
+      getPanelBeater(user.panelBeaterId),
+    ]);
+
+    return (
+      <PanelBeaterDashboard
+        workshopName={workshop ? workshop.tradingAs || workshop.companyName : "your workshop"}
+        stats={pbStats}
+        rows={work.rows}
+      />
+    );
+  }
 
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);

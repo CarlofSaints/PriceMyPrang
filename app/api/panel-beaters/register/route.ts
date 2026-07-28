@@ -1,9 +1,79 @@
 import { NextResponse } from "next/server";
-import { getPanelBeaters, upsertPanelBeater } from "@/lib/store";
+import { getPanelBeaters, upsertPanelBeater, findUserByEmail, upsertUser } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
+import { generateTempPassword, hashPassword } from "@/lib/auth";
 import { mergeWarranties } from "@/lib/warrantyReminders";
-import { sendPanelBeaterRegistrationNotification } from "@/lib/email";
-import type { PanelBeater } from "@/lib/types";
+import {
+  sendPanelBeaterRegistrationNotification,
+  sendPanelBeaterWelcome,
+} from "@/lib/email";
+import type { PanelBeater, User } from "@/lib/types";
+
+/** Role every self-registered panel-beater login gets (see DEFAULT_ROLES). */
+const PANEL_BEATER_ROLE = "panel_beater";
+
+/**
+ * Give the applicant a way in. Both the person who filled the form in and the
+ * business owner get their own login on the workshop — they're often different
+ * people, and neither should have to share a password with the other. Same
+ * address twice collapses to one account.
+ *
+ * An address that's already a user is SKIPPED, never overwritten: someone
+ * re-registering (or an existing PMP user) must not have their password reset
+ * by an unauthenticated endpoint.
+ */
+async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipped: string[] }> {
+  const candidates = [
+    { name: pb.completedByName, email: pb.completedByEmail },
+    { name: pb.ownerName, email: pb.ownerEmail },
+  ];
+
+  const created: string[] = [];
+  const skipped: string[] = [];
+  const seen = new Set<string>();
+
+  for (const c of candidates) {
+    const email = c.email?.trim().toLowerCase();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+
+    if (await findUserByEmail(email)) {
+      skipped.push(email);
+      continue;
+    }
+
+    const password = generateTempPassword();
+    const user: User = {
+      id: crypto.randomUUID(),
+      name: c.name?.trim() || pb.companyName,
+      email,
+      passwordHash: await hashPassword(password),
+      role: PANEL_BEATER_ROLE,
+      panelBeaterId: pb.id,
+      active: true,
+      // They chose nothing — this password was generated for them.
+      mustChangePassword: true,
+      createdAt: new Date().toISOString(),
+    };
+    await upsertUser(user);
+    created.push(email);
+
+    // Best-effort: a failed email must not undo a good registration. The
+    // account exists either way and an admin can resend from the Users page.
+    try {
+      await sendPanelBeaterWelcome({
+        name: user.name,
+        email,
+        password,
+        companyName: pb.tradingAs || pb.companyName,
+      });
+    } catch (err) {
+      console.error("panel beater welcome email failed", email, err);
+    }
+  }
+
+  return { created, skipped };
+}
 
 // PUBLIC (no auth): a panel beater applies to join. Created as pending +
 // inactive so it does NOT appear on the consumer map until an admin approves.
@@ -77,11 +147,21 @@ export async function POST(request: Request) {
 
   await upsertPanelBeater(pb);
 
+  // Logins first: the applicant is told to expect them, so a failure here is
+  // worth surfacing, whereas the internal alert below is fire-and-forget.
+  const logins = await createLogins(pb);
+
   try {
     await sendPanelBeaterRegistrationNotification(pb);
   } catch (err) {
     console.error("registration email failed", err);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    // So the form can tell them where the email went, and flag an address that
+    // already had an account (they should sign in with their existing password).
+    logins: logins.created,
+    existingLogins: logins.skipped,
+  });
 }

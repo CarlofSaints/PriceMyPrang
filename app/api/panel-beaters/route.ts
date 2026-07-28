@@ -92,6 +92,12 @@ export async function POST(request: Request) {
       b.completedByEmail?.trim(),
     phone: b.phone?.trim() || existing?.phone,
     active: b.active ?? existing?.active ?? true,
+    // Approval is decided on the Panel beaters page (PATCH), never by an edit.
+    // writePanelBeater persists `status ?? "pending"` on update, so omitting
+    // these would quietly un-approve a vetted workshop and put the "not yet
+    // vetted" banner back in front of all its users.
+    status: b.status ?? existing?.status ?? "pending",
+    submittedByPublic: b.submittedByPublic ?? existing?.submittedByPublic,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
 

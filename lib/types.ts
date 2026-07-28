@@ -183,6 +183,10 @@ export type RequestStatus = "new" | "in_progress" | "completed";
 
 export interface QuoteRequest {
   reference: string; // PMP-YYYYMMDD-SURNAME-#
+  /** Unguessable key for the consumer's own quote page. Never show this in the portal. */
+  publicToken?: string;
+  /** Rate type the repairer picked off their own rate card when opening the job. */
+  rateTypeId?: string;
   createdAt: string;
   status: RequestStatus;
 
@@ -300,4 +304,14 @@ export interface BuiltQuote {
   pdfUrl?: string;
   createdAt: string;
   createdByName?: string;
+
+  /**
+   * Where this quote stands with the CONSUMER — they accept one, which declines
+   * the rest. Not to be confused with PanelBeater.status, which is whether
+   * we've vetted the workshop.
+   */
+  status: QuoteStatus;
+  acceptedAt?: string;
 }
+
+export type QuoteStatus = "awaiting_approval" | "accepted" | "declined";

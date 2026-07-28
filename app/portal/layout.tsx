@@ -5,6 +5,7 @@ import ChangePasswordForm from "@/components/ChangePasswordForm";
 import LogoutButton from "@/components/LogoutButton";
 import { Logo } from "@/components/Logo";
 import { getCurrentUser } from "@/lib/auth";
+import { getPanelBeater } from "@/lib/store";
 import { can } from "@/lib/permissions";
 
 export default async function PortalLayout({
@@ -44,7 +45,9 @@ export default async function PortalLayout({
 
   // Main navigation (left sidebar).
   const items: NavItem[] = [];
-  if (can(user, "view_dashboard")) items.push({ href: "/portal", label: "Dashboard" });
+  // Panel-beater logins get a dashboard too — their own work, not the network's.
+  if (can(user, "view_dashboard") || (can(user, "onboard_self") && user.panelBeaterId))
+    items.push({ href: "/portal", label: "Dashboard" });
   if (can(user, "build_quotes") || can(user, "onboard_self"))
     items.push({ href: "/portal/new-quote", label: "New quote" });
   if (can(user, "build_quotes")) items.push({ href: "/portal/quote-builder", label: "Quote builder" });
@@ -70,6 +73,11 @@ export default async function PortalLayout({
   if (can(user, "manage_insurers"))
     adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
 
+  // Vetting is a property of the WORKSHOP, not the login — every user attached
+  // to an unapproved panel beater sees this, however many of them there are.
+  const workshop = user.panelBeaterId ? await getPanelBeater(user.panelBeaterId) : null;
+  const awaitingVetting = !!workshop && workshop.status !== "approved";
+
   return (
     <PortalChrome
       items={items}
@@ -77,6 +85,18 @@ export default async function PortalLayout({
       userName={user.name}
       roleName={user.roleName}
     >
+      {awaitingVetting && (
+        <div className="mb-6 rounded-2xl border border-coral/30 bg-coral/10 p-4">
+          <p className="font-display text-base font-semibold text-ink">
+            You have not yet been vetted
+          </p>
+          <p className="mt-1 text-sm text-ink/70">
+            Once your documents have been checked, you will be approved. In the meantime you can
+            carry on setting up {workshop.tradingAs || workshop.companyName} — your workshop
+            won&apos;t appear to consumers until it&apos;s approved.
+          </p>
+        </div>
+      )}
       {children}
     </PortalChrome>
   );

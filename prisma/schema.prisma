@@ -44,6 +44,14 @@ enum RequestStatus {
   completed
 }
 
+/// Where a single workshop's quote stands with the CONSUMER. Nothing to do with
+/// PanelBeaterStatus, which is whether we've vetted the workshop itself.
+enum QuoteStatus {
+  awaiting_approval
+  accepted
+  declined
+}
+
 enum YesNo {
   yes
   no
@@ -276,6 +284,14 @@ model QuoteRequest {
   reference String        @unique
   status    RequestStatus @default(new)
 
+  /// Unguessable key for the consumer's own "your quotes" page. The reference
+  /// (PMP-date-SURNAME-nn) is predictable, so it can't be what gates access.
+  publicToken String? @unique
+
+  /// Rate type the repairer chose off their own rate card when they opened the
+  /// job. Drives the labour rate the quote builder starts from.
+  rateTypeId String?
+
   // Consumer
   firstName   String
   lastName    String
@@ -390,6 +406,10 @@ model Quote {
   estimatorName String?
   pdfUrl        String?
   createdByName String?
+
+  status     QuoteStatus @default(awaiting_approval)
+  /// When the consumer accepted this quote. Null unless status is accepted.
+  acceptedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

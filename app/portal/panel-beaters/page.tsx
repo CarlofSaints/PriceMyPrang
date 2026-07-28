@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters } from "@/lib/store";
-import { zar } from "@/lib/format";
 import { Button } from "@/components/ui";
 import PanelBeaterApproval from "@/components/PanelBeaterApproval";
 
@@ -102,10 +101,17 @@ export default async function PanelBeatersPage() {
                 {p.lat == null && <span className="text-coral">⚠ not geocoded</span>}
               </div>
               <div className="flex items-center justify-between pt-2 text-sm">
-                <span className="text-ink/60">
-                  Snr {p.labourRateSenior ? zar(p.labourRateSenior) : "—"} · Jnr{" "}
-                  {p.labourRateJunior ? zar(p.labourRateJunior) : "—"}
-                </span>
+                {/* Labour rates used to sit here; they're no longer captured on
+                    the form. Approval is the useful thing to see at a glance. */}
+                {p.status === "approved" ? (
+                  <span className="rounded-full bg-teal/15 px-2 py-0.5 text-xs font-semibold text-teal">
+                    Approved
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber/30 px-2 py-0.5 text-xs font-semibold text-ink">
+                    {p.status === "declined" ? "Declined" : "Not approved"}
+                  </span>
+                )}
                 <Link
                   href={`/portal/panel-beaters/${p.id}`}
                   className="font-semibold text-teal hover:underline"

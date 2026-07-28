@@ -312,6 +312,118 @@ export async function sendWarrantyExpiryReminder(
   }
 }
 
+/**
+ * Tells the consumer a quote has landed and links them to their own page to
+ * compare and accept one. The link carries the request's publicToken — the
+ * reference is guessable, so it can't be what gates the page.
+ */
+export async function sendConsumerQuoteReady(
+  req: QuoteRequest,
+  pb: PanelBeater,
+  quoteTotal: number
+): Promise<void> {
+  const resend = client();
+  if (!resend || !req.publicToken) return;
+
+  const link = `${baseUrl()}/quote/${req.publicToken}`;
+  const money = `R ${quoteTotal.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${req.firstName},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      <strong>${pb.tradingAs || pb.companyName}</strong> has sent through a quote for your
+      ${[req.vehicle.make, req.vehicle.model].filter(Boolean).join(" ") || "vehicle"}.
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Reference", req.reference)}
+        ${detailRow("Workshop", pb.tradingAs || pb.companyName)}
+        ${detailRow("Quote total (incl VAT)", money)}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${link}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        View and accept your quotes
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      You can compare every quote on your job on that page and accept the one you want. Accepting
+      one lets the other workshops know they weren&apos;t selected. Keep this link private — anyone
+      with it can see and accept your quotes.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to: req.email,
+      subject: `Your quote from ${pb.tradingAs || pb.companyName} — ${req.reference}`,
+      html: shell("You have a new quote", body),
+    });
+  } catch (err) {
+    console.error("consumer quote email failed", err);
+  }
+}
+
+/**
+ * Sent to the applicant when they submit the sign-up form: confirmation that
+ * we have it, what happens next, and the login we created for them. One email,
+ * not two — they shouldn't have to reconcile a welcome with a separate password.
+ */
+export async function sendPanelBeaterWelcome(opts: {
+  name: string;
+  email: string;
+  password: string;
+  companyName: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      Thanks for signing <strong>${opts.companyName}</strong> up to Price my Prang. We have your
+      application and our team is checking your documents.
+    </p>
+    <p style="font-size:15px;line-height:1.5;">
+      You can sign in straight away to finish setting up your listing and your rates. Until your
+      documents have been checked your workshop won&apos;t appear to consumers, and you&apos;ll see a
+      reminder in the portal until it does.
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Login", opts.email)}
+        ${detailRow("Temporary password", opts.password)}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${baseUrl()}/login"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Sign in to the portal
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      You&apos;ll be asked to choose your own password as soon as you sign in. If you weren&apos;t
+      expecting this, you can ignore this email.
+    </p>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to: opts.email,
+      subject: `Welcome to Price my Prang — ${opts.companyName}`,
+      html: shell("Thanks for signing up", body),
+    });
+    if (error)
+      return { sent: false, error: (error as { message?: string }).message || "send failed" };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
 export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
   const resend = client();
   if (!resend) return;

@@ -66,6 +66,10 @@ export default function RegisterLauncher({
                     Your application has been submitted and is pending approval. We&apos;ll be in
                     touch once your MIWA / MIBCO / RMI credentials are verified.
                   </p>
+                  <p className="text-ink/70">
+                    Check your inbox — we&apos;ve emailed you a login so you can sign in and finish
+                    setting up your listing while we review it.
+                  </p>
                   <button
                     onClick={close}
                     className="rounded-full bg-teal px-6 py-3 font-semibold text-white hover:bg-[#026e76]"

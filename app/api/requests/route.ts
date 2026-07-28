@@ -33,6 +33,8 @@ interface Payload {
   selectedPanelBeaterIds?: string[];
   /** True when a logged-in panel beater is quoting a walk-in themselves. */
   repairerQuote?: boolean;
+  /** Rate type off the repairer's own rate card. Repairer-initiated jobs only. */
+  rateTypeId?: string;
 }
 
 export async function POST(request: Request) {
@@ -111,6 +113,8 @@ export async function POST(request: Request) {
     requiredPhotos: p.requiredPhotos || {},
     damagePhotos: p.damagePhotos || [],
     repairerInitiated: repairerQuote || undefined,
+    // Only meaningful when a repairer opened the job off their own rate card.
+    rateTypeId: repairerQuote ? p.rateTypeId?.trim() || undefined : undefined,
     location: p.location || undefined,
     letUsChoose,
     selectedPanelBeaterIds,

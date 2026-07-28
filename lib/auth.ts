@@ -17,6 +17,23 @@ function secret(): Uint8Array {
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
+
+// No 0/O/1/l/I — these get read off a screen and typed by hand.
+const TEMP_PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/**
+ * A temporary password for an account the system creates on someone's behalf
+ * (panel-beater sign-up). Always paired with mustChangePassword, so it only has
+ * to survive one login.
+ */
+export function generateTempPassword(length = 14): string {
+  const values = new Uint32Array(length);
+  crypto.getRandomValues(values);
+  return Array.from(
+    values,
+    (v) => TEMP_PASSWORD_ALPHABET[v % TEMP_PASSWORD_ALPHABET.length]
+  ).join("");
+}
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }

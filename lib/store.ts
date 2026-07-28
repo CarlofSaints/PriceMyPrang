@@ -19,6 +19,7 @@ import type {
   MediaRef,
   RequiredPhotos,
   RequestStatus,
+  QuoteStatus,
   WarrantyApproval,
 } from "./types";
 
@@ -645,6 +646,8 @@ const toQuote = (q: QuoteRow, reference: string): BuiltQuote => ({
   pdfUrl: q.pdfUrl ?? undefined,
   createdAt: iso(q.createdAt),
   createdByName: q.createdByName ?? undefined,
+  status: q.status as BuiltQuote["status"],
+  acceptedAt: q.acceptedAt ? iso(q.acceptedAt) : undefined,
 });
 
 const toRequest = (r: RequestRow): QuoteRequest => {
@@ -665,6 +668,8 @@ const toRequest = (r: RequestRow): QuoteRequest => {
 
   return {
     reference: r.reference,
+    publicToken: r.publicToken ?? undefined,
+    rateTypeId: r.rateTypeId ?? undefined,
     createdAt: iso(r.createdAt),
     status: r.status as RequestStatus,
     firstName: r.firstName,
@@ -766,6 +771,10 @@ export async function createRequest(
       const row = await db.quoteRequest.create({
         data: {
           reference,
+          // Gates the consumer's own quote page. Random, because the reference
+          // is derived from the date and their surname.
+          publicToken: crypto.randomUUID(),
+          rateTypeId: draft.rateTypeId ?? null,
           status: draft.status,
           firstName: draft.firstName,
           lastName: draft.lastName,
@@ -1041,6 +1050,161 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     completed: count("completed"),
     totalExecuted: num(executed._sum.total),
   };
+}
+
+// ---- panel beater's own view ----------------------------------------------
+
+export interface PanelBeaterWorkRow {
+  reference: string;
+  createdAt: string;
+  requestStatus: RequestStatus;
+  clientName: string;
+  vehicle: string;
+  registration?: string;
+  isInsuranceClaim: boolean;
+  /** Undefined when this workshop hasn't quoted the job yet. */
+  quoteStatus?: QuoteStatus;
+  quoteTotal?: number;
+}
+
+export interface PanelBeaterQuoteStats {
+  totalQuotes: number;
+  awaitingApproval: number;
+  accepted: number;
+}
+
+/** The three cards on a panel beater's dashboard, counted in the database. */
+export async function getPanelBeaterQuoteStats(
+  panelBeaterId: string
+): Promise<PanelBeaterQuoteStats> {
+  const byStatus = await getDb().quote.groupBy({
+    by: ["status"],
+    where: { panelBeaterId },
+    _count: { _all: true },
+  });
+
+  const count = (s: QuoteStatus) => byStatus.find((g) => g.status === s)?._count._all ?? 0;
+
+  return {
+    totalQuotes: byStatus.reduce((sum, g) => sum + g._count._all, 0),
+    awaitingApproval: count("awaiting_approval"),
+    accepted: count("accepted"),
+  };
+}
+
+/**
+ * Every request sent to this workshop, quoted or not — the dashboard doubles as
+ * their to-do list, so a job they haven't priced yet still has to show up.
+ */
+export async function listPanelBeaterWork(
+  panelBeaterId: string,
+  options: { page?: number; pageSize?: number } = {}
+): Promise<{ rows: PanelBeaterWorkRow[]; total: number }> {
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(200, Math.max(1, options.pageSize ?? 50));
+  const where = { selectedPanelBeaters: { some: { panelBeaterId } } };
+
+  const db = getDb();
+  const [rows, total] = await Promise.all([
+    db.quoteRequest.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        reference: true,
+        createdAt: true,
+        status: true,
+        firstName: true,
+        lastName: true,
+        make: true,
+        model: true,
+        year: true,
+        registration: true,
+        isInsuranceClaim: true,
+        // Only THIS workshop's quote — a panel beater must never see what a
+        // competitor quoted on the same job.
+        quotes: {
+          where: { panelBeaterId },
+          select: { status: true, total: true },
+          take: 1,
+        },
+      },
+    }),
+    db.quoteRequest.count({ where }),
+  ]);
+
+  return {
+    total,
+    rows: rows.map((r) => {
+      const own = r.quotes[0];
+      return {
+        reference: r.reference,
+        createdAt: iso(r.createdAt),
+        requestStatus: r.status as RequestStatus,
+        clientName: `${r.firstName} ${r.lastName}`.trim(),
+        vehicle: [r.make, r.model, r.year].filter(Boolean).join(" "),
+        registration: r.registration ?? undefined,
+        isInsuranceClaim: r.isInsuranceClaim === "yes",
+        quoteStatus: own ? (own.status as QuoteStatus) : undefined,
+        quoteTotal: own ? num(own.total) : undefined,
+      };
+    }),
+  };
+}
+
+// ---- consumer's own quote page --------------------------------------------
+
+/** Look a request up by the token in the consumer's emailed link. */
+export async function getRequestByPublicToken(token: string): Promise<QuoteRequest | null> {
+  if (!token) return null;
+  const row = await getDb().quoteRequest.findUnique({
+    where: { publicToken: token },
+    include: REQUEST_INCLUDE,
+  });
+  return row ? toRequest(row) : null;
+}
+
+/**
+ * The consumer picks one quote. Accepting is exclusive — every other quote on
+ * the same request is declined in the same transaction, so two workshops can
+ * never both believe they won. Re-accepting the one already accepted is a
+ * no-op; switching to a different one is allowed and moves the acceptance.
+ */
+export async function acceptQuote(
+  token: string,
+  quoteId: string
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "wrong_request" }> {
+  const db = getDb();
+
+  return db.$transaction(async (tx) => {
+    const request = await tx.quoteRequest.findUnique({
+      where: { publicToken: token },
+      select: { id: true },
+    });
+    if (!request) return { ok: false as const, reason: "not_found" as const };
+
+    const quote = await tx.quote.findUnique({
+      where: { id: quoteId },
+      select: { id: true, requestId: true },
+    });
+    if (!quote) return { ok: false as const, reason: "not_found" as const };
+    // The token proves which request they own; it must match the quote they
+    // named, or a valid token could accept a quote on somebody else's job.
+    if (quote.requestId !== request.id)
+      return { ok: false as const, reason: "wrong_request" as const };
+
+    await tx.quote.updateMany({
+      where: { requestId: request.id, id: { not: quoteId } },
+      data: { status: "declined", acceptedAt: null },
+    });
+    await tx.quote.update({
+      where: { id: quoteId },
+      data: { status: "accepted", acceptedAt: new Date() },
+    });
+
+    return { ok: true as const };
+  });
 }
 
 // ---- helpers ---------------------------------------------------------------

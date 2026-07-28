@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters } from "@/lib/store";
 import WarrantyCertificates, { type WarrantyRow } from "@/components/WarrantyCertificates";
+import AddWarrantyPanel from "@/components/AddWarrantyPanel";
 
 export default async function WarrantiesPage() {
   const user = await getCurrentUser();
@@ -36,6 +37,14 @@ export default async function WarrantiesPage() {
             : "Your manufacturer warranty approvals. View or download each certificate and keep an eye on what's expiring."}
         </p>
       </div>
+      {/* A panel-beater login can top up their own certificates here rather
+          than reopening the whole registration form. */}
+      {!canManage && user.panelBeaterId && (
+        <AddWarrantyPanel
+          taken={(panelBeaters[0]?.warranties ?? []).map((w) => w.manufacturer)}
+        />
+      )}
+
       <WarrantyCertificates rows={rows} showPanelBeater={canManage} />
     </div>
   );
