@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, hashPassword } from "@/lib/auth";
+import { requireUser, hashPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getUsers, saveUsers, getRoles } from "@/lib/store";
 import { sendUserCredentials } from "@/lib/email";
@@ -12,15 +12,15 @@ function scrub(u: User) {
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json((await getUsers()).map(scrub));
 }
 
 export async function POST(request: Request) {
-  const admin = await getCurrentUser();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user: admin, response } = await requireUser();
+  if (response) return response;
   if (!can(admin, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const b = (await request.json()) as {
@@ -84,8 +84,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const admin = await getCurrentUser();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user: admin, response } = await requireUser();
+  if (response) return response;
   if (!can(admin, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const b = (await request.json()) as {

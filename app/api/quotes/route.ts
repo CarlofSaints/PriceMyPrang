@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getRequest, upsertQuote, getPanelBeater } from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
@@ -23,8 +23,8 @@ const num = (v: unknown) => {
 };
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   const canBuild = can(user, "build_quotes");
   if (!canBuild && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

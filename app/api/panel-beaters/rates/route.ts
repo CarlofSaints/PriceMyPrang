@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeater, upsertPanelBeater, getRateTypes } from "@/lib/store";
 
 // Save a panel beater's own rate card. Panel-beater logins may only edit their
 // own listing; managers (manage_panel_beaters) may edit any.
 export async function PATCH(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
 
   const canManage = can(user, "manage_panel_beaters");
   const canSelf = can(user, "onboard_self");

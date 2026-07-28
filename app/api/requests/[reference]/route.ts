@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getRequest, updateRequestStatus } from "@/lib/store";
 import type { RequestStatus } from "@/lib/types";
@@ -8,8 +8,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ reference: string }> }
 ) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
 
   const { reference } = await params;
   const req = await getRequest(reference);
@@ -32,8 +32,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ reference: string }> }
 ) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "view_dashboard"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can, ALL_PERMISSIONS } from "@/lib/permissions";
 import { getRoles, saveRoles, getUsers } from "@/lib/store";
 import type { Permission, Role } from "@/lib/types";
@@ -15,16 +15,16 @@ function slugId(name: string): string {
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json(await getRoles());
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -46,8 +46,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -74,8 +74,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

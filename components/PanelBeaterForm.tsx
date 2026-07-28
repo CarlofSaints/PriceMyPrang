@@ -8,20 +8,29 @@ import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { Button, Field, inputClass } from "./ui";
 
-function friendlyGeoError(status: string, error?: string): string {
+function friendlyGeoError(status?: string, error?: string): string {
   switch (status) {
     case "NO_KEY":
       return "Geocoding isn't configured on the server (GEOCODING_API_KEY is missing).";
     case "NO_ADDRESS":
       return "Enter the physical address first.";
+    case "ADDRESS_TOO_LONG":
+      return "That address is too long — trim it to the street, suburb and city.";
+    case "RATE_LIMITED":
+      return "Too many lookups in a row. Wait a minute and try again.";
+    case "FORBIDDEN":
+      return "Your login isn't allowed to look up coordinates.";
     case "ZERO_RESULTS":
       return "Google couldn't find that address — check the spelling / add a suburb & city.";
     case "REQUEST_DENIED":
       return `Google rejected the request: ${error || "the key is restricted or the Geocoding API isn't enabled on it."}`;
     case "OVER_QUERY_LIMIT":
       return "Google quota/billing issue on the Maps project.";
-    default:
-      return `Couldn't get coordinates (${status}${error ? `: ${error}` : ""}).`;
+    default: {
+      // Anything unlabelled — don't print a bare "undefined" at the person.
+      const detail = [status, error].filter(Boolean).join(": ");
+      return `Couldn't get coordinates${detail ? ` (${detail})` : ""}.`;
+    }
   }
 }
 
@@ -175,6 +184,9 @@ export default function PanelBeaterForm({
           <Field label="Email of business owner" required={mode === "public"}>
             <input className={inputClass} type="email" value={form.ownerEmail ?? ""} onChange={(e) => set("ownerEmail", e.target.value)} required={mode === "public"} />
           </Field>
+          <Field label="Contact phone" hint="Shown to consumers on your quotes.">
+            <input className={inputClass} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+          </Field>
         </div>
       </div>
 
@@ -238,23 +250,9 @@ export default function PanelBeaterForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Labour rate — senior (R/hr)">
-          <input className={inputClass} type="number" step="0.01" value={form.labourRateSenior ?? ""} onChange={(e) => set("labourRateSenior", Number(e.target.value))} />
-        </Field>
-        <Field label="Labour rate — junior (R/hr)">
-          <input className={inputClass} type="number" step="0.01" value={form.labourRateJunior ?? ""} onChange={(e) => set("labourRateJunior", Number(e.target.value))} />
-        </Field>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Contact email">
-          <input className={inputClass} type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
-        </Field>
-        <Field label="Contact phone">
-          <input className={inputClass} value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
-        </Field>
-      </div>
+      {/* Labour rates aren't captured here — they're maintained per rate type on
+          the Rates page, which is the single source of truth for pricing.
+          Contact email/phone moved up into "Contact people". */}
 
       <Field label="Workshop logo" hint="Appears on quotes you're selected for.">
         <input className={inputClass} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])} />

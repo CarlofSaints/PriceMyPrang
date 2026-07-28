@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters, createRequest } from "@/lib/store";
 import { sendConsumerConfirmation, sendAdminNotification } from "@/lib/email";
@@ -50,8 +50,8 @@ export async function POST(request: Request) {
   if (repairerQuote) {
     // Panel beater self-quoting a walk-in. Must be logged in and linked to a
     // listing (or a manager who supplies a target workshop). Assigned to them.
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { user, response } = await requireUser();
+    if (response) return response;
     // Managers and quote-builders may quote for any workshop (chosen in the form);
     // a panel-beater login may only quote for their own listing.
     const canChooseAny = can(user, "manage_panel_beaters") || can(user, "build_quotes");

@@ -48,7 +48,10 @@ export async function POST(request: Request) {
     labourRateSenior: b.labourRateSenior != null ? Number(b.labourRateSenior) : undefined,
     labourRateJunior: b.labourRateJunior != null ? Number(b.labourRateJunior) : undefined,
     logoUrl: b.logoUrl?.trim() || undefined,
-    email: b.email?.trim() || undefined,
+    // The form no longer asks for a separate contact email — it's the workshop
+    // address printed on quotes, so fall back to the owner (then whoever filled
+    // the form in) rather than leaving quotes with no email on them.
+    email: b.email?.trim() || b.ownerEmail?.trim() || b.completedByEmail?.trim() || undefined,
     phone: b.phone?.trim() || undefined,
     active: false,
     status: "pending",

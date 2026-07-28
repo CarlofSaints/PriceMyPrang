@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { findUserById, getRoles } from "./store";
@@ -40,6 +41,38 @@ export async function createSession(userId: string): Promise<void> {
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
   jar.delete(COOKIE_NAME);
+}
+
+/**
+ * Guard for API routes. Returns either the user, or the response the route
+ * should return as-is.
+ *
+ * As well as the signed-out check, this refuses anyone still holding an
+ * admin-issued temporary password. The portal layout swaps the whole UI for the
+ * change-password screen, but that only governs what's on screen — a tab left
+ * open from before the reset, or a direct call, would otherwise still work.
+ * Deliberately NOT used by /api/auth/change-password, which has to stay
+ * reachable for them to get out of it.
+ */
+export async function requireUser(): Promise<
+  { user: AuthUser; response?: undefined } | { user?: undefined; response: NextResponse }
+> {
+  const user = await getCurrentUser();
+  if (!user)
+    return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+
+  if (user.mustChangePassword)
+    return {
+      response: NextResponse.json(
+        {
+          error: "Choose a new password before continuing.",
+          code: "password_change_required",
+        },
+        { status: 403 }
+      ),
+    };
+
+  return { user };
 }
 
 /** Returns the logged-in user with their role's permissions resolved, or null. */

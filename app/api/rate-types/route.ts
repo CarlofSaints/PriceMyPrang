@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getRateTypes, saveRateTypes } from "@/lib/store";
 import type { RateType, RateUnit } from "@/lib/types";
@@ -12,8 +12,8 @@ function slugId(label: string): string {
 }
 
 async function requireSuperAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  const { user, response } = await requireUser();
+  if (response) return { error: response };
   if (!can(user, "manage_rate_types"))
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   return { user };

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById, getPanelBeater } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
@@ -7,8 +7,8 @@ import { mergeWarranties } from "@/lib/warrantyReminders";
 import type { PanelBeater } from "@/lib/types";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_panel_beaters") && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -21,8 +21,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   const canManage = can(user, "manage_panel_beaters");
   if (!canManage && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -75,10 +75,21 @@ export async function POST(request: Request) {
     rmiNumber: String(b.rmiNumber).trim(),
     sambraNumber: b.sambraNumber?.trim() || undefined,
     miwaNumber: b.miwaNumber?.trim() || undefined,
-    labourRateSenior: b.labourRateSenior != null ? Number(b.labourRateSenior) : undefined,
-    labourRateJunior: b.labourRateJunior != null ? Number(b.labourRateJunior) : undefined,
+    // The form no longer captures these (rates live on the Rates page), so an
+    // edit posts nothing for them — keep whatever is already stored rather than
+    // silently clearing it. Still honoured if a caller does send a value.
+    labourRateSenior:
+      b.labourRateSenior != null ? Number(b.labourRateSenior) : existing?.labourRateSenior,
+    labourRateJunior:
+      b.labourRateJunior != null ? Number(b.labourRateJunior) : existing?.labourRateJunior,
     logoUrl: b.logoUrl?.trim() || existing?.logoUrl,
-    email: b.email?.trim() || existing?.email,
+    // See register/route.ts — no separate contact-email field on the form now,
+    // so keep what's stored, else fall back to the owner / form completer.
+    email:
+      b.email?.trim() ||
+      existing?.email ||
+      b.ownerEmail?.trim() ||
+      b.completedByEmail?.trim(),
     phone: b.phone?.trim() || existing?.phone,
     active: b.active ?? existing?.active ?? true,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
@@ -107,8 +118,8 @@ export async function POST(request: Request) {
 
 // Approve / decline a (public) registration, or toggle active.
 export async function PATCH(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, response } = await requireUser();
+  if (response) return response;
   if (!can(user, "manage_panel_beaters"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

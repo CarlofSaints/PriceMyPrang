@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getInsurers, saveInsurers, getRateTypes } from "@/lib/store";
 import type { InsuranceCompany } from "@/lib/types";
@@ -10,8 +10,8 @@ function slugId(name: string): string {
 }
 
 async function requireSuperAdmin() {
-  const user = await getCurrentUser();
-  if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  const { user, response } = await requireUser();
+  if (response) return { error: response };
   if (!can(user, "manage_insurers"))
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   return { user };
