@@ -28,14 +28,31 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];
 
 // Seeded on first run; the Admin role is a protected superuser.
 export const DEFAULT_ROLES: Role[] = [
-  { id: "admin", name: "Admin", system: true, permissions: [...ALL_PERMISSIONS] },
+  // ---- PMP's own staff ----
+  { id: "admin", name: "Admin", system: true, scope: "platform", permissions: [...ALL_PERMISSIONS] },
   {
     id: "assessor",
     name: "Assessor",
+    scope: "platform",
     permissions: ["view_dashboard", "build_quotes", "manage_parts", "manage_panel_beaters"],
   },
-  { id: "panel_beater", name: "Panel Beater", permissions: ["onboard_self"] },
+
+  // ---- A panel beater's own team ----
+  // manage_users here is scoped to the workshop, never the whole platform: see
+  // the panel-beater branch in /api/users. Permissions beyond this are still to
+  // be decided; Estimator and Buyer currently differ in name only.
+  {
+    id: "pb_admin",
+    name: "Admin",
+    scope: "panel_beater",
+    permissions: ["onboard_self", "manage_users"],
+  },
+  { id: "pb_estimator", name: "Estimator", scope: "panel_beater", permissions: ["onboard_self"] },
+  { id: "pb_buyer", name: "Buyer", scope: "panel_beater", permissions: ["onboard_self"] },
 ];
+
+/** The role every self-registered workshop's first two logins get. */
+export const PANEL_BEATER_ADMIN_ROLE = "pb_admin";
 
 /** Resolve a role id to its permission list. The Admin role always has all. */
 export function permissionsForRole(roleId: string, roles: Role[]): Permission[] {

@@ -3,7 +3,7 @@ import { requireUser, hashPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getUsers, saveUsers, getRoles } from "@/lib/store";
 import { sendUserCredentials } from "@/lib/email";
-import type { User } from "@/lib/types";
+import type { AuthUser, User } from "@/lib/types";
 
 function scrub(u: User) {
   const { passwordHash, ...rest } = u;
@@ -11,11 +11,38 @@ function scrub(u: User) {
   return rest;
 }
 
+/**
+ * Whose users this caller may touch.
+ *
+ * PMP staff (manage_panel_beaters) manage everyone. A workshop's own admin
+ * holds manage_users too, but only over their own team — so everything below
+ * filters by, and forces, their panelBeaterId. Without this, "manage_users"
+ * would hand every workshop admin the entire platform's user list.
+ */
+function scopeFor(
+  admin: AuthUser
+): { platform: true } | { platform: false; panelBeaterId: string } | null {
+  if (can(admin, "manage_panel_beaters")) return { platform: true };
+  if (admin.panelBeaterId) return { platform: false, panelBeaterId: admin.panelBeaterId };
+  return null;
+}
+
+const FORBIDDEN = NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
 export async function GET() {
   const { user, response } = await requireUser();
   if (response) return response;
-  if (!can(user, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  return NextResponse.json((await getUsers()).map(scrub));
+  if (!can(user, "manage_users")) return FORBIDDEN;
+
+  const scope = scopeFor(user);
+  if (!scope) return FORBIDDEN;
+
+  const users = await getUsers();
+  const visible = scope.platform
+    ? users
+    : users.filter((u) => u.panelBeaterId === scope.panelBeaterId);
+
+  return NextResponse.json(visible.map(scrub));
 }
 
 export async function POST(request: Request) {
@@ -41,9 +68,17 @@ export async function POST(request: Request) {
   const sendEmail = b.sendEmail !== false;
   const mustChangePassword = b.mustChangePassword !== false;
 
+  const scope = scopeFor(admin);
+  if (!scope) return FORBIDDEN;
+
   const roles = await getRoles();
   const role = roles.find((r) => r.id === b.role);
   if (!role) return NextResponse.json({ error: "Unknown role" }, { status: 400 });
+
+  // A workshop admin can only ever create their own team, in their own
+  // workshop: platform roles would grant reach beyond it.
+  if (!scope.platform && role.scope !== "panel_beater")
+    return NextResponse.json({ error: "You can't assign that role" }, { status: 403 });
 
   const users = await getUsers();
   if (users.some((u) => u.email.toLowerCase() === b.email!.toLowerCase()))
@@ -55,7 +90,7 @@ export async function POST(request: Request) {
     email: b.email,
     passwordHash: await hashPassword(b.password),
     role: b.role,
-    panelBeaterId: b.panelBeaterId || undefined,
+    panelBeaterId: scope.platform ? b.panelBeaterId || undefined : scope.panelBeaterId,
     active: true,
     mustChangePassword,
     createdAt: new Date().toISOString(),
@@ -98,14 +133,24 @@ export async function PATCH(request: Request) {
   };
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
+  const scope = scopeFor(admin);
+  if (!scope) return FORBIDDEN;
+
   const users = await getUsers();
   const u = users.find((x) => x.id === b.id);
   if (!u) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Reaching a user outside your workshop is a 404, not a 403 — a workshop
+  // admin shouldn't be able to probe for who exists elsewhere.
+  if (!scope.platform && u.panelBeaterId !== scope.panelBeaterId)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   if (b.role) {
     const roles = await getRoles();
-    if (!roles.some((r) => r.id === b.role))
-      return NextResponse.json({ error: "Unknown role" }, { status: 400 });
+    const role = roles.find((r) => r.id === b.role);
+    if (!role) return NextResponse.json({ error: "Unknown role" }, { status: 400 });
+    if (!scope.platform && role.scope !== "panel_beater")
+      return NextResponse.json({ error: "You can't assign that role" }, { status: 403 });
     u.role = b.role;
   }
   if (typeof b.active === "boolean") u.active = b.active;

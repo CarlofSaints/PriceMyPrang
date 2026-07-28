@@ -40,6 +40,12 @@ enum RateCardKind {
   insurance
 }
 
+/// Whose org chart a role belongs to.
+enum RoleScope {
+  platform
+  panel_beater
+}
+
 enum PartType {
   new
   used
@@ -95,12 +101,15 @@ enum MediaKind {
 /// Roles stay DATA (edited in the portal). Permission keys are code-defined in
 /// lib/permissions.ts and held here as a plain text[].
 model Role {
-  id          String   @id
+  id          String    @id
   name        String
   permissions String[]
-  system      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  system      Boolean   @default(false)
+  /// Whether this role belongs to PMP staff or to a panel beater's own team.
+  /// A workshop admin may only ever assign panel_beater-scoped roles.
+  scope       RoleScope @default(platform)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   users User[]
 
@@ -137,58 +146,45 @@ model User {
 
 // ---- Rate cards ------------------------------------------------------------
 
+/// Insurers a CONSUMER can pick from when requesting a quote. Deliberately no
+/// rate card: rates are negotiated per repairer (see RateCard.insurerName), so
+/// there is no such thing as a central rate for an insurer.
 model Insurer {
   id        String   @id @default(uuid())
   name      String
   active    Boolean  @default(true)
-  /// Whether this insurer's card includes the optional aluminium block.
-  aluminium Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rates     InsurerRateValue[]
-  rateCards RateCard[]
-  requests  QuoteRequest[]
+  requests QuoteRequest[]
 
   @@map("insurers")
 }
 
-/// The central rate card a Super Admin sets for an insurer. A workshop's
-/// insurance card inherits these — it doesn't get to invent an insurer's rates.
-/// `scope`/`field` come from lib/rateCard.ts, not from a table.
-model InsurerRateValue {
-  insurerId String
-  scope     RateScope
-  field     String
-  value     Decimal   @db.Decimal(12, 2)
-
-  insurer Insurer @relation(fields: [insurerId], references: [id], onDelete: Cascade)
-
-  @@id([insurerId, scope, field])
-  @@map("insurer_rate_values")
-}
-
-/// One card a workshop quotes on: their cash rates, or an insurer's.
+/// One set of rates a workshop quotes on: their cash rates, or the rates they
+/// have agreed with a particular insurer. Every repairer negotiates its own SLA,
+/// so two workshops on the same street hold different numbers for the same
+/// insurer — which is why the name is free text on the card rather than a link
+/// to a shared, centrally-priced insurer.
 model RateCard {
   id            String       @id @default(uuid())
   panelBeaterId String
   kind          RateCardKind
-  /// Set only when kind is insurance.
-  insurerId     String?
+  /// Free-text insurance company name. Set only when kind is insurance.
+  insurerName   String?
   /// Whether the optional aluminium block applies to this card.
   aluminium     Boolean      @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  panelBeater PanelBeater      @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
-  insurer     Insurer?         @relation(fields: [insurerId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater     @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
   values      RateCardValue[]
   requests    QuoteRequest[]
 
-  /// One cash card and one card per insurer. Postgres treats NULLs as distinct,
-  /// so the cash card is additionally guarded in code.
-  @@unique([panelBeaterId, insurerId])
+  /// One cash card, and one card per insurer name. Postgres treats NULLs as
+  /// distinct, so the single cash card is additionally guarded in code.
+  @@unique([panelBeaterId, insurerName])
   @@index([panelBeaterId])
   @@map("rate_cards")
 }

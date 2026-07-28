@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, getRateCards, getInsurers } from "@/lib/store";
+import { getPanelBeaters, getRateCards } from "@/lib/store";
 import NewQuoteClient from "@/components/NewQuoteClient";
 import PanelBeaterQuoteForm, { type RateOption } from "@/components/PanelBeaterQuoteForm";
 
@@ -31,13 +31,10 @@ export default async function NewQuotePage({
   // manager hasn't picked a workshop yet, so there's nothing to offer them.
   let rateOptions: RateOption[] = [];
   if (lockedPbId) {
-    const [cards, insurers] = await Promise.all([getRateCards(lockedPbId), getInsurers()]);
+    const cards = await getRateCards(lockedPbId);
     rateOptions = cards.map((c) => ({
       id: c.id,
-      label:
-        c.kind === "cash"
-          ? "Cash rates"
-          : `${insurers.find((i) => i.id === c.insurerId)?.name ?? "Insurer"} rates`,
+      label: c.kind === "cash" ? "Cash rates" : `${c.insurerName || "Insurer"} rates`,
     }));
   }
 

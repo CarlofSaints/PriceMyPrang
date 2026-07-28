@@ -11,13 +11,21 @@ export default function UsersManager({
   initialUsers,
   panelBeaters,
   roles,
+  scopedToWorkshop = false,
 }: {
   initialUsers: SafeUser[];
   panelBeaters: PanelBeater[];
   roles: Role[];
+  /**
+   * True when a workshop admin is managing their own team. The workshop is then
+   * implicit — the server forces it — so there's nothing to pick.
+   */
+  scopedToWorkshop?: boolean;
 }) {
   const [users, setUsers] = useState<SafeUser[]>(initialUsers);
-  const defaultRole = roles.find((r) => r.id === "assessor")?.id || roles[0]?.id || "";
+  const defaultRole = scopedToWorkshop
+    ? roles.find((r) => r.id === "pb_estimator")?.id || roles[0]?.id || ""
+    : roles.find((r) => r.id === "assessor")?.id || roles[0]?.id || "";
   const blankForm = {
     name: "",
     email: "",
@@ -158,7 +166,7 @@ export default function UsersManager({
           </Field>
         </div>
 
-        {roleWantsPanelBeater && (
+        {roleWantsPanelBeater && !scopedToWorkshop && (
           <Field label="Link to panel beater listing" hint="Optional — they can also create their own.">
             <select className={inputClass} value={form.panelBeaterId} onChange={(e) => setForm({ ...form, panelBeaterId: e.target.value })}>
               <option value="">— none —</option>

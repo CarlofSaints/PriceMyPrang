@@ -96,6 +96,10 @@ export default function RolesManager({ initial }: { initial: Role[] }) {
                 {roles.map((role) => (
                   <th key={role.id} className="min-w-[120px] px-3 py-3 text-center align-bottom">
                     <div className="font-display text-sm font-semibold text-ink">{role.name}</div>
+                    {/* PMP and a workshop each have an "Admin" — say which. */}
+                    <div className="text-[10px] font-normal text-ink/50">
+                      {role.scope === "panel_beater" ? "panel beater" : "Price my Prang"}
+                    </div>
                     {role.system ? (
                       <div className="text-[10px] font-normal text-teal">full access</div>
                     ) : (

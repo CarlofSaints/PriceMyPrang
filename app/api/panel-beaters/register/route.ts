@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPanelBeaters, upsertPanelBeater, findUserByEmail, upsertUser } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
 import { generateTempPassword, hashPassword } from "@/lib/auth";
+import { PANEL_BEATER_ADMIN_ROLE } from "@/lib/permissions";
 import { mergeWarranties } from "@/lib/warrantyReminders";
 import {
   sendPanelBeaterRegistrationNotification,
@@ -9,8 +10,8 @@ import {
 } from "@/lib/email";
 import type { PanelBeater, User } from "@/lib/types";
 
-/** Role every self-registered panel-beater login gets (see DEFAULT_ROLES). */
-const PANEL_BEATER_ROLE = "panel_beater";
+// The workshop's first two logins are its admins — they need to be able to add
+// the rest of their team (estimators, buyers) without coming through us.
 
 /**
  * Give the applicant a way in. Both the person who filled the form in and the
@@ -48,7 +49,7 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
       name: c.name?.trim() || pb.companyName,
       email,
       passwordHash: await hashPassword(password),
-      role: PANEL_BEATER_ROLE,
+      role: PANEL_BEATER_ADMIN_ROLE,
       panelBeaterId: pb.id,
       active: true,
       // They chose nothing — this password was generated for them.

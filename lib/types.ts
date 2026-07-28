@@ -12,6 +12,13 @@ export type Permission =
   | "build_quotes"
   | "manage_parts";
 
+/**
+ * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
+ * "panel_beater" roles are a workshop's team, and are the only ones a workshop
+ * admin may assign.
+ */
+export type RoleScope = "platform" | "panel_beater";
+
 // Roles are DATA (created/edited in the portal), not hardcoded.
 export interface Role {
   id: string; // stable key, e.g. "admin" or a uuid
@@ -19,6 +26,7 @@ export interface Role {
   permissions: Permission[];
   /** Built-in role that can't be deleted/edited (the Admin superuser). */
   system?: boolean;
+  scope: RoleScope;
 }
 
 /** A role id (kept as a string alias so existing call sites still compile). */
@@ -42,15 +50,18 @@ export type RateCardKind = "cash" | "insurance";
 
 /**
  * One set of rates a workshop quotes on: their cash rates (the client pays
- * directly), or an insurer's. An insurance card carries no values of its own —
- * it inherits the central card a Super Admin sets on the Insurers page.
+ * directly), or the rates they've agreed with a particular insurer.
+ *
+ * Every repairer negotiates its own SLA, so two workshops on the same street
+ * hold different numbers for the same insurer. That's why the insurer is a
+ * free-text name on the card rather than a link to a centrally-priced one.
  */
 export interface RateCard {
   id: string;
   panelBeaterId: string;
   kind: RateCardKind;
-  /** Set only when kind is "insurance". */
-  insurerId?: string;
+  /** Free-text insurance company name. Set only when kind is "insurance". */
+  insurerName?: string;
   /** Whether the optional aluminium block applies. */
   aluminium: boolean;
   values: RateValues;
@@ -58,17 +69,14 @@ export interface RateCard {
 }
 
 // ---------------------------------------------------------------------------
-// Insurance companies — created by Super Admins, with a shared rate card that
-// ALL panel beaters can see/use. Consumers pick their insurer from a dropdown.
+// Insurance companies — the list a CONSUMER picks from when requesting a quote.
+// Deliberately no rate card: rates are negotiated per repairer and live on that
+// workshop's RateCard, so there is no central rate for an insurer.
 // ---------------------------------------------------------------------------
 export interface InsuranceCompany {
   id: string;
   name: string;
   active: boolean;
-  /** Whether this insurer's card includes the optional aluminium block. */
-  aluminium: boolean;
-  /** The central card every workshop's insurance card for this insurer inherits. */
-  rates: RateValues;
   createdAt: string;
 }
 

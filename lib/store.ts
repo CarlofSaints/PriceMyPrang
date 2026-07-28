@@ -159,11 +159,13 @@ const toRole = (r: {
   name: string;
   permissions: string[];
   system: boolean;
+  scope: string;
 }): Role => ({
   id: r.id,
   name: r.name,
   permissions: r.permissions as Permission[],
   system: r.system,
+  scope: r.scope as Role["scope"],
 });
 
 export async function getRoles(): Promise<Role[]> {
@@ -178,6 +180,7 @@ export async function getRoles(): Promise<Role[]> {
       name: r.name,
       permissions: r.permissions,
       system: !!r.system,
+      scope: r.scope,
     })),
     skipDuplicates: true,
   });
@@ -188,7 +191,7 @@ export async function saveRoles(roles: Role[]): Promise<void> {
   const db = getDb();
   await db.$transaction(async (tx) => {
     for (const r of roles) {
-      const data = { name: r.name, permissions: r.permissions, system: !!r.system };
+      const data = { name: r.name, permissions: r.permissions, system: !!r.system, scope: r.scope };
       await tx.role.upsert({
         where: { id: r.id },
         create: { id: r.id, ...data },
@@ -239,25 +242,18 @@ type InsurerRow = {
   id: string;
   name: string;
   active: boolean;
-  aluminium: boolean;
   createdAt: Date;
-  rates: { scope: string; field: string; value: DecimalLike }[];
 };
 
 const toInsurer = (r: InsurerRow): InsuranceCompany => ({
   id: r.id,
   name: r.name,
   active: r.active,
-  aluminium: r.aluminium,
-  rates: toRateValues(r.rates),
   createdAt: iso(r.createdAt),
 });
 
 export async function getInsurers(): Promise<InsuranceCompany[]> {
-  const rows = await getDb().insurer.findMany({
-    include: { rates: true },
-    orderBy: { name: "asc" },
-  });
+  const rows = await getDb().insurer.findMany({ orderBy: { name: "asc" } });
   return rows.map(toInsurer);
 }
 
@@ -270,7 +266,7 @@ export async function saveInsurers(insurers: InsuranceCompany[]): Promise<void> 
 }
 
 export async function getInsurer(id: string): Promise<InsuranceCompany | null> {
-  const row = await getDb().insurer.findUnique({ where: { id }, include: { rates: true } });
+  const row = await getDb().insurer.findUnique({ where: { id } });
   return row ? toInsurer(row) : null;
 }
 
@@ -283,20 +279,12 @@ async function writeInsurer(
   tx: TxClient,
   i: InsuranceCompany
 ): Promise<void> {
-  const data = { name: i.name, active: i.active, aluminium: !!i.aluminium };
+  const data = { name: i.name, active: i.active };
   await tx.insurer.upsert({
     where: { id: i.id },
     create: { id: i.id, ...data, createdAt: new Date(i.createdAt) },
     update: data,
   });
-  await tx.insurerRateValue.deleteMany({ where: { insurerId: i.id } });
-  const rows = fromRateValues(i.rates ?? {});
-  if (rows.length) {
-    await tx.insurerRateValue.createMany({
-      data: rows.map((r) => ({ insurerId: i.id, ...r })),
-      skipDuplicates: true,
-    });
-  }
 }
 
 // ---- Panel beaters --------------------------------------------------------
@@ -1016,7 +1004,7 @@ const toRateCard = (r: {
   id: string;
   panelBeaterId: string;
   kind: string;
-  insurerId: string | null;
+  insurerName: string | null;
   aluminium: boolean;
   createdAt: Date;
   values: { scope: string; field: string; value: DecimalLike }[];
@@ -1024,60 +1012,40 @@ const toRateCard = (r: {
   id: r.id,
   panelBeaterId: r.panelBeaterId,
   kind: r.kind as RateCardKind,
-  insurerId: r.insurerId ?? undefined,
+  insurerName: r.insurerName ?? undefined,
   aluminium: r.aluminium,
   values: toRateValues(r.values),
   createdAt: iso(r.createdAt),
 });
 
 /**
- * A workshop's cards. Insurance cards come back with the INSURER's values
- * folded in — they're inherited, not stored per workshop, so a change on the
- * Insurers page reaches every workshop at once.
+ * A workshop's own cards. Every card carries its own values, insurance ones
+ * included — the rates in an insurer SLA are negotiated per repairer, so there
+ * is nothing central to inherit from.
  */
 export async function getRateCards(panelBeaterId: string): Promise<RateCard[]> {
-  const db = getDb();
-  const [rows, insurers] = await Promise.all([
-    db.rateCard.findMany({
-      where: { panelBeaterId },
-      include: { values: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.insurer.findMany({ include: { rates: true } }),
-  ]);
-
-  return rows.map((r) => {
-    const card = toRateCard(r);
-    if (card.kind !== "insurance" || !card.insurerId) return card;
-    const insurer = insurers.find((i) => i.id === card.insurerId);
-    if (!insurer) return card;
-    return { ...card, aluminium: insurer.aluminium, values: toRateValues(insurer.rates) };
+  const rows = await getDb().rateCard.findMany({
+    where: { panelBeaterId },
+    include: { values: true },
+    orderBy: { createdAt: "asc" },
   });
+  return rows.map(toRateCard);
 }
 
 export async function getRateCard(id: string): Promise<RateCard | null> {
   const row = await getDb().rateCard.findUnique({ where: { id }, include: { values: true } });
-  if (!row) return null;
-  const card = toRateCard(row);
-  if (card.kind !== "insurance" || !card.insurerId) return card;
-  const insurer = await getInsurer(card.insurerId);
-  return insurer
-    ? { ...card, aluminium: insurer.aluminium, values: insurer.rates }
-    : card;
+  return row ? toRateCard(row) : null;
 }
 
-/**
- * Create or update one card. Values are only ever written for CASH cards —
- * an insurance card's numbers belong to the insurer, so accepting them here
- * would let a workshop quietly override what a Super Admin set.
- */
+/** Create or update one card, replacing its values wholesale. */
 export async function upsertRateCard(card: RateCard): Promise<void> {
   const db = getDb();
   await db.$transaction(async (tx) => {
     const data = {
       panelBeaterId: card.panelBeaterId,
       kind: card.kind,
-      insurerId: card.kind === "insurance" ? card.insurerId ?? null : null,
+      insurerName:
+        card.kind === "insurance" ? card.insurerName?.trim() || null : null,
       aluminium: !!card.aluminium,
     };
     await tx.rateCard.upsert({
@@ -1087,14 +1055,12 @@ export async function upsertRateCard(card: RateCard): Promise<void> {
     });
 
     await tx.rateCardValue.deleteMany({ where: { rateCardId: card.id } });
-    if (card.kind === "cash") {
-      const rows = fromRateValues(card.values ?? {});
-      if (rows.length) {
-        await tx.rateCardValue.createMany({
-          data: rows.map((r) => ({ rateCardId: card.id, ...r })),
-          skipDuplicates: true,
-        });
-      }
+    const rows = fromRateValues(card.values ?? {});
+    if (rows.length) {
+      await tx.rateCardValue.createMany({
+        data: rows.map((r) => ({ rateCardId: card.id, ...r })),
+        skipDuplicates: true,
+      });
     }
   });
 }

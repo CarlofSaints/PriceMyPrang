@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import {
-  getRateCards,
-  getRateCard,
-  upsertRateCard,
-  deleteRateCard,
-  getInsurers,
-} from "@/lib/store";
+import { getRateCards, getRateCard, upsertRateCard, deleteRateCard } from "@/lib/store";
 import type { RateCard, RateValues } from "@/lib/types";
 
 /** The workshop this caller may touch: their own, or one a manager names. */
@@ -50,7 +44,7 @@ export async function POST(request: Request) {
     id?: string;
     panelBeaterId?: string;
     kind?: "cash" | "insurance";
-    insurerId?: string;
+    insurerName?: string;
     aluminium?: boolean;
     values?: RateValues;
   };
@@ -61,22 +55,21 @@ export async function POST(request: Request) {
   if (b.kind !== "cash" && b.kind !== "insurance")
     return NextResponse.json({ error: "Choose cash or insurance" }, { status: 400 });
 
-  if (b.kind === "insurance") {
-    if (!b.insurerId)
-      return NextResponse.json({ error: "Choose an insurer" }, { status: 400 });
-    const insurers = await getInsurers();
-    if (!insurers.some((i) => i.id === b.insurerId))
-      return NextResponse.json({ error: "Unknown insurer" }, { status: 400 });
-  }
+  const insurerName = b.insurerName?.trim();
+  if (b.kind === "insurance" && !insurerName)
+    return NextResponse.json({ error: "Enter the insurance company name" }, { status: 400 });
 
   const existing = await getRateCards(target.id);
 
   // One card per insurer, and only one cash card — otherwise picking a rate on
-  // a job becomes ambiguous.
+  // a job becomes ambiguous. Names are compared case-insensitively so "Hollard"
+  // and "hollard" don't become two cards.
   const clash = existing.find(
     (c) =>
       c.id !== b.id &&
-      (b.kind === "cash" ? c.kind === "cash" : c.insurerId === b.insurerId)
+      (b.kind === "cash"
+        ? c.kind === "cash"
+        : c.insurerName?.toLowerCase() === insurerName?.toLowerCase())
   );
   if (clash)
     return NextResponse.json(
@@ -84,7 +77,7 @@ export async function POST(request: Request) {
         error:
           b.kind === "cash"
             ? "You already have a cash rate card — edit that one."
-            : "You already have a rate card for that insurer.",
+            : `You already have a rate card for ${clash.insurerName}.`,
       },
       { status: 409 }
     );
@@ -100,9 +93,8 @@ export async function POST(request: Request) {
     id: b.id || crypto.randomUUID(),
     panelBeaterId: target.id,
     kind: b.kind,
-    insurerId: b.kind === "insurance" ? b.insurerId : undefined,
+    insurerName: b.kind === "insurance" ? insurerName : undefined,
     aluminium: !!b.aluminium,
-    // Ignored for insurance cards — those inherit the insurer's central card.
     values: b.values ?? {},
     createdAt: new Date().toISOString(),
   };

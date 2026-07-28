@@ -28,17 +28,29 @@ export async function POST(request: Request) {
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as { name?: string; permissions?: Permission[] };
+  const b = (await request.json()) as {
+    name?: string;
+    permissions?: Permission[];
+    scope?: Role["scope"];
+  };
   if (!b.name?.trim()) return NextResponse.json({ error: "Role name required" }, { status: 400 });
 
   const roles = await getRoles();
-  if (roles.some((r) => r.name.toLowerCase() === b.name!.trim().toLowerCase()))
+  // Names only have to be unique within a scope — a workshop's "Admin" and
+  // PMP's "Admin" are different jobs and both should be allowed to exist.
+  const scope: Role["scope"] = b.scope === "panel_beater" ? "panel_beater" : "platform";
+  if (
+    roles.some(
+      (r) => r.scope === scope && r.name.toLowerCase() === b.name!.trim().toLowerCase()
+    )
+  )
     return NextResponse.json({ error: "A role with that name already exists" }, { status: 409 });
 
   const role: Role = {
     id: slugId(b.name.trim()),
     name: b.name.trim(),
     permissions: cleanPermissions(b.permissions),
+    scope,
   };
   roles.push(role);
   await saveRoles(roles);

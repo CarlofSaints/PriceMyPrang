@@ -44,9 +44,8 @@ export default function RatesEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const insurerName = (id?: string) => insurers.find((i) => i.id === id)?.name ?? "Insurer";
   const cardTitle = (c: RateCard) =>
-    c.kind === "cash" ? "Cash rates" : `${insurerName(c.insurerId)} rates`;
+    c.kind === "cash" ? "Cash rates" : `${c.insurerName || "Insurer"} rates`;
 
   async function loadFor(nextPbId: string) {
     setPbId(nextPbId);
@@ -74,8 +73,8 @@ export default function RatesEditor({
 
   async function save() {
     if (!draft) return;
-    if (draft.kind === "insurance" && !draft.insurerId) {
-      setError("Choose an insurer for this card.");
+    if (draft.kind === "insurance" && !draft.insurerName?.trim()) {
+      setError("Enter the insurance company name for this card.");
       return;
     }
 
@@ -89,7 +88,7 @@ export default function RatesEditor({
           id: draft.id || undefined,
           panelBeaterId: pbId,
           kind: draft.kind,
-          insurerId: draft.insurerId,
+          insurerName: draft.insurerName,
           aluminium: draft.aluminium,
           values: draft.values,
         }),
@@ -180,13 +179,13 @@ export default function RatesEditor({
                   <p className="text-xs text-ink/50">
                     {c.kind === "cash"
                       ? "The client pays directly."
-                      : "Rates set centrally for this insurer."}
+                      : "Rates agreed with this insurer."}
                     {c.aluminium ? " · Includes aluminium" : ""}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setDraft(c)}>
-                    {c.kind === "cash" ? "Edit" : "View"}
+                    Edit
                   </Button>
                   <Button variant="ghost" onClick={() => remove(c.id)} disabled={busy}>
                     Remove
@@ -221,12 +220,11 @@ export default function RatesEditor({
               <select
                 className={inputClass}
                 value={draft.kind}
-                disabled={!!draft.id}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
                     kind: e.target.value as "cash" | "insurance",
-                    insurerId: undefined,
+                    insurerName: undefined,
                   })
                 }
               >
@@ -236,35 +234,32 @@ export default function RatesEditor({
             </Field>
 
             {isInsurance && (
-              <Field label="Insurer" required>
-                <select
+              <Field
+                label="Insurance company name"
+                required
+                hint="These are the rates you have agreed with this insurer."
+              >
+                <input
                   className={inputClass}
-                  value={draft.insurerId ?? ""}
-                  disabled={!!draft.id}
-                  onChange={(e) => setDraft({ ...draft, insurerId: e.target.value })}
-                >
-                  <option value="">Choose an insurer…</option>
+                  list="pmp-insurers"
+                  value={draft.insurerName ?? ""}
+                  onChange={(e) => setDraft({ ...draft, insurerName: e.target.value })}
+                  placeholder="e.g. Hollard"
+                />
+                {/* Suggestions only — the name is free text, because a workshop
+                    may hold an SLA with an insurer we haven't listed. */}
+                <datalist id="pmp-insurers">
                   {insurers.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name}
-                    </option>
+                    <option key={i.id} value={i.name} />
                   ))}
-                </select>
+                </datalist>
               </Field>
             )}
           </div>
 
-          {isInsurance && (
-            <p className="rounded-xl border border-teal/20 bg-teal/5 px-4 py-3 text-sm text-ink/70">
-              These rates are set centrally for {insurerName(draft.insurerId)} and can&apos;t be
-              edited here. Adding the card records that you work with this insurer.
-            </p>
-          )}
-
           <RateValuesEditor
             values={draft.values}
             aluminium={draft.aluminium}
-            readOnly={isInsurance}
             onAluminium={(on) => setDraft({ ...draft, aluminium: on })}
             onChange={setValue}
           />
