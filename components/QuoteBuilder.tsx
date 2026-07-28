@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BuiltQuote, PanelBeater, QuoteLineItem, QuoteRequest } from "@/lib/types";
+import type {
+  BuiltQuote,
+  PanelBeater,
+  QuoteLineItem,
+  QuoteRequest,
+  RateCard,
+} from "@/lib/types";
+import { GENERAL_FIELDS, SCOPED_FIELDS, type RateScope } from "@/lib/rateCard";
 import { QUOTE_LINE_CODES } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 import { zar } from "@/lib/format";
@@ -39,6 +46,18 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const [notes, setNotes] = useState("");
   const [building, setBuilding] = useState(false);
 
+  // Rates the quote is priced on: which of the workshop's cards, and which
+  // block of it. Labour and paint amounts are then hours x rate rather than
+  // typed from memory.
+  const [rateCards, setRateCards] = useState<RateCard[]>([]);
+  const [rateCardId, setRateCardId] = useState<string>("");
+  const [scope, setScope] = useState<RateScope>("out_of_warranty");
+
+  const rateCard = rateCards.find((c) => c.id === rateCardId) ?? null;
+  const rates = rateCard?.values[scope] ?? {};
+  const labourRate = rates.labour_rate;
+  const paintRate = rates.paint_rate;
+
   // Load an existing quote for a workshop into the form, else start blank.
   const loadFormFor = useCallback((req: QuoteRequest, id: string) => {
     const existing = req.quotes.find((q) => q.panelBeaterId === id);
@@ -52,6 +71,33 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
       setSundries(0);
       setConsumables(0);
       setNotes("");
+    }
+  }, []);
+
+  /**
+   * Pull the chosen workshop's rate cards. Rates are per workshop AND per
+   * insurer, so they can only be fetched once we know who is quoting — a
+   * different workshop on the same job prices it differently.
+   */
+  const loadRateCards = useCallback(async (id: string, req: QuoteRequest | null) => {
+    if (!id) {
+      setRateCards([]);
+      setRateCardId("");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/rate-cards?panelBeaterId=${encodeURIComponent(id)}`);
+      const cards: RateCard[] = res.ok ? await res.json() : [];
+      setRateCards(cards);
+      // Prefer the card the job was opened against; else the cash card.
+      const preferred =
+        cards.find((c) => c.id === req?.rateCardId) ??
+        cards.find((c) => c.kind === "cash") ??
+        cards[0];
+      setRateCardId(preferred?.id ?? "");
+    } catch {
+      setRateCards([]);
+      setRateCardId("");
     }
   }, []);
 
@@ -75,13 +121,17 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
         const chosen = next ?? req.selectedPanelBeaterIds[0] ?? "";
         setPbId(chosen);
         loadFormFor(req, chosen);
+        // The consumer's warranty answer decides which block applies; they're
+        // only asked yes/no/unsure, and "unsure" is safest treated as out.
+        setScope(req.underWarranty === "yes" ? "in_warranty" : "out_of_warranty");
+        await loadRateCards(chosen, req);
       } catch (err) {
         setError((err as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [loadFormFor]
+    [loadFormFor, loadRateCards]
   );
 
   useEffect(() => {
@@ -97,6 +147,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   function selectPb(id: string) {
     setPbId(id);
     if (request) loadFormFor(request, id);
+    loadRateCards(id, request);
   }
 
   function updateLine(i: number, patch: Partial<Line>) {
@@ -240,6 +291,87 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
               </div>
             </div>
 
+            {/* Which rates this quote is priced on. */}
+            <div className="rounded-xl border border-teal/20 bg-offwhite/50 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Rate card">
+                  <select
+                    className={inputClass}
+                    value={rateCardId}
+                    onChange={(e) => setRateCardId(e.target.value)}
+                    disabled={rateCards.length === 0}
+                  >
+                    <option value="">
+                      {rateCards.length ? "Type amounts manually" : "No rate cards set up"}
+                    </option>
+                    {rateCards.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.kind === "cash" ? "Cash rates" : `${c.insurerName || "Insurer"} rates`}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Which rates apply">
+                  <select
+                    className={inputClass}
+                    value={scope}
+                    onChange={(e) => setScope(e.target.value as RateScope)}
+                    disabled={!rateCard}
+                  >
+                    <option value="in_warranty">In warranty</option>
+                    <option value="out_of_warranty">Out of warranty</option>
+                    {rateCard?.aluminium && <option value="aluminium">Aluminium</option>}
+                  </select>
+                </Field>
+              </div>
+
+              {rateCard ? (
+                <p className="mt-3 text-sm text-ink/70">
+                  Labour{" "}
+                  <strong>{labourRate != null ? `${zar(labourRate)}/hr` : "not set"}</strong> ·
+                  Paint <strong>{paintRate != null ? `${zar(paintRate)}/hr` : "not set"}</strong>
+                  <span className="block text-xs text-ink/50">
+                    Enter hours below and the amount is worked out for you. Type over any amount to
+                    override it.
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-ink/50">
+                  {rateCards.length
+                    ? "No card selected — amounts are typed in by hand."
+                    : "This workshop hasn't set up any rate cards on the Rates page yet."}
+                </p>
+              )}
+
+              {/* Fixed-price rates off the card, added as a line in one click. */}
+              {rateCard && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[...SCOPED_FIELDS, ...GENERAL_FIELDS]
+                    .filter((f) => f.unit === "rand")
+                    .map((f) => {
+                      const value =
+                        rateCard.values[scope]?.[f.key] ?? rateCard.values.general?.[f.key];
+                      if (value == null) return null;
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() =>
+                            setLines((ls) => [
+                              ...ls,
+                              { ...emptyLine, description: f.label, partsAmount: value },
+                            ])
+                          }
+                          className="rounded-full border border-teal/30 bg-white px-3 py-1 text-xs font-semibold text-ink hover:bg-teal/5"
+                        >
+                          + {f.label} ({zar(value)})
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
             {/* Line items */}
             <datalist id="quote-codes">
               {QUOTE_LINE_CODES.map((c) => (
@@ -252,6 +384,8 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                 <LineCard
                   key={i}
                   line={line}
+                  labourRate={labourRate}
+                  paintRate={paintRate}
                   onChange={(patch) => updateLine(i, patch)}
                   onRemove={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls))}
                 />
@@ -374,10 +508,15 @@ function TotalRow({ label, value }: { label: string; value: number }) {
 
 function LineCard({
   line,
+  labourRate,
+  paintRate,
   onChange,
   onRemove,
 }: {
   line: Line;
+  /** From the chosen rate card. Undefined = no card, so amounts stay manual. */
+  labourRate?: number;
+  paintRate?: number;
   onChange: (patch: Partial<Line>) => void;
   onRemove: () => void;
 }) {
@@ -432,11 +571,14 @@ function LineCard({
 
       {/* Work categories */}
       <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        {/* Panel beating and strip & assemble are labour; paint has its own
+            rate. Where a rate is set, typing hours fills the amount. */}
         <WorkBlock
           title="Panel beating"
           code={line.panelCode}
           amount={line.panelAmount}
           hours={line.panelHours}
+          rate={labourRate}
           onChange={(p) =>
             onChange({ panelCode: p.code, panelAmount: p.amount, panelHours: p.hours })
           }
@@ -447,6 +589,7 @@ function LineCard({
           code={line.paintCode}
           amount={line.paintAmount}
           hours={line.paintHours}
+          rate={paintRate}
           onChange={(p) =>
             onChange({ paintCode: p.code, paintAmount: p.amount, paintHours: p.hours })
           }
@@ -457,6 +600,7 @@ function LineCard({
           code={line.stripCode}
           amount={line.stripAmount}
           hours={line.stripHours}
+          rate={labourRate}
           onChange={(p) =>
             onChange({ stripCode: p.code, stripAmount: p.amount, stripHours: p.hours })
           }
@@ -472,6 +616,7 @@ function WorkBlock({
   code,
   amount,
   hours,
+  rate,
   onChange,
   className,
 }: {
@@ -479,6 +624,8 @@ function WorkBlock({
   code?: string;
   amount: number;
   hours: number;
+  /** Hourly rate off the card. Undefined leaves the amount entirely manual. */
+  rate?: number;
   onChange: (p: { code?: string; amount: number; hours: number }) => void;
   className?: string;
 }) {
@@ -510,10 +657,22 @@ function WorkBlock({
           min={0}
           placeholder="Hrs"
           value={numVal(hours)}
-          onChange={(e) => onChange({ code, amount, hours: Number(e.target.value) || 0 })}
+          onChange={(e) => {
+            const nextHours = Number(e.target.value) || 0;
+            // With a rate on the card, hours drive the amount. The amount box
+            // stays editable, so an estimator can still override a line.
+            onChange({
+              code,
+              hours: nextHours,
+              amount: rate != null ? Number((nextHours * rate).toFixed(2)) : amount,
+            });
+          }}
           aria-label={`${title} hours`}
         />
       </div>
+      {rate != null && (
+        <p className="mt-1 text-[10px] text-ink/40">at {zar(rate)}/hr</p>
+      )}
     </div>
   );
 }
