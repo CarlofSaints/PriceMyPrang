@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getInsurers, getRateTypes } from "@/lib/store";
-import { sortRateTypes } from "@/lib/rateTypes";
+import { getInsurers } from "@/lib/store";
 import InsurersManager from "@/components/InsurersManager";
 
 export default async function InsurersPage() {
@@ -10,8 +9,7 @@ export default async function InsurersPage() {
   if (!user) redirect("/login");
   if (!can(user, "manage_insurers")) redirect("/portal");
 
-  const [insurers, rateTypes] = await Promise.all([getInsurers(), getRateTypes()]);
-  const activeRateTypes = sortRateTypes(rateTypes.filter((r) => r.active));
+  const insurers = await getInsurers();
 
   return (
     <div className="space-y-6">
@@ -22,7 +20,7 @@ export default async function InsurersPage() {
           beater can see and use them, and consumers pick their insurer when requesting a quote.
         </p>
       </div>
-      <InsurersManager initial={insurers} rateTypes={activeRateTypes} />
+      <InsurersManager initial={insurers} />
     </div>
   );
 }

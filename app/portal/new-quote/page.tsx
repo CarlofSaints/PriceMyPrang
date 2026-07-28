@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, getPanelBeater, getRateTypes } from "@/lib/store";
+import { getPanelBeaters, getRateCards, getInsurers } from "@/lib/store";
 import NewQuoteClient from "@/components/NewQuoteClient";
 import PanelBeaterQuoteForm, { type RateOption } from "@/components/PanelBeaterQuoteForm";
 
@@ -27,17 +27,18 @@ export default async function NewQuotePage({
           .sort((a, b) => a.name.localeCompare(b.name))
       : [];
 
-  // The repairer form prices off the workshop's own rate card.
+  // The repairer form prices off one of the workshop's own rate cards. A
+  // manager hasn't picked a workshop yet, so there's nothing to offer them.
   let rateOptions: RateOption[] = [];
   if (lockedPbId) {
-    const [rateTypes, pb] = await Promise.all([getRateTypes(), getPanelBeater(lockedPbId)]);
-    rateOptions = rateTypes
-      .filter((rt) => rt.active !== false)
-      .map((rt) => ({ id: rt.id, label: rt.label, value: pb?.rates?.[rt.id] }));
-  } else if (canManage) {
-    const rateTypes = await getRateTypes();
-    // No workshop chosen yet, so no values to show — labels only.
-    rateOptions = rateTypes.filter((rt) => rt.active !== false).map((rt) => ({ id: rt.id, label: rt.label }));
+    const [cards, insurers] = await Promise.all([getRateCards(lockedPbId), getInsurers()]);
+    rateOptions = cards.map((c) => ({
+      id: c.id,
+      label:
+        c.kind === "cash"
+          ? "Cash rates"
+          : `${insurers.find((i) => i.id === c.insurerId)?.name ?? "Insurer"} rates`,
+    }));
   }
 
   // A panel-beater login only ever gets the repairer form. Staff choose, because

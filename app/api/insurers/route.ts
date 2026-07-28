@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getInsurers, saveInsurers, getRateTypes } from "@/lib/store";
-import type { InsuranceCompany } from "@/lib/types";
+import { getInsurers, saveInsurers } from "@/lib/store";
+import { isKnownField } from "@/lib/rateCard";
+import type { InsuranceCompany, RateScope, RateValues } from "@/lib/types";
 
 function slugId(name: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -17,16 +18,16 @@ async function requireSuperAdmin() {
   return { user };
 }
 
-// Keep only known rate-type ids with finite, non-negative numeric values.
-async function cleanRates(input: Record<string, unknown> | undefined): Promise<Record<string, number>> {
-  const rateTypes = await getRateTypes();
-  const valid = new Set(rateTypes.map((r) => r.id));
-  const out: Record<string, number> = {};
-  for (const [id, raw] of Object.entries(input ?? {})) {
-    if (!valid.has(id)) continue;
-    if (raw === "" || raw == null) continue;
-    const n = Number(raw);
-    if (Number.isFinite(n) && n >= 0) out[id] = n;
+/** Keep only catalogue fields with finite, non-negative values. */
+function cleanRates(input: RateValues | undefined): RateValues {
+  const out: RateValues = {};
+  for (const [scope, fields] of Object.entries(input ?? {})) {
+    for (const [field, raw] of Object.entries(fields ?? {})) {
+      if (!isKnownField(scope as RateScope, field)) continue;
+      if (raw === null || raw === undefined) continue;
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) (out[scope as RateScope] ??= {})[field] = n;
+    }
   }
   return out;
 }
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     id: slugId(b.name.trim()),
     name: b.name.trim(),
     active: true,
+    aluminium: false,
     rates: {},
     createdAt: new Date().toISOString(),
   };
@@ -68,7 +70,8 @@ export async function PATCH(request: Request) {
     id?: string;
     name?: string;
     active?: boolean;
-    rates?: Record<string, unknown>;
+    aluminium?: boolean;
+    rates?: RateValues;
   };
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -86,7 +89,8 @@ export async function PATCH(request: Request) {
     insurer.name = b.name.trim();
   }
   if (typeof b.active === "boolean") insurer.active = b.active;
-  if (b.rates !== undefined) insurer.rates = await cleanRates(b.rates);
+  if (typeof b.aluminium === "boolean") insurer.aluminium = b.aluminium;
+  if (b.rates !== undefined) insurer.rates = cleanRates(b.rates);
 
   await saveInsurers(list);
   return NextResponse.json(insurer);

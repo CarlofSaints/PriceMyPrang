@@ -20,8 +20,6 @@ const REQUIRED_SIDES: { key: PhotoSide; label: string; hint: string }[] = [
 export interface RateOption {
   id: string;
   label: string;
-  /** The workshop's own value for this rate, if they've set one. */
-  value?: number;
 }
 
 async function uploadFile(file: File, prefix: string): Promise<MediaRef> {
@@ -64,7 +62,7 @@ export default function PanelBeaterQuoteForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
-  const [rateTypeId, setRateTypeId] = useState("");
+  const [rateCardId, setRateCardId] = useState("");
   const [underWarranty, setUnderWarranty] = useState<"yes" | "no" | "">("");
   const [thirdParty, setThirdParty] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleDetails>({});
@@ -206,7 +204,7 @@ export default function PanelBeaterQuoteForm({
         companyName: clientType === "company" ? companyName.trim() : undefined,
         email: email.trim(),
         phone: phone.trim(),
-        rateTypeId: rateTypeId || undefined,
+        rateCardId: rateCardId || undefined,
         underWarranty,
         isThirdPartyClaim: thirdParty ? "yes" : "no",
         // Not asked on this form — the repairer is pricing the job, not
@@ -341,24 +339,23 @@ export default function PanelBeaterQuoteForm({
         <h3 className="mb-3 font-display text-base font-semibold text-ink">The job</h3>
 
         <Field
-          label="Rate"
+          label="Rate card"
           hint={
             rateOptions.length
-              ? "From your rate card on the Rates page."
-              : "You haven't set any rates yet — add them on the Rates page."
+              ? "Which of your rate cards this job is priced against."
+              : "You haven't set up any rate cards yet — add them on the Rates page."
           }
         >
           <select
             className={inputClass}
-            value={rateTypeId}
-            onChange={(e) => setRateTypeId(e.target.value)}
+            value={rateCardId}
+            onChange={(e) => setRateCardId(e.target.value)}
             disabled={rateOptions.length === 0}
           >
-            <option value="">Choose a rate…</option>
+            <option value="">Choose a rate card…</option>
             {rateOptions.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.label}
-                {r.value != null ? ` — R ${r.value}` : " — not set"}
               </option>
             ))}
           </select>

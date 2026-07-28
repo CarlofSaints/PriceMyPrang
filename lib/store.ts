@@ -2,13 +2,15 @@ import { getDb } from "./db";
 import type { Prisma, MediaKind } from "./generated/prisma/client";
 import { nextReference } from "./reference";
 import { DEFAULT_ROLES } from "./permissions";
-import { DEFAULT_RATE_TYPES } from "./rateTypes";
+import { isKnownField } from "./rateCard";
 import type {
   User,
   Role,
   Permission,
-  RateType,
-  RateUnit,
+  RateValues,
+  RateScope,
+  RateCard,
+  RateCardKind,
   InsuranceCompany,
   PanelBeater,
   PartType,
@@ -202,69 +204,33 @@ export async function getRole(id: string): Promise<Role | null> {
   return row ? toRole(row) : null;
 }
 
-// ---- Rate types -----------------------------------------------------------
+// ---- Rate values ----------------------------------------------------------
 
-const toRateType = (r: {
-  id: string;
-  label: string;
-  unit: string;
-  group: string | null;
-  order: number;
-  active: boolean;
-  system: boolean;
-  createdAt: Date;
-}): RateType => ({
-  id: r.id,
-  label: r.label,
-  unit: r.unit as RateUnit,
-  group: r.group ?? undefined,
-  order: r.order,
-  active: r.active,
-  system: r.system,
-  createdAt: iso(r.createdAt),
-});
-
-export async function getRateTypes(): Promise<RateType[]> {
-  const db = getDb();
-  const rows = await db.rateType.findMany({ orderBy: { order: "asc" } });
-  if (rows.length) return rows.map(toRateType);
-
-  await db.rateType.createMany({
-    data: DEFAULT_RATE_TYPES.map((rt) => ({
-      id: rt.id,
-      label: rt.label,
-      unit: rt.unit,
-      group: rt.group ?? null,
-      order: rt.order,
-      active: rt.active,
-      system: !!rt.system,
-      createdAt: new Date(rt.createdAt),
-    })),
-    skipDuplicates: true,
-  });
-  return DEFAULT_RATE_TYPES;
+/** Rows of (scope, field, value) → the nested shape the app and forms use. */
+function toRateValues(rows: { scope: string; field: string; value: DecimalLike }[]): RateValues {
+  const out: RateValues = {};
+  for (const r of rows) {
+    const scope = r.scope as RateScope;
+    // Drop anything not in the current catalogue, so retiring a field can't
+    // resurrect stale numbers on screen.
+    if (!isKnownField(scope, r.field)) continue;
+    (out[scope] ??= {})[r.field] = num(r.value);
+  }
+  return out;
 }
 
-export async function saveRateTypes(rateTypes: RateType[]): Promise<void> {
-  const db = getDb();
-  await db.$transaction(async (tx) => {
-    for (const rt of rateTypes) {
-      const data = {
-        label: rt.label,
-        unit: rt.unit,
-        group: rt.group ?? null,
-        order: rt.order,
-        active: rt.active,
-        system: !!rt.system,
-      };
-      await tx.rateType.upsert({
-        where: { id: rt.id },
-        create: { id: rt.id, ...data, createdAt: new Date(rt.createdAt) },
-        update: data,
-      });
+/** The nested shape → rows, dropping blanks and anything off-catalogue. */
+function fromRateValues(values: RateValues): { scope: RateScope; field: string; value: number }[] {
+  const rows: { scope: RateScope; field: string; value: number }[] = [];
+  for (const [scope, fields] of Object.entries(values ?? {})) {
+    for (const [field, value] of Object.entries(fields ?? {})) {
+      if (!isKnownField(scope as RateScope, field)) continue;
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) continue;
+      rows.push({ scope: scope as RateScope, field, value: n });
     }
-    await tx.rateType.deleteMany({ where: { id: { notIn: rateTypes.map((r) => r.id) } } });
-  });
+  }
+  return rows;
 }
 
 // ---- Insurance companies --------------------------------------------------
@@ -273,15 +239,17 @@ type InsurerRow = {
   id: string;
   name: string;
   active: boolean;
+  aluminium: boolean;
   createdAt: Date;
-  rates: { rateTypeId: string; value: DecimalLike }[];
+  rates: { scope: string; field: string; value: DecimalLike }[];
 };
 
 const toInsurer = (r: InsurerRow): InsuranceCompany => ({
   id: r.id,
   name: r.name,
   active: r.active,
-  rates: Object.fromEntries(r.rates.map((x) => [x.rateTypeId, num(x.value)])),
+  aluminium: r.aluminium,
+  rates: toRateValues(r.rates),
   createdAt: iso(r.createdAt),
 });
 
@@ -315,17 +283,17 @@ async function writeInsurer(
   tx: TxClient,
   i: InsuranceCompany
 ): Promise<void> {
-  const data = { name: i.name, active: i.active };
+  const data = { name: i.name, active: i.active, aluminium: !!i.aluminium };
   await tx.insurer.upsert({
     where: { id: i.id },
     create: { id: i.id, ...data, createdAt: new Date(i.createdAt) },
     update: data,
   });
-  await tx.insurerRate.deleteMany({ where: { insurerId: i.id } });
-  const rates = Object.entries(i.rates ?? {});
-  if (rates.length) {
-    await tx.insurerRate.createMany({
-      data: rates.map(([rateTypeId, value]) => ({ insurerId: i.id, rateTypeId, value })),
+  await tx.insurerRateValue.deleteMany({ where: { insurerId: i.id } });
+  const rows = fromRateValues(i.rates ?? {});
+  if (rows.length) {
+    await tx.insurerRateValue.createMany({
+      data: rows.map((r) => ({ insurerId: i.id, ...r })),
       skipDuplicates: true,
     });
   }
@@ -370,7 +338,6 @@ type PanelBeaterRow = {
   status: string;
   submittedByPublic: boolean;
   createdAt: Date;
-  rates: { rateTypeId: string; value: DecimalLike }[];
   warranties: WarrantyRow[];
 };
 
@@ -408,7 +375,6 @@ const toPanelBeater = (r: PanelBeaterRow): PanelBeater => ({
   miwaNumber: r.miwaNumber ?? undefined,
   labourRateSenior: numOpt(r.labourRateSenior),
   labourRateJunior: numOpt(r.labourRateJunior),
-  rates: Object.fromEntries(r.rates.map((x) => [x.rateTypeId, num(x.value)])),
   logoUrl: r.logoUrl ?? undefined,
   email: r.email ?? undefined,
   phone: r.phone ?? undefined,
@@ -419,7 +385,7 @@ const toPanelBeater = (r: PanelBeaterRow): PanelBeater => ({
   createdAt: iso(r.createdAt),
 });
 
-const PB_INCLUDE = { rates: true, warranties: { orderBy: { manufacturer: "asc" } } } as const;
+const PB_INCLUDE = { warranties: { orderBy: { manufacturer: "asc" } } } as const;
 
 export async function getPanelBeaters(): Promise<PanelBeater[]> {
   const rows = await getDb().panelBeater.findMany({
@@ -479,17 +445,9 @@ async function writePanelBeater(tx: TxClient, pb: PanelBeater): Promise<void> {
     update: data,
   });
 
-  // Rate card and warranties are replaced wholesale — the forms post the
-  // complete set, and both are small.
-  await tx.panelBeaterRate.deleteMany({ where: { panelBeaterId: pb.id } });
-  const rates = Object.entries(pb.rates ?? {});
-  if (rates.length) {
-    await tx.panelBeaterRate.createMany({
-      data: rates.map(([rateTypeId, value]) => ({ panelBeaterId: pb.id, rateTypeId, value })),
-      skipDuplicates: true,
-    });
-  }
-
+  // Warranties are replaced wholesale — the forms post the complete set and
+  // it's small. Rate cards are NOT touched here: they're edited on their own
+  // page, and a listing edit must never wipe a workshop's pricing.
   await tx.warranty.deleteMany({ where: { panelBeaterId: pb.id } });
   const warranties = pb.warranties ?? [];
   if (warranties.length) {
@@ -669,7 +627,7 @@ const toRequest = (r: RequestRow): QuoteRequest => {
   return {
     reference: r.reference,
     publicToken: r.publicToken ?? undefined,
-    rateTypeId: r.rateTypeId ?? undefined,
+    rateCardId: r.rateCardId ?? undefined,
     createdAt: iso(r.createdAt),
     status: r.status as RequestStatus,
     firstName: r.firstName,
@@ -774,7 +732,7 @@ export async function createRequest(
           // Gates the consumer's own quote page. Random, because the reference
           // is derived from the date and their surname.
           publicToken: crypto.randomUUID(),
-          rateTypeId: draft.rateTypeId ?? null,
+          rateCardId: draft.rateCardId ?? null,
           status: draft.status,
           firstName: draft.firstName,
           lastName: draft.lastName,
@@ -1050,6 +1008,99 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     completed: count("completed"),
     totalExecuted: num(executed._sum.total),
   };
+}
+
+// ---- Rate cards -----------------------------------------------------------
+
+const toRateCard = (r: {
+  id: string;
+  panelBeaterId: string;
+  kind: string;
+  insurerId: string | null;
+  aluminium: boolean;
+  createdAt: Date;
+  values: { scope: string; field: string; value: DecimalLike }[];
+}): RateCard => ({
+  id: r.id,
+  panelBeaterId: r.panelBeaterId,
+  kind: r.kind as RateCardKind,
+  insurerId: r.insurerId ?? undefined,
+  aluminium: r.aluminium,
+  values: toRateValues(r.values),
+  createdAt: iso(r.createdAt),
+});
+
+/**
+ * A workshop's cards. Insurance cards come back with the INSURER's values
+ * folded in — they're inherited, not stored per workshop, so a change on the
+ * Insurers page reaches every workshop at once.
+ */
+export async function getRateCards(panelBeaterId: string): Promise<RateCard[]> {
+  const db = getDb();
+  const [rows, insurers] = await Promise.all([
+    db.rateCard.findMany({
+      where: { panelBeaterId },
+      include: { values: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.insurer.findMany({ include: { rates: true } }),
+  ]);
+
+  return rows.map((r) => {
+    const card = toRateCard(r);
+    if (card.kind !== "insurance" || !card.insurerId) return card;
+    const insurer = insurers.find((i) => i.id === card.insurerId);
+    if (!insurer) return card;
+    return { ...card, aluminium: insurer.aluminium, values: toRateValues(insurer.rates) };
+  });
+}
+
+export async function getRateCard(id: string): Promise<RateCard | null> {
+  const row = await getDb().rateCard.findUnique({ where: { id }, include: { values: true } });
+  if (!row) return null;
+  const card = toRateCard(row);
+  if (card.kind !== "insurance" || !card.insurerId) return card;
+  const insurer = await getInsurer(card.insurerId);
+  return insurer
+    ? { ...card, aluminium: insurer.aluminium, values: insurer.rates }
+    : card;
+}
+
+/**
+ * Create or update one card. Values are only ever written for CASH cards —
+ * an insurance card's numbers belong to the insurer, so accepting them here
+ * would let a workshop quietly override what a Super Admin set.
+ */
+export async function upsertRateCard(card: RateCard): Promise<void> {
+  const db = getDb();
+  await db.$transaction(async (tx) => {
+    const data = {
+      panelBeaterId: card.panelBeaterId,
+      kind: card.kind,
+      insurerId: card.kind === "insurance" ? card.insurerId ?? null : null,
+      aluminium: !!card.aluminium,
+    };
+    await tx.rateCard.upsert({
+      where: { id: card.id },
+      create: { id: card.id, ...data, createdAt: new Date(card.createdAt) },
+      update: data,
+    });
+
+    await tx.rateCardValue.deleteMany({ where: { rateCardId: card.id } });
+    if (card.kind === "cash") {
+      const rows = fromRateValues(card.values ?? {});
+      if (rows.length) {
+        await tx.rateCardValue.createMany({
+          data: rows.map((r) => ({ rateCardId: card.id, ...r })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  });
+}
+
+export async function deleteRateCard(id: string): Promise<void> {
+  await getDb().rateCard.delete({ where: { id } });
 }
 
 // ---- panel beater's own view ----------------------------------------------

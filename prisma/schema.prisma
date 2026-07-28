@@ -26,6 +26,20 @@ enum RateUnit {
   percent
 }
 
+/// Blocks within a rate card. Fields inside each live in lib/rateCard.ts.
+enum RateScope {
+  in_warranty
+  out_of_warranty
+  aluminium
+  general
+}
+
+/// How a job is funded — "cash" means the client pays directly.
+enum RateCardKind {
+  cash
+  insurance
+}
+
 enum PartType {
   new
   used
@@ -123,49 +137,74 @@ model User {
 
 // ---- Rate cards ------------------------------------------------------------
 
-model RateType {
-  id        String   @id @default(uuid())
-  label     String
-  unit      RateUnit
-  group     String?
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  system    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  panelBeaterRates PanelBeaterRate[]
-  insurerRates     InsurerRate[]
-
-  @@index([active, order])
-  @@map("rate_types")
-}
-
 model Insurer {
   id        String   @id @default(uuid())
   name      String
   active    Boolean  @default(true)
+  /// Whether this insurer's card includes the optional aluminium block.
+  aluminium Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rates    InsurerRate[]
-  requests QuoteRequest[]
+  rates     InsurerRateValue[]
+  rateCards RateCard[]
+  requests  QuoteRequest[]
 
   @@map("insurers")
 }
 
-/// An insurer's shared rate card — one value per rate type.
-model InsurerRate {
-  insurerId  String
-  rateTypeId String
-  value      Decimal @db.Decimal(12, 2)
+/// The central rate card a Super Admin sets for an insurer. A workshop's
+/// insurance card inherits these — it doesn't get to invent an insurer's rates.
+/// `scope`/`field` come from lib/rateCard.ts, not from a table.
+model InsurerRateValue {
+  insurerId String
+  scope     RateScope
+  field     String
+  value     Decimal   @db.Decimal(12, 2)
 
-  insurer  Insurer  @relation(fields: [insurerId], references: [id], onDelete: Cascade)
-  rateType RateType @relation(fields: [rateTypeId], references: [id], onDelete: Cascade)
+  insurer Insurer @relation(fields: [insurerId], references: [id], onDelete: Cascade)
 
-  @@id([insurerId, rateTypeId])
-  @@index([rateTypeId])
-  @@map("insurer_rates")
+  @@id([insurerId, scope, field])
+  @@map("insurer_rate_values")
+}
+
+/// One card a workshop quotes on: their cash rates, or an insurer's.
+model RateCard {
+  id            String       @id @default(uuid())
+  panelBeaterId String
+  kind          RateCardKind
+  /// Set only when kind is insurance.
+  insurerId     String?
+  /// Whether the optional aluminium block applies to this card.
+  aluminium     Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  panelBeater PanelBeater      @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  insurer     Insurer?         @relation(fields: [insurerId], references: [id], onDelete: Cascade)
+  values      RateCardValue[]
+  requests    QuoteRequest[]
+
+  /// One cash card and one card per insurer. Postgres treats NULLs as distinct,
+  /// so the cash card is additionally guarded in code.
+  @@unique([panelBeaterId, insurerId])
+  @@index([panelBeaterId])
+  @@map("rate_cards")
+}
+
+/// A single rate on a card. Normalised rather than JSON because Power BI is a
+/// first-class consumer of this database.
+model RateCardValue {
+  rateCardId String
+  scope      RateScope
+  field      String
+  value      Decimal   @db.Decimal(12, 2)
+
+  rateCard RateCard @relation(fields: [rateCardId], references: [id], onDelete: Cascade)
+
+  @@id([rateCardId, scope, field])
+  @@map("rate_card_values")
 }
 
 // ---- Panel beaters ---------------------------------------------------------
@@ -192,7 +231,7 @@ model PanelBeater {
   sambraNumber String?
   miwaNumber   String?
 
-  /// Legacy flat rates, superseded by PanelBeaterRate. Kept for the PB form.
+  /// Legacy flat rates, superseded by rate cards. No longer on any form.
   labourRateSenior Decimal? @db.Decimal(12, 2)
   labourRateJunior Decimal? @db.Decimal(12, 2)
 
@@ -207,7 +246,7 @@ model PanelBeater {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rates       PanelBeaterRate[]
+  rateCards   RateCard[]
   warranties  Warranty[]
   users       User[]
   quotes      Quote[]
@@ -216,19 +255,6 @@ model PanelBeater {
   @@index([active, status])
   @@index([companyName])
   @@map("panel_beaters")
-}
-
-model PanelBeaterRate {
-  panelBeaterId String
-  rateTypeId    String
-  value         Decimal @db.Decimal(12, 2)
-
-  panelBeater PanelBeater @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
-  rateType    RateType    @relation(fields: [rateTypeId], references: [id], onDelete: Cascade)
-
-  @@id([panelBeaterId, rateTypeId])
-  @@index([rateTypeId])
-  @@map("panel_beater_rates")
 }
 
 /// A manufacturer warranty approval held by a panel beater.
@@ -288,9 +314,9 @@ model QuoteRequest {
   /// (PMP-date-SURNAME-nn) is predictable, so it can't be what gates access.
   publicToken String? @unique
 
-  /// Rate type the repairer chose off their own rate card when they opened the
-  /// job. Drives the labour rate the quote builder starts from.
-  rateTypeId String?
+  /// Rate card the repairer chose when they opened the job. Drives the rates
+  /// the quote builder starts from.
+  rateCardId String?
 
   // Consumer
   firstName   String
@@ -336,6 +362,7 @@ model QuoteRequest {
   updatedAt DateTime @updatedAt
 
   insurer              Insurer?             @relation(fields: [insurerId], references: [id], onDelete: SetNull)
+  rateCard             RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
   media                RequestMedia[]
   selectedPanelBeaters RequestPanelBeater[]
   quotes               Quote[]

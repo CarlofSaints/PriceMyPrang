@@ -4,7 +4,6 @@
 
 export type Permission =
   | "manage_roles"
-  | "manage_rate_types" // Super Admin: define the rate types panel beaters can set
   | "manage_insurers" // Super Admin: add insurance companies + set their rates
   | "manage_users"
   | "manage_panel_beaters"
@@ -31,18 +30,30 @@ export type RoleName = string;
 // ---------------------------------------------------------------------------
 export type RateUnit = "rand_per_hour" | "rand" | "percent";
 
-export interface RateType {
+/**
+ * Values on a rate card, grouped by block. Field keys come from the fixed
+ * catalogue in lib/rateCard.ts — rate types are no longer data.
+ */
+export type RateValues = Partial<Record<RateScope, Record<string, number>>>;
+
+export type RateScope = "in_warranty" | "out_of_warranty" | "aluminium" | "general";
+
+export type RateCardKind = "cash" | "insurance";
+
+/**
+ * One set of rates a workshop quotes on: their cash rates (the client pays
+ * directly), or an insurer's. An insurance card carries no values of its own —
+ * it inherits the central card a Super Admin sets on the Insurers page.
+ */
+export interface RateCard {
   id: string;
-  label: string;
-  unit: RateUnit;
-  /** Optional heading the rate is shown under on the Rates page. */
-  group?: string;
-  /** Sort order within the list (lower first). */
-  order: number;
-  /** Inactive rate types are hidden from the Rates page but keep saved values. */
-  active: boolean;
-  /** Seeded default — still editable/deletable, flagged for reference only. */
-  system?: boolean;
+  panelBeaterId: string;
+  kind: RateCardKind;
+  /** Set only when kind is "insurance". */
+  insurerId?: string;
+  /** Whether the optional aluminium block applies. */
+  aluminium: boolean;
+  values: RateValues;
   createdAt: string;
 }
 
@@ -54,8 +65,10 @@ export interface InsuranceCompany {
   id: string;
   name: string;
   active: boolean;
-  /** Rate card, keyed by RateType id (same rate types as panel beaters). */
-  rates?: Record<string, number>;
+  /** Whether this insurer's card includes the optional aluminium block. */
+  aluminium: boolean;
+  /** The central card every workshop's insurance card for this insurer inherits. */
+  rates: RateValues;
   createdAt: string;
 }
 
@@ -111,8 +124,8 @@ export interface PanelBeater {
   miwaNumber?: string;
   labourRateSenior?: number;
   labourRateJunior?: number;
-  /** Values keyed by RateType id — the panel beater's own rate card. */
-  rates?: Record<string, number>;
+  // Rates live on RateCard rows now — a workshop has several (cash, plus one
+  // per insurer), not a single flat card.
   logoUrl?: string;
   email?: string;
   phone?: string;
@@ -185,8 +198,8 @@ export interface QuoteRequest {
   reference: string; // PMP-YYYYMMDD-SURNAME-#
   /** Unguessable key for the consumer's own quote page. Never show this in the portal. */
   publicToken?: string;
-  /** Rate type the repairer picked off their own rate card when opening the job. */
-  rateTypeId?: string;
+  /** Rate card the repairer priced this job against. */
+  rateCardId?: string;
   createdAt: string;
   status: RequestStatus;
 
