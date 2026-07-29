@@ -72,8 +72,8 @@ export default function Home() {
           </h2>
           <p className="mt-3 max-w-2xl text-ink/70">
             Price my Prang takes the phone calls and guesswork out of getting your car repaired.
-            We connect you with trusted panel beaters near you and handle the legwork, so you can
-            compare quotes and get back on the road faster.
+            We put you in front of our panel of vetted panel beaters near you and handle the
+            legwork, so you can compare quotes and get back on the road faster.
           </p>
           <p className="mt-3 max-w-2xl text-ink/70">
             Every estimate is backed by our own team of{" "}
@@ -85,8 +85,7 @@ export default function Home() {
         {/* Accreditation */}
         <div className="mt-8 rounded-2xl border border-teal/15 bg-white p-6 text-center">
           <p className="mx-auto max-w-2xl font-display text-lg font-semibold text-ink">
-            Only MIWA, MIBCO and RMI approved panel beaters are available on the Price my Prang
-            platform.
+            Every panel beater on our panel is MIWA, MIBCO and RMI approved. No exceptions.
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-6">
             {APPROVALS.map((a) => (

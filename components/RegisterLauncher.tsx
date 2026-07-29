@@ -5,7 +5,9 @@ import PanelBeaterForm from "./PanelBeaterForm";
 
 export default function RegisterLauncher({
   className = "",
-  label = "Become a registered panel beater",
+  // "Join the panel" — the pun is the point, and it's shorter and warmer than
+  // "become a registered panel beater". The subheading carries the detail.
+  label = "Join the panel",
 }: {
   className?: string;
   label?: string;
@@ -44,12 +46,12 @@ export default function RegisterLauncher({
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-display text-2xl font-bold text-ink">
-                    {done ? "Application received" : "Become a registered panel beater"}
+                    {done ? "You're on the list" : "Join the panel"}
                   </h2>
                   <p className="text-sm text-ink/60">
                     {done
                       ? "Thanks — our team will review your details."
-                      : "Join the Price my Prang network. We only list MIWA, MIBCO & RMI approved workshops."}
+                      : "Become one of the panel beaters on our panel. We only list MIWA, MIBCO & RMI approved workshops."}
                   </p>
                 </div>
                 <button onClick={close} className="text-ink/40 hover:text-ink" aria-label="Close">
@@ -63,12 +65,13 @@ export default function RegisterLauncher({
                     ✅
                   </div>
                   <p className="text-ink/70">
-                    Your application has been submitted and is pending approval. We&apos;ll be in
-                    touch once your MIWA / MIBCO / RMI credentials are verified.
+                    Your application to join the panel has been submitted. We&apos;ll be in touch
+                    once your MIWA / MIBCO / RMI credentials are verified.
                   </p>
                   <p className="text-ink/70">
                     Check your inbox — we&apos;ve emailed you a login so you can sign in and finish
-                    setting up your listing while we review it.
+                    setting up your listing while we review it, plus our repairer agreement to
+                    read and sign.
                   </p>
                   <button
                     onClick={close}

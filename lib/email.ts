@@ -384,9 +384,9 @@ export async function sendRepairerAgreementInvite(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
     <p style="font-size:15px;line-height:1.5;">
-      Before <strong>${opts.companyName}</strong> can start receiving work through Price my Prang,
-      we need your agreement to our repairer terms — the Terms &amp; Conditions, disclaimers,
-      non-disclosure undertaking and service level agreement.
+      Before <strong>${opts.companyName}</strong> joins the panel, we need your agreement to our
+      repairer terms — the Terms &amp; Conditions, disclaimers, non-disclosure undertaking and
+      service level agreement.
     </p>
     <p style="font-size:15px;line-height:1.5;">
       You can read and sign it online. It takes a minute, and you&apos;ll be emailed a signed copy
@@ -478,8 +478,8 @@ export async function sendPanelBeaterWelcome(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
     <p style="font-size:15px;line-height:1.5;">
-      Thanks for signing <strong>${opts.companyName}</strong> up to Price my Prang. We have your
-      application and our team is checking your documents.
+      Thanks for putting <strong>${opts.companyName}</strong> forward to join our panel. We have
+      your application and our team is checking your documents.
     </p>
     <p style="font-size:15px;line-height:1.5;">
       You can sign in straight away to finish setting up your listing and your rates. Until your
@@ -508,8 +508,8 @@ export async function sendPanelBeaterWelcome(opts: {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: opts.email,
-      subject: `Welcome to Price my Prang — ${opts.companyName}`,
-      html: shell("Thanks for signing up", body),
+      subject: `Welcome to the panel — ${opts.companyName}`,
+      html: shell("Welcome to the panel", body),
     });
     if (error)
       return { sent: false, error: (error as { message?: string }).message || "send failed" };
@@ -527,7 +527,7 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
   if (to.length === 0) return;
 
   const body = `
-    <p style="font-size:15px;">A panel beater has applied to join Price my Prang and is awaiting approval.</p>
+    <p style="font-size:15px;">A panel beater has applied to join the panel and is awaiting approval.</p>
     <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:16px 0;">
       <table style="width:100%;border-collapse:collapse;">
         ${detailRow("Company", pb.companyName)}
