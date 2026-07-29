@@ -29,7 +29,15 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];
 // Seeded on first run; the Admin role is a protected superuser.
 export const DEFAULT_ROLES: Role[] = [
   // ---- PMP's own staff ----
-  { id: "admin", name: "Admin", system: true, scope: "platform", permissions: [...ALL_PERMISSIONS] },
+  // Named "Site Admin", not "Admin": a workshop has an admin too, and a list
+  // showing "Admin" twice tells you nothing about which one you're looking at.
+  {
+    id: "admin",
+    name: "Site Admin",
+    system: true,
+    scope: "platform",
+    permissions: [...ALL_PERMISSIONS],
+  },
   {
     id: "assessor",
     name: "Assessor",
@@ -43,7 +51,7 @@ export const DEFAULT_ROLES: Role[] = [
   // be decided; Estimator and Buyer currently differ in name only.
   {
     id: "pb_admin",
-    name: "Admin",
+    name: "Panel Beater Admin",
     scope: "panel_beater",
     permissions: ["onboard_self", "manage_users"],
   },

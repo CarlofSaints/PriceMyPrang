@@ -41,6 +41,12 @@ export default function UsersManager({
   const [busy, setBusy] = useState(false);
 
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name || id;
+  const workshopName = (id: string) => {
+    const pb = panelBeaters.find((p) => p.id === id);
+    // A linked workshop we can't name means the listing was deleted out from
+    // under the login — worth showing rather than rendering a blank cell.
+    return pb ? pb.tradingAs || pb.companyName : "Unknown workshop";
+  };
   const selectedRole = roles.find((r) => r.id === form.role);
   // Scope is now explicit on the role, so this no longer has to be inferred
   // from whether it happens to carry onboard_self.
@@ -289,6 +295,9 @@ export default function UsersManager({
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
+              {/* Pointless on a workshop's own Team page — they'd all say the
+                  same thing. Only PMP staff see users across workshops. */}
+              {!scopedToWorkshop && <th className="px-4 py-3">Panel beater</th>}
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Active</th>
               <th className="px-4 py-3"></th>
@@ -309,6 +318,15 @@ export default function UsersManager({
                   )}
                 </td>
                 <td className="px-4 py-3 text-ink/70">{u.email}</td>
+                {!scopedToWorkshop && (
+                  <td className="px-4 py-3">
+                    {u.panelBeaterId ? (
+                      <span className="text-ink">{workshopName(u.panelBeaterId)}</span>
+                    ) : (
+                      <span className="text-ink/35">— Price my Prang —</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <select
                     value={roles.some((r) => r.id === u.role) ? u.role : ""}
@@ -318,11 +336,34 @@ export default function UsersManager({
                     {!roles.some((r) => r.id === u.role) && (
                       <option value="">{roleName(u.role)} (removed)</option>
                     )}
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
+                    {scopedToWorkshop ? (
+                      roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <optgroup label="Price my Prang staff">
+                          {roles
+                            .filter((r) => r.scope !== "panel_beater")
+                            .map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Panel beater team">
+                          {roles
+                            .filter((r) => r.scope === "panel_beater")
+                            .map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      </>
+                    )}
                   </select>
                 </td>
                 <td className="px-4 py-3">
