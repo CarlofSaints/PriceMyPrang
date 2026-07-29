@@ -59,7 +59,12 @@ export default async function PortalLayout({
     items.push({ href: "/portal/warranties", label: "Warranties" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/rates", label: "Rates" });
-  if (can(user, "manage_users")) items.push({ href: "/portal/users", label: "Users" });
+  if (can(user, "manage_users"))
+    items.push({ href: "/portal/users", label: can(user, "manage_panel_beaters") ? "Users" : "Team" });
+  // Read-only view of what each role can do, for a workshop's own people.
+  // Super Admins get the editable version in the Control Centre instead.
+  if (can(user, "onboard_self") && !can(user, "manage_roles"))
+    items.push({ href: "/portal/roles", label: "Roles" });
 
   // Control Centre — Super Admin (PriceMyPrang employee) only.
   const adminItems: NavItem[] = [];

@@ -42,7 +42,9 @@ export default function UsersManager({
 
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name || id;
   const selectedRole = roles.find((r) => r.id === form.role);
-  const roleWantsPanelBeater = selectedRole?.permissions.includes("onboard_self");
+  // Scope is now explicit on the role, so this no longer has to be inferred
+  // from whether it happens to carry onboard_self.
+  const isPanelBeaterRole = selectedRole?.scope === "panel_beater";
 
   type UserResponse = SafeUser & {
     emailSent?: boolean;
@@ -167,7 +169,7 @@ export default function UsersManager({
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-ink">Add a user</h2>
           <Link href="/portal/roles" className="text-sm font-semibold text-teal hover:underline">
-            Manage roles →
+            {scopedToWorkshop ? "What each role can do →" : "Manage roles →"}
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -181,25 +183,64 @@ export default function UsersManager({
             <input className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           </Field>
           <Field label="Role">
+            {/* Grouped by whose org chart the role belongs to: PMP has an
+                "Admin" and so does every workshop, and the two are nothing
+                alike. Ungrouped, the list showed "Admin" twice. */}
             <select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} required>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
+              {scopedToWorkshop ? (
+                roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <optgroup label="Price my Prang staff">
+                    {roles
+                      .filter((r) => r.scope !== "panel_beater")
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Panel beater team">
+                    {roles
+                      .filter((r) => r.scope === "panel_beater")
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                </>
+              )}
             </select>
           </Field>
         </div>
 
-        {roleWantsPanelBeater && !scopedToWorkshop && (
-          <Field label="Link to panel beater listing" hint="Optional — they can also create their own.">
-            <select className={inputClass} value={form.panelBeaterId} onChange={(e) => setForm({ ...form, panelBeaterId: e.target.value })}>
-              <option value="">— none —</option>
-              {panelBeaters.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.tradingAs || p.companyName}
-                </option>
-              ))}
+        {isPanelBeaterRole && !scopedToWorkshop && (
+          <Field
+            label="Which panel beater?"
+            required
+            hint="A panel-beater role only works attached to a workshop."
+          >
+            <select
+              className={inputClass}
+              value={form.panelBeaterId}
+              onChange={(e) => setForm({ ...form, panelBeaterId: e.target.value })}
+              required
+            >
+              <option value="">Choose a workshop…</option>
+              {[...panelBeaters]
+                .sort((a, b) =>
+                  (a.tradingAs || a.companyName).localeCompare(b.tradingAs || b.companyName)
+                )
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.tradingAs || p.companyName}
+                  </option>
+                ))}
             </select>
           </Field>
         )}

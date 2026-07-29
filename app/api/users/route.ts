@@ -80,6 +80,14 @@ export async function POST(request: Request) {
   if (!scope.platform && role.scope !== "panel_beater")
     return NextResponse.json({ error: "You can't assign that role" }, { status: 403 });
 
+  // A panel-beater role detached from a workshop is a login that can't do
+  // anything — no dashboard, no team, no rates. Refuse rather than create it.
+  if (scope.platform && role.scope === "panel_beater" && !b.panelBeaterId)
+    return NextResponse.json(
+      { error: "Choose which panel beater this user belongs to." },
+      { status: 400 }
+    );
+
   const users = await getUsers();
   if (users.some((u) => u.email.toLowerCase() === b.email!.toLowerCase()))
     return NextResponse.json({ error: "Email already in use" }, { status: 409 });
