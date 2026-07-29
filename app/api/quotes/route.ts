@@ -52,6 +52,9 @@ export async function POST(request: Request) {
       code: x.code?.trim() || undefined,
       description: (x.description || "").trim(),
       quantity: Math.max(1, num(x.quantity) || 1),
+      // Cost is what the workshop paid; kept so a quote can be audited against
+      // the mark-up its rate card allows. Only the charge feeds the totals.
+      partsCost: x.partsCost == null ? undefined : num(x.partsCost),
       partsAmount: num(x.partsAmount),
       partId: x.partId,
       supplier: x.supplier,

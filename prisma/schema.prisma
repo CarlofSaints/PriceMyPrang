@@ -456,8 +456,12 @@ model QuoteLineItem {
   /// New / Alt / Used / Repair / Out Work / Paint / Note (free text).
   code        String?
   description String
-  quantity    Decimal @default(1) @db.Decimal(10, 2)
-  partsAmount Decimal @default(0) @db.Decimal(12, 2)
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  /// What the part cost the workshop, before mark-up. Optional: a line may be
+  /// priced directly without recording a cost.
+  partsCost   Decimal? @db.Decimal(12, 2)
+  /// What the part is CHARGED at — cost plus the card's mark-up for its type.
+  partsAmount Decimal  @default(0) @db.Decimal(12, 2)
 
   // Legacy parts-catalogue link (the catalogue itself is gone).
   partId     String?

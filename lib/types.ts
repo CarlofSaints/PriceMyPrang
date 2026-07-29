@@ -276,7 +276,9 @@ export interface QuoteLineItem {
   code?: string;
   description: string;
   quantity: number;
-  /** Parts cost (Rand) for this line. */
+  /** What the part cost the workshop, before mark-up. Optional. */
+  partsCost?: number;
+  /** What the part is CHARGED at — cost plus the rate card's mark-up. */
   partsAmount: number;
 
   // Optional parts-catalogue link (from the parts picker).

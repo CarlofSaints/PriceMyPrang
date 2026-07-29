@@ -15,6 +15,17 @@ import { zar } from "@/lib/format";
 
 type Line = QuoteLineItem;
 
+/**
+ * Which mark-up on the rate card applies to a line, by its part-type code.
+ * Anything else (Repair, Out Work, Paint, Note) isn't a part, so nothing is
+ * marked up.
+ */
+const MARKUP_FIELD_BY_CODE: Record<string, string> = {
+  New: "markup_oem",
+  Alt: "markup_alternate",
+  Used: "markup_used",
+};
+
 const emptyLine: Line = {
   code: "",
   description: "",
@@ -150,8 +161,30 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     loadRateCards(id, request);
   }
 
+  /**
+   * Apply a patch, then re-price the part if we have both a cost and a mark-up
+   * for its type. Re-runs when the CODE changes too, since switching New → Used
+   * changes which percentage applies. A patch that sets partsAmount directly is
+   * left alone — that's the estimator overriding the calculation.
+   */
   function updateLine(i: number, patch: Partial<Line>) {
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+    setLines((ls) =>
+      ls.map((l, idx) => {
+        if (idx !== i) return l;
+        const next = { ...l, ...patch };
+        if (patch.partsAmount !== undefined) return next;
+
+        const field = MARKUP_FIELD_BY_CODE[next.code ?? ""];
+        const markup = field ? rates[field] : undefined;
+        if (next.partsCost != null && markup != null) {
+          next.partsAmount = Number((next.partsCost * (1 + markup / 100)).toFixed(2));
+        } else if (next.partsCost != null && patch.partsCost !== undefined) {
+          // No mark-up configured for this type — charge it on at cost.
+          next.partsAmount = next.partsCost;
+        }
+        return next;
+      })
+    );
   }
 
   // Live totals
@@ -330,9 +363,16 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                   Labour{" "}
                   <strong>{labourRate != null ? `${zar(labourRate)}/hr` : "not set"}</strong> ·
                   Paint <strong>{paintRate != null ? `${zar(paintRate)}/hr` : "not set"}</strong>
+                  {" · "}Parts mark-up OEM{" "}
+                  <strong>{rates.markup_oem != null ? `${rates.markup_oem}%` : "—"}</strong> · Alt{" "}
+                  <strong>
+                    {rates.markup_alternate != null ? `${rates.markup_alternate}%` : "—"}
+                  </strong>{" "}
+                  · Used{" "}
+                  <strong>{rates.markup_used != null ? `${rates.markup_used}%` : "—"}</strong>
                   <span className="block text-xs text-ink/50">
-                    Enter hours below and the amount is worked out for you. Type over any amount to
-                    override it.
+                    Enter hours and a parts cost below; amounts are worked out for you. Type over
+                    any amount to override it.
                   </span>
                 </p>
               ) : (
@@ -534,7 +574,7 @@ function LineCard({
           aria-label="Code"
         />
         <input
-          className={`${inputClass} col-span-6 sm:col-span-5`}
+          className={`${inputClass} col-span-6 sm:col-span-4`}
           placeholder="Description"
           value={line.description}
           onChange={(e) => onChange({ description: e.target.value })}
@@ -550,14 +590,30 @@ function LineCard({
           title="Qty"
         />
         <input
-          className={`${inputClass} col-span-6 sm:col-span-3`}
+          className={`${inputClass} col-span-3 sm:col-span-2`}
           type="number"
           step="0.01"
           min={0}
-          placeholder="Parts R"
+          placeholder="Cost R"
+          value={numVal(line.partsCost ?? 0)}
+          onChange={(e) =>
+            onChange({
+              partsCost: e.target.value === "" ? undefined : Number(e.target.value) || 0,
+            })
+          }
+          aria-label="Parts cost"
+          title="What the part cost you, before mark-up"
+        />
+        <input
+          className={`${inputClass} col-span-3 sm:col-span-2`}
+          type="number"
+          step="0.01"
+          min={0}
+          placeholder="Charge R"
           value={numVal(line.partsAmount)}
           onChange={(e) => onChange({ partsAmount: Number(e.target.value) || 0 })}
-          aria-label="Parts amount"
+          aria-label="Parts charge"
+          title="What the client is charged. Worked out from cost + mark-up, but you can override it."
         />
         <button
           type="button"
