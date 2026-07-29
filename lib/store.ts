@@ -137,6 +137,17 @@ export async function setUserPassword(
   });
 }
 
+/**
+ * Remove one user.
+ *
+ * Deliberately NOT saveUsers() — that replaces the whole collection, so a
+ * caller working from a filtered list (a workshop admin sees only their own
+ * team) would delete everyone they couldn't see.
+ */
+export async function deleteUser(id: string): Promise<void> {
+  await getDb().user.delete({ where: { id } });
+}
+
 export async function upsertUser(user: User): Promise<void> {
   const data = {
     name: user.name,

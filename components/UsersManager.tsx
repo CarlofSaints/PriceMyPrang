@@ -99,6 +99,31 @@ export default function UsersManager({
     }
   }
 
+  /**
+   * Delete a login for good. Named for what it does — the row disappears only
+   * once the server has confirmed it, so a refused delete doesn't leave the
+   * table lying about who still exists.
+   */
+  async function remove(u: SafeUser) {
+    if (
+      !confirm(
+        `Delete ${u.name} (${u.email})?\n\nThis removes their login permanently. It does not delete the panel beater listing.`
+      )
+    )
+      return;
+
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/users?id=${encodeURIComponent(u.id)}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Couldn't delete that user.");
+      return;
+    }
+    setUsers((list) => list.filter((x) => x.id !== u.id));
+    setNotice({ ok: true, text: `${u.email} deleted.` });
+  }
+
   async function patch(id: string, patch: Record<string, unknown>): Promise<UserResponse | null> {
     const res = await fetch("/api/users", {
       method: "PATCH",
@@ -263,9 +288,17 @@ export default function UsersManager({
                   <input type="checkbox" checked={u.active} onChange={(e) => patch(u.id, { active: e.target.checked })} />
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button onClick={() => resetPw(u.id)} className="text-teal hover:underline">
-                    Reset password
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button onClick={() => resetPw(u.id)} className="text-teal hover:underline">
+                      Reset password
+                    </button>
+                    <button
+                      onClick={() => remove(u)}
+                      className="font-semibold text-coral hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

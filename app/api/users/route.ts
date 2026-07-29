@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, hashPassword } from "@/lib/auth";
-import { can } from "@/lib/permissions";
-import { getUsers, saveUsers, getRoles } from "@/lib/store";
+import { can, permissionsForRole } from "@/lib/permissions";
+import { getUsers, saveUsers, getRoles, deleteUser } from "@/lib/store";
 import { sendUserCredentials } from "@/lib/email";
 import type { AuthUser, User } from "@/lib/types";
 
@@ -116,6 +116,47 @@ export async function POST(request: Request) {
     emailError: "error" in mail ? mail.error : undefined,
     emailSkipped: "skipped" in mail,
   });
+}
+
+export async function DELETE(request: Request) {
+  const { user: admin, response } = await requireUser();
+  if (response) return response;
+  if (!can(admin, "manage_users")) return FORBIDDEN;
+
+  const scope = scopeFor(admin);
+  if (!scope) return FORBIDDEN;
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  // Deleting your own login locks you out of the portal you're standing in.
+  if (id === admin.id)
+    return NextResponse.json(
+      { error: "You can't delete your own login." },
+      { status: 400 }
+    );
+
+  const users = await getUsers();
+  const target = users.find((u) => u.id === id);
+  if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Same as PATCH: another workshop's user is a 404, not a 403.
+  if (!scope.platform && target.panelBeaterId !== scope.panelBeaterId)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Don't allow the last person who can administer the platform to be removed
+  // — there'd be no way back in to put one back.
+  const roles = await getRoles();
+  const isPlatformAdmin = (u: User) =>
+    u.active && permissionsForRole(u.role, roles).includes("manage_panel_beaters");
+  if (isPlatformAdmin(target) && users.filter(isPlatformAdmin).length <= 1)
+    return NextResponse.json(
+      { error: "This is the last administrator — promote someone else first." },
+      { status: 409 }
+    );
+
+  await deleteUser(id);
+  return NextResponse.json({ ok: true });
 }
 
 export async function PATCH(request: Request) {
