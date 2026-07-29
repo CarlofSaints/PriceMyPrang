@@ -11,6 +11,8 @@ import type {
   RateScope,
   RateCard,
   RateCardKind,
+  AgreementDocument,
+  RepairerAgreement,
   InsuranceCompany,
   PanelBeater,
   PartType,
@@ -205,6 +207,187 @@ export async function saveRoles(roles: Role[]): Promise<void> {
 export async function getRole(id: string): Promise<Role | null> {
   const row = await getDb().role.findUnique({ where: { id } });
   return row ? toRole(row) : null;
+}
+
+// ---- Repairer agreement ---------------------------------------------------
+
+const toAgreementDoc = (r: {
+  id: string;
+  title: string;
+  html: string;
+  sourceUrl: string;
+  sourcePathname: string;
+  active: boolean;
+  uploadedByName: string | null;
+  createdAt: Date;
+}): AgreementDocument => ({
+  id: r.id,
+  title: r.title,
+  html: r.html,
+  sourceUrl: r.sourceUrl,
+  sourcePathname: r.sourcePathname,
+  active: r.active,
+  uploadedByName: r.uploadedByName ?? undefined,
+  createdAt: iso(r.createdAt),
+});
+
+/** The document new repairers are asked to sign. Null until one is uploaded. */
+export async function getActiveAgreementDocument(): Promise<AgreementDocument | null> {
+  const row = await getDb().agreementDocument.findFirst({
+    where: { active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return row ? toAgreementDoc(row) : null;
+}
+
+export async function listAgreementDocuments(): Promise<AgreementDocument[]> {
+  const rows = await getDb().agreementDocument.findMany({ orderBy: { createdAt: "desc" } });
+  return rows.map(toAgreementDoc);
+}
+
+/**
+ * Store a newly uploaded agreement and make it the active one. Only one can be
+ * active — a repairer signing tomorrow must not get yesterday's terms.
+ */
+export async function addAgreementDocument(doc: AgreementDocument): Promise<void> {
+  const db = getDb();
+  await db.$transaction(async (tx) => {
+    await tx.agreementDocument.updateMany({ where: { active: true }, data: { active: false } });
+    await tx.agreementDocument.create({
+      data: {
+        id: doc.id,
+        title: doc.title,
+        html: doc.html,
+        sourceUrl: doc.sourceUrl,
+        sourcePathname: doc.sourcePathname,
+        active: true,
+        uploadedByName: doc.uploadedByName ?? null,
+        createdAt: new Date(doc.createdAt),
+      },
+    });
+  });
+}
+
+/**
+ * Remove a document. Refused once anyone has signed it — the signature would
+ * otherwise point at nothing, and what they agreed to becomes unprovable.
+ */
+export async function deleteAgreementDocument(
+  id: string
+): Promise<{ ok: true } | { ok: false; reason: "signed" }> {
+  const db = getDb();
+  const signed = await db.repairerAgreement.count({ where: { documentId: id } });
+  if (signed > 0) return { ok: false, reason: "signed" };
+  await db.agreementDocument.delete({ where: { id } });
+  return { ok: true };
+}
+
+const toRepairerAgreement = (r: {
+  id: string;
+  panelBeaterId: string;
+  documentId: string;
+  token: string;
+  sentToName: string;
+  sentToEmail: string;
+  signedAt: Date | null;
+  signerName: string | null;
+  signerTitle: string | null;
+  signerIp: string | null;
+  signerUserAgent: string | null;
+  pdfUrl: string | null;
+  createdAt: Date;
+}): RepairerAgreement => ({
+  id: r.id,
+  panelBeaterId: r.panelBeaterId,
+  documentId: r.documentId,
+  token: r.token,
+  sentToName: r.sentToName,
+  sentToEmail: r.sentToEmail,
+  signedAt: r.signedAt ? iso(r.signedAt) : undefined,
+  signerName: r.signerName ?? undefined,
+  signerTitle: r.signerTitle ?? undefined,
+  signerIp: r.signerIp ?? undefined,
+  signerUserAgent: r.signerUserAgent ?? undefined,
+  pdfUrl: r.pdfUrl ?? undefined,
+  createdAt: iso(r.createdAt),
+});
+
+export async function createRepairerAgreement(opts: {
+  panelBeaterId: string;
+  documentId: string;
+  sentToName: string;
+  sentToEmail: string;
+}): Promise<RepairerAgreement> {
+  const row = await getDb().repairerAgreement.create({
+    data: {
+      panelBeaterId: opts.panelBeaterId,
+      documentId: opts.documentId,
+      token: crypto.randomUUID(),
+      sentToName: opts.sentToName,
+      sentToEmail: opts.sentToEmail.toLowerCase(),
+    },
+  });
+  return toRepairerAgreement(row);
+}
+
+export async function getRepairerAgreementByToken(
+  token: string
+): Promise<{ agreement: RepairerAgreement; document: AgreementDocument } | null> {
+  if (!token) return null;
+  const row = await getDb().repairerAgreement.findUnique({
+    where: { token },
+    include: { document: true },
+  });
+  return row
+    ? { agreement: toRepairerAgreement(row), document: toAgreementDoc(row.document) }
+    : null;
+}
+
+export async function getRepairerAgreements(panelBeaterId: string): Promise<RepairerAgreement[]> {
+  const rows = await getDb().repairerAgreement.findMany({
+    where: { panelBeaterId },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(toRepairerAgreement);
+}
+
+/** Record the acceptance. Refuses to re-sign one that's already signed. */
+export async function signRepairerAgreement(
+  token: string,
+  signature: {
+    signerName: string;
+    signerTitle?: string;
+    signerIp?: string;
+    signerUserAgent?: string;
+    pdfUrl?: string;
+  }
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "already_signed" }> {
+  const db = getDb();
+  return db.$transaction(async (tx) => {
+    const row = await tx.repairerAgreement.findUnique({
+      where: { token },
+      select: { id: true, signedAt: true },
+    });
+    if (!row) return { ok: false as const, reason: "not_found" as const };
+    if (row.signedAt) return { ok: false as const, reason: "already_signed" as const };
+
+    await tx.repairerAgreement.update({
+      where: { id: row.id },
+      data: {
+        signedAt: new Date(),
+        signerName: signature.signerName,
+        signerTitle: signature.signerTitle ?? null,
+        signerIp: signature.signerIp ?? null,
+        signerUserAgent: signature.signerUserAgent ?? null,
+        pdfUrl: signature.pdfUrl ?? null,
+      },
+    });
+    return { ok: true as const };
+  });
+}
+
+export async function setRepairerAgreementPdf(id: string, pdfUrl: string): Promise<void> {
+  await getDb().repairerAgreement.update({ where: { id }, data: { pdfUrl } });
 }
 
 // ---- Rate values ----------------------------------------------------------

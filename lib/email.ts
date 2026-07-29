@@ -367,6 +367,101 @@ export async function sendConsumerQuoteReady(
 }
 
 /**
+ * The SECOND registration email: the agreement to sign. Deliberately separate
+ * from the welcome/credentials one — a contract shouldn't arrive as a footnote
+ * to a password, and they'll want to forward it to whoever signs.
+ */
+export async function sendRepairerAgreementInvite(opts: {
+  name: string;
+  email: string;
+  companyName: string;
+  token: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+
+  const link = `${baseUrl()}/agreement/${opts.token}`;
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      Before <strong>${opts.companyName}</strong> can start receiving work through Price my Prang,
+      we need your agreement to our repairer terms — the Terms &amp; Conditions, disclaimers,
+      non-disclosure undertaking and service level agreement.
+    </p>
+    <p style="font-size:15px;line-height:1.5;">
+      You can read and sign it online. It takes a minute, and you&apos;ll be emailed a signed copy
+      for your records.
+    </p>
+    <p style="margin:20px 0;">
+      <a href="${link}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Read and sign the agreement
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      Whoever signs must be authorised to bind the business. If that isn&apos;t you, forward this
+      email to the person who is — the link works for them too. Keep it private; anyone with it
+      can sign on your behalf.
+    </p>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to: opts.email,
+      subject: `Your Price my Prang repairer agreement — ${opts.companyName}`,
+      html: shell("Repairer agreement", body),
+    });
+    if (error)
+      return { sent: false, error: (error as { message?: string }).message || "send failed" };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
+/** The signed copy, to the repairer and to our own notification list. */
+export async function sendSignedAgreementCopy(opts: {
+  to: string;
+  signerName: string;
+  companyName: string;
+  pdf: Buffer;
+}): Promise<void> {
+  const resend = client();
+  if (!resend) return;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${opts.signerName},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      Thanks — the repairer agreement for <strong>${opts.companyName}</strong> is signed. A copy is
+      attached for your records, including the date and time it was accepted.
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">Please keep this somewhere safe.</p>
+  `;
+
+  const attachments = [
+    {
+      filename: `price-my-prang-repairer-agreement-${opts.companyName
+        .replace(/[^a-z0-9]+/gi, "-")
+        .toLowerCase()}.pdf`,
+      content: opts.pdf,
+    },
+  ];
+
+  // Our own copy goes to the same people who get new-registration alerts.
+  const internal = await notifyRecipients();
+
+  await resend.emails.send({
+    from: fromAddress(),
+    to: opts.to,
+    ...(internal.length ? { bcc: internal } : {}),
+    subject: `Signed repairer agreement — ${opts.companyName}`,
+    html: shell("Agreement signed", body),
+    attachments,
+  });
+}
+
+/**
  * Sent to the applicant when they submit the sign-up form: confirmation that
  * we have it, what happens next, and the login we created for them. One email,
  * not two — they shouldn't have to reconcile a welcome with a separate password.

@@ -46,6 +46,62 @@ enum RoleScope {
   panel_beater
 }
 
+/// The repairer agreement (T&Cs / NDA / SLA) a Super Admin uploads. Exactly one
+/// is active; superseded ones are kept because signatures point at the version
+/// that was actually agreed to.
+model AgreementDocument {
+  id        String  @id @default(uuid())
+  title     String
+  /// HTML converted from the uploaded .docx, rendered on the signing page.
+  html      String
+  /// The original file, kept so the source of truth can be downloaded.
+  sourceUrl      String
+  sourcePathname String
+  active         Boolean @default(true)
+
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  signatures RepairerAgreement[]
+
+  @@index([active])
+  @@map("agreement_documents")
+}
+
+/// One repairer's acceptance. Created unsigned at registration so the emailed
+/// link has something to point at; `signedAt` is what makes it an agreement.
+model RepairerAgreement {
+  id            String @id @default(uuid())
+  panelBeaterId String
+  documentId    String
+
+  /// Unguessable key for the emailed signing link.
+  token String @unique
+
+  /// Who we sent it to, captured at registration.
+  sentToName  String
+  sentToEmail String
+
+  // Filled in on signing. An ordinary electronic signature: the typed name
+  // plus what we can observe about the act of signing.
+  signedAt        DateTime?
+  signerName      String?
+  signerTitle     String?
+  signerIp        String?
+  signerUserAgent String?
+  /// The countersigned PDF handed to both parties.
+  pdfUrl          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  panelBeater PanelBeater       @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  document    AgreementDocument @relation(fields: [documentId], references: [id])
+
+  @@index([panelBeaterId])
+  @@map("repairer_agreements")
+}
+
 enum PartType {
   new
   used
@@ -243,6 +299,7 @@ model PanelBeater {
   updatedAt DateTime @updatedAt
 
   rateCards   RateCard[]
+  agreements  RepairerAgreement[]
   warranties  Warranty[]
   users       User[]
   quotes      Quote[]

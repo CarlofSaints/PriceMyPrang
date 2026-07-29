@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { getPanelBeaters, upsertPanelBeater, findUserByEmail, upsertUser } from "@/lib/store";
+import {
+  getPanelBeaters,
+  upsertPanelBeater,
+  findUserByEmail,
+  upsertUser,
+  getActiveAgreementDocument,
+  createRepairerAgreement,
+} from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
 import { generateTempPassword, hashPassword } from "@/lib/auth";
 import { PANEL_BEATER_ADMIN_ROLE } from "@/lib/permissions";
@@ -7,6 +14,7 @@ import { mergeWarranties } from "@/lib/warrantyReminders";
 import {
   sendPanelBeaterRegistrationNotification,
   sendPanelBeaterWelcome,
+  sendRepairerAgreementInvite,
 } from "@/lib/email";
 import type { PanelBeater, User } from "@/lib/types";
 
@@ -74,6 +82,38 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
   }
 
   return { created, skipped };
+}
+
+/**
+ * Send the repairer agreement for signing, as a separate email from the
+ * welcome. Goes to whoever completed the form — they're the contact, and the
+ * email tells them to forward it if they aren't the authorised signatory.
+ */
+async function sendAgreementInvite(pb: PanelBeater): Promise<boolean> {
+  const doc = await getActiveAgreementDocument();
+  if (!doc) return false;
+
+  const email = pb.completedByEmail?.trim() || pb.ownerEmail?.trim();
+  if (!email) return false;
+
+  try {
+    const agreement = await createRepairerAgreement({
+      panelBeaterId: pb.id,
+      documentId: doc.id,
+      sentToName: pb.completedByName?.trim() || pb.companyName,
+      sentToEmail: email,
+    });
+    const result = await sendRepairerAgreementInvite({
+      name: agreement.sentToName,
+      email,
+      companyName: pb.tradingAs || pb.companyName,
+      token: agreement.token,
+    });
+    return result.sent;
+  } catch (err) {
+    console.error("repairer agreement invite failed", err);
+    return false;
+  }
 }
 
 // PUBLIC (no auth): a panel beater applies to join. Created as pending +
@@ -151,6 +191,11 @@ export async function POST(request: Request) {
   // Logins first: the applicant is told to expect them, so a failure here is
   // worth surfacing, whereas the internal alert below is fire-and-forget.
   const logins = await createLogins(pb);
+
+  // The agreement goes as its own email, to the person who filled the form in.
+  // Skipped silently when no document has been uploaded yet — a registration
+  // must not fail because we haven't published terms.
+  const agreementSent = await sendAgreementInvite(pb);
 
   try {
     await sendPanelBeaterRegistrationNotification(pb);

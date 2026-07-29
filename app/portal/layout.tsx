@@ -67,6 +67,8 @@ export default async function PortalLayout({
     adminItems.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
   if (can(user, "manage_parts"))
     adminItems.push({ href: "/portal/admin/suppliers", label: "Suppliers" });
+  if (can(user, "manage_panel_beaters"))
+    adminItems.push({ href: "/portal/admin/agreement", label: "Repairer agreement" });
   if (can(user, "manage_roles")) adminItems.push({ href: "/portal/admin/roles", label: "Roles" });
   // Rate types are no longer configurable — the card structure is fixed in
   // lib/rateCard.ts, so there's nothing for an admin to manage.

@@ -80,6 +80,40 @@ export interface InsuranceCompany {
   createdAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// The repairer agreement (T&Cs / NDA / SLA). A Super Admin uploads the .docx;
+// exactly one document is active, and each repairer signs a specific version.
+// ---------------------------------------------------------------------------
+export interface AgreementDocument {
+  id: string;
+  title: string;
+  /** HTML converted from the .docx, rendered on the signing page. */
+  html: string;
+  /** The original file, so the source of truth stays downloadable. */
+  sourceUrl: string;
+  sourcePathname: string;
+  active: boolean;
+  uploadedByName?: string;
+  createdAt: string;
+}
+
+export interface RepairerAgreement {
+  id: string;
+  panelBeaterId: string;
+  documentId: string;
+  token: string;
+  sentToName: string;
+  sentToEmail: string;
+  /** Unsigned until this is set — that's what makes it an agreement. */
+  signedAt?: string;
+  signerName?: string;
+  signerTitle?: string;
+  signerIp?: string;
+  signerUserAgent?: string;
+  pdfUrl?: string;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
