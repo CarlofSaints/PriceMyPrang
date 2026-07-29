@@ -220,9 +220,21 @@ export default function PanelBeaterForm({
             {geoBusy ? "Locating…" : "📍 Get coordinates"}
           </Button>
           {form.lat != null && form.lng != null && (
-            <span className="text-xs text-ink/60">
-              {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
-            </span>
+            <>
+              <span className="text-xs text-ink/60">
+                {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
+              </span>
+              {/* Geocoders get addresses wrong often enough that it's worth
+                  letting them eyeball the pin before we put it on the map. */}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${form.lat},${form.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold text-teal hover:underline"
+              >
+                View on map to confirm ↗
+              </a>
+            </>
           )}
         </div>
         {geoMsg && (
