@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters, createRequest } from "@/lib/store";
-import { sendConsumerConfirmation, sendAdminNotification } from "@/lib/email";
+import {
+  sendConsumerConfirmation,
+  sendAdminNotification,
+  sendUnknownInsurerNotification,
+} from "@/lib/email";
 import type { MediaRef, QuoteRequest, RequiredPhotos, VehicleDetails } from "@/lib/types";
 
 interface Payload {
@@ -128,11 +132,16 @@ export async function POST(request: Request) {
   if (!repairerQuote) {
     const all = await getPanelBeaters();
     const chosen = all.filter((pb) => req.selectedPanelBeaterIds.includes(pb.id));
+    // An insurer name with no insurerId means they picked "Other" and typed it.
+    // Worth telling the admins so the dropdown can grow.
+    const unknownInsurer = !!req.insurerName && !req.insurerId;
+
     // Emails are best-effort — never fail the submission on an email error.
     try {
       await Promise.allSettled([
         sendConsumerConfirmation(req, chosen),
         sendAdminNotification(req, chosen),
+        ...(unknownInsurer ? [sendUnknownInsurerNotification(req)] : []),
       ]);
     } catch (err) {
       console.error("email send failed", err);

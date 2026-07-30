@@ -560,6 +560,63 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
 }
 
 /**
+ * A consumer picked "Other / not listed" and typed their own insurer. Tells the
+ * admins so the name can be checked and added to the dropdown, which is what
+ * stops the next person having to type it too.
+ *
+ * Deliberately only a notification: the app never creates the insurer itself.
+ * The typed name is unverified consumer input — "Discovry", "my broker", "work
+ * policy" — and letting that into a list other people choose from would corrupt
+ * it within a week.
+ */
+export async function sendUnknownInsurerNotification(req: QuoteRequest) {
+  const resend = client();
+  if (!resend || !req.insurerName) return;
+
+  const to = await notifyRecipients();
+  if (to.length === 0) return;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">
+      A customer chose <strong>Other / not listed</strong> for their insurance company and typed
+      the name in themselves.
+    </p>
+    <div style="background:${BRAND.ink};border-radius:12px;padding:16px;text-align:center;margin:18px 0;">
+      <div style="color:${BRAND.teal};font-size:11px;letter-spacing:2px;text-transform:uppercase;">They typed</div>
+      <div style="color:#fff;font-size:20px;font-weight:bold;margin-top:4px;">${escapeHtml(req.insurerName)}</div>
+    </div>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:16px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Reference", req.reference)}
+        ${detailRow("Customer", `${req.firstName} ${req.lastName}`)}
+        ${detailRow(
+          "Vehicle",
+          [req.vehicle?.make, req.vehicle?.model, req.vehicle?.year].filter(Boolean).join(" ")
+        )}
+      </table>
+    </div>
+    <p style="font-size:14px;line-height:1.5;color:#41575b;">
+      If that is a real insurer, add it on the Insurance companies page and it will appear in the
+      dropdown for everyone from then on. If it's a typo or a broker rather than an insurer, just
+      ignore this — nothing has been added automatically.
+    </p>
+    <p style="margin-top:20px;">
+      <a href="${baseUrl()}/portal/admin/insurers"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Add it to the list
+      </a>
+    </p>
+  `;
+
+  await resend.emails.send({
+    from: fromAddress(),
+    to,
+    subject: `Insurer not on the list — "${req.insurerName}"`,
+    html: shell("An insurer we don't have", body),
+  });
+}
+
+/**
  * The reminder a dev ticket was given a date for. Goes to whoever LOGGED the
  * ticket — they're the one who wanted to be nudged. If that address is missing
  * (an old ticket, or the author was deleted) it falls back to the admin list,

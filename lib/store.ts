@@ -464,6 +464,45 @@ export async function saveInsurers(insurers: InsuranceCompany[]): Promise<void> 
   });
 }
 
+/**
+ * Insurer names consumers typed into "Other / not listed" that still don't
+ * match anything in the list, most-requested first.
+ *
+ * These are SUGGESTIONS, never entries: the text is unverified — typos, broker
+ * names, "work policy" — so an admin decides what becomes a real option. A name
+ * disappears from here the moment it's added, because it then matches.
+ */
+export async function listSuggestedInsurers(): Promise<
+  { name: string; count: number; lastSeen: string }[]
+> {
+  const db = getDb();
+  const [rows, existing] = await Promise.all([
+    db.quoteRequest.findMany({
+      where: { insurerId: null, insurerName: { not: null } },
+      select: { insurerName: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.insurer.findMany({ select: { name: true } }),
+  ]);
+
+  const known = new Set(existing.map((i) => i.name.trim().toLowerCase()));
+  const seen = new Map<string, { name: string; count: number; lastSeen: string }>();
+
+  for (const r of rows) {
+    const name = r.insurerName?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (known.has(key)) continue;
+    const hit = seen.get(key);
+    // Rows arrive newest-first, so the first spelling seen is the most recent
+    // one, and its date is the latest.
+    if (hit) hit.count++;
+    else seen.set(key, { name, count: 1, lastSeen: iso(r.createdAt) });
+  }
+
+  return [...seen.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
 export async function getInsurer(id: string): Promise<InsuranceCompany | null> {
   const row = await getDb().insurer.findUnique({ where: { id } });
   return row ? toInsurer(row) : null;

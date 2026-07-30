@@ -12,6 +12,13 @@ import type {
   YesNoUnsure,
 } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
+import {
+  fingerprint,
+  findDuplicate,
+  duplicateMessage,
+  type Fingerprint,
+  type FingerprintedPhoto,
+} from "@/lib/imageFingerprint";
 import { Button, Field, inputClass } from "./ui";
 import PanelBeaterMap from "./PanelBeaterMap";
 
@@ -134,6 +141,12 @@ export default function QuoteFlow({
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Fingerprints of every vehicle photo accepted so far, so the same picture
+  // can't fill two slots. Held in a ref rather than state: it's checked inside
+  // async handlers, where a stale closure over state would let a duplicate
+  // through, and nothing renders from it.
+  const photoPrints = useRef<FingerprintedPhoto[]>([]);
+
   // Map
   const [panelBeaters, setPanelBeaters] = useState<PanelBeater[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -196,11 +209,27 @@ export default function QuoteFlow({
     }
   }
 
+  /** Forget a slot's fingerprint when its photo is replaced or removed. */
+  function forgetPrint(label: string) {
+    photoPrints.current = photoPrints.current.filter((p) => p.label !== label);
+  }
+
   async function handleSidePhoto(side: PhotoSide, file: File) {
     setError(null);
+    const label = REQUIRED_SIDES.find((s) => s.key === side)?.label ?? side;
+
+    // Checked BEFORE the upload: a rejected photo should cost the customer no
+    // data, and cost us no blob storage.
+    const print = await fingerprint(file);
+    const hit = findDuplicate(print, photoPrints.current.filter((p) => p.label !== label));
+    if (hit) return setError(duplicateMessage(hit));
+
     setUploadingSide(side);
     try {
       const ref = await uploadFile(file, `side-${side}`);
+      // Replacing this slot: drop the old print before recording the new one.
+      forgetPrint(label);
+      photoPrints.current.push({ ...print, label });
       setRequiredPhotos((prev) => ({ ...prev, [side]: ref }));
     } catch {
       setError(`Could not upload the ${side} photo. Please try again.`);
@@ -214,9 +243,33 @@ export default function QuoteFlow({
     const room = MAX_PHOTOS - photos.length;
     const chosen = Array.from(files).slice(0, room);
     if (chosen.length === 0) return;
+
+    // Fingerprint the whole batch first, so duplicates WITHIN one selection are
+    // caught as well as ones against photos already added.
+    const accepted: { file: File; print: Fingerprint; label: string }[] = [];
+    const rejected: string[] = [];
+    let next = photos.length + 1;
+
+    for (const file of chosen) {
+      const print = await fingerprint(file);
+      const hit = findDuplicate(print, [
+        ...photoPrints.current,
+        ...accepted.map((a) => ({ ...a.print, label: a.label })),
+      ]);
+      if (hit) {
+        rejected.push(duplicateMessage(hit));
+        continue;
+      }
+      accepted.push({ file, print, label: `damage photo ${next++}` });
+    }
+
+    if (rejected.length) setError(rejected[0]);
+    if (accepted.length === 0) return;
+
     setUploadingPhotos(true);
     try {
-      const uploaded = await Promise.all(chosen.map((f) => uploadFile(f, "damage")));
+      const uploaded = await Promise.all(accepted.map((a) => uploadFile(a.file, "damage")));
+      photoPrints.current.push(...accepted.map((a) => ({ ...a.print, label: a.label })));
       setPhotos((p) => [...p, ...uploaded]);
     } catch {
       setError("One or more photos failed to upload. Please try again.");
@@ -685,13 +738,16 @@ export default function QuoteFlow({
                   photo={requiredPhotos[s.key] ?? null}
                   uploading={uploadingSide === s.key}
                   onPick={(file) => handleSidePhoto(s.key, file)}
-                  onClear={() =>
+                  onClear={() => {
+                    // Free the fingerprint too, or the photo they just removed
+                    // would still block them re-adding it here.
+                    forgetPrint(s.label);
                     setRequiredPhotos((prev) => {
                       const next = { ...prev };
                       delete next[s.key];
                       return next;
-                    })
-                  }
+                    });
+                  }}
                 />
               ))}
             </div>
@@ -725,7 +781,10 @@ export default function QuoteFlow({
                   />
                   <button
                     type="button"
-                    onClick={() => setPhotos((ps) => ps.filter((x) => x.url !== p.url))}
+                    onClick={() => {
+                      forgetPrint(`damage photo ${i + 1}`);
+                      setPhotos((ps) => ps.filter((x) => x.url !== p.url));
+                    }}
                     className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-coral text-xs text-white shadow"
                     aria-label="Remove photo"
                   >

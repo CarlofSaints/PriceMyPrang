@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getInsurers } from "@/lib/store";
+import { getInsurers, listSuggestedInsurers } from "@/lib/store";
 import InsurersManager from "@/components/InsurersManager";
 
 export default async function InsurersPage() {
@@ -9,7 +9,7 @@ export default async function InsurersPage() {
   if (!user) redirect("/login");
   if (!can(user, "manage_insurers")) redirect("/portal");
 
-  const insurers = await getInsurers();
+  const [insurers, suggestions] = await Promise.all([getInsurers(), listSuggestedInsurers()]);
 
   return (
     <div className="space-y-6">
@@ -20,7 +20,7 @@ export default async function InsurersPage() {
           beater can see and use them, and consumers pick their insurer when requesting a quote.
         </p>
       </div>
-      <InsurersManager initial={insurers} />
+      <InsurersManager initial={insurers} suggestions={suggestions} />
     </div>
   );
 }
