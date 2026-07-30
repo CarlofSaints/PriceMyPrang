@@ -12,7 +12,8 @@
     "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:seed-admin": "dotenv -e .env.local -- tsx scripts/seed-admin.ts",
-    "db:seed-insurers": "dotenv -e .env.local -- tsx scripts/seed-insurers.ts"
+    "db:seed-insurers": "dotenv -e .env.local -- tsx scripts/seed-insurers.ts",
+    "blob:list": "dotenv -e .env.local -- tsx scripts/list-blobs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
