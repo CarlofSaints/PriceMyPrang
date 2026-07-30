@@ -5,7 +5,12 @@
 // /api/media/<pathname> using the server token. Data (users, requests, etc.)
 // is NEVER served by that proxy — only these media prefixes are allowed.
 
-export const MEDIA_PREFIXES = ["requests/", "panel-beaters/", "quotes/"] as const;
+export const MEDIA_PREFIXES = [
+  "requests/",
+  "panel-beaters/",
+  "quotes/",
+  "dev-tickets/",
+] as const;
 
 export function isMediaPathname(pathname: string): boolean {
   return MEDIA_PREFIXES.some((p) => pathname.startsWith(p));

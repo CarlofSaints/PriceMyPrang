@@ -553,3 +553,76 @@ model ReferenceCounter {
 
   @@map("reference_counters")
 }
+
+// ---- Dev planner -----------------------------------------------------------
+
+/// How badly a dev ticket is wanted. Three levels on purpose: the whole point
+/// is to separate "drop everything" from "we have committed to this" from
+/// "only if there's time", and a fourth level would blur those.
+enum DevPriority {
+  urgent
+  must_do
+  nice_to_have
+}
+
+enum DevTicketStatus {
+  backlog
+  in_progress
+  done
+}
+
+/// A unit of development work. Author and creation time are stamped from the
+/// SESSION, never the request body, so "who asked for this" survives the person
+/// later being deleted (createdByName is a copy, not a join).
+model DevTicket {
+  id       String @id @default(uuid())
+  title    String
+  /// Freeform. What's wanted and why — the "why" is the part that rots.
+  detail   String?
+
+  priority DevPriority     @default(must_do)
+  status   DevTicketStatus @default(backlog)
+
+  /// Optional nudge. `reminderSentAt` is what stops the daily cron sending the
+  /// same reminder every morning once the date has passed.
+  remindOn       DateTime? @db.Date
+  reminderSentAt DateTime?
+
+  /// Who loaded it. The id may dangle if the user is deleted; the name is kept
+  /// verbatim so the ticket still tells you who wanted it.
+  createdById   String?
+  createdByName String
+  createdByEmail String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  attachments DevTicketAttachment[]
+
+  @@index([status, priority])
+  @@index([remindOn])
+  @@map("dev_tickets")
+}
+
+/// A document or image pinned to a ticket. Same arrangement as RequestMedia:
+/// the bytes live in a private Blob store, this row holds the pathname and the
+/// /api/media proxy URL.
+model DevTicketAttachment {
+  id       String @id @default(uuid())
+  ticketId String
+
+  /// The name the file had on the uploader's machine, shown in the list.
+  fileName    String
+  url         String
+  pathname    String
+  contentType String?
+  size        Int?
+
+  createdAt DateTime @default(now())
+
+  ticket DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("dev_ticket_attachments")
+}

@@ -25,6 +25,11 @@ import type {
   RequestStatus,
   QuoteStatus,
   WarrantyApproval,
+  DevTicket,
+  DevTicketAttachment,
+  DevTicketStats,
+  DevPriority,
+  DevTicketStatus,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -1420,7 +1425,305 @@ export async function acceptQuote(
   });
 }
 
+// ---- Dev planner -----------------------------------------------------------
+
+type DevAttachmentRow = {
+  id: string;
+  fileName: string;
+  url: string;
+  pathname: string;
+  contentType: string | null;
+  size: number | null;
+  createdAt: Date;
+};
+
+type DevTicketRow = {
+  id: string;
+  title: string;
+  detail: string | null;
+  priority: DevPriority;
+  status: DevTicketStatus;
+  remindOn: Date | null;
+  reminderSentAt: Date | null;
+  createdById: string | null;
+  createdByName: string;
+  createdByEmail: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+  attachments?: DevAttachmentRow[];
+};
+
+const toDevAttachment = (r: DevAttachmentRow): DevTicketAttachment => ({
+  id: r.id,
+  fileName: r.fileName,
+  url: r.url,
+  pathname: r.pathname,
+  contentType: r.contentType ?? undefined,
+  size: r.size ?? undefined,
+  createdAt: iso(r.createdAt),
+});
+
+const toDevTicket = (r: DevTicketRow): DevTicket => ({
+  id: r.id,
+  title: r.title,
+  detail: r.detail ?? undefined,
+  priority: r.priority,
+  status: r.status,
+  remindOn: dateOnly(r.remindOn),
+  reminderSentAt: r.reminderSentAt ? iso(r.reminderSentAt) : undefined,
+  createdById: r.createdById ?? undefined,
+  createdByName: r.createdByName,
+  createdByEmail: r.createdByEmail ?? undefined,
+  createdAt: iso(r.createdAt),
+  updatedAt: iso(r.updatedAt),
+  completedAt: r.completedAt ? iso(r.completedAt) : undefined,
+  attachments: (r.attachments ?? []).map(toDevAttachment),
+});
+
+/**
+ * Urgent first, then the committed work, then the wishlist. Within a priority
+ * the oldest ticket leads — something logged three weeks ago should not sink
+ * below today's, which is how a backlog quietly rots.
+ */
+const DEV_TICKET_ORDER: Prisma.DevTicketOrderByWithRelationInput[] = [
+  { priority: "asc" }, // enum order: urgent, must_do, nice_to_have
+  { createdAt: "asc" },
+];
+
+/** Midnight UTC today — the cut-off at which an unmet reminder date is overdue. */
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+export async function listDevTickets(opts?: {
+  status?: DevTicketStatus;
+  priority?: DevPriority;
+  search?: string;
+}): Promise<DevTicket[]> {
+  const where: Prisma.DevTicketWhereInput = {};
+  if (opts?.status) where.status = opts.status;
+  if (opts?.priority) where.priority = opts.priority;
+  if (opts?.search) {
+    where.OR = [
+      { title: { contains: opts.search, mode: "insensitive" } },
+      { detail: { contains: opts.search, mode: "insensitive" } },
+    ];
+  }
+
+  const rows = await getDb().devTicket.findMany({
+    where,
+    orderBy: DEV_TICKET_ORDER,
+    include: { attachments: { orderBy: { createdAt: "asc" } } },
+  });
+  return rows.map(toDevTicket);
+}
+
+export async function getDevTicket(id: string): Promise<DevTicket | null> {
+  const row = await getDb().devTicket.findUnique({
+    where: { id },
+    include: { attachments: { orderBy: { createdAt: "asc" } } },
+  });
+  return row ? toDevTicket(row) : null;
+}
+
+/**
+ * The four cards. Every count except `done` is of OPEN tickets, so finishing
+ * work makes the numbers fall. A "total in pipeline" that counted completed
+ * items too would only ever climb, and would stop meaning anything.
+ */
+export async function getDevTicketStats(): Promise<DevTicketStats> {
+  const db = getDb();
+  const open: Prisma.DevTicketWhereInput = { status: { not: "done" } };
+
+  const [byPriority, openTotal, done, overdue] = await Promise.all([
+    db.devTicket.groupBy({ by: ["priority"], where: open, _count: { _all: true } }),
+    db.devTicket.count({ where: open }),
+    db.devTicket.count({ where: { status: "done" } }),
+    db.devTicket.count({ where: { ...open, remindOn: { lt: startOfToday() } } }),
+  ]);
+
+  const count = (p: DevPriority) =>
+    byPriority.find((g) => g.priority === p)?._count._all ?? 0;
+
+  return {
+    open: openTotal,
+    urgent: count("urgent"),
+    mustDo: count("must_do"),
+    niceToHave: count("nice_to_have"),
+    done,
+    overdue,
+  };
+}
+
+export async function createDevTicket(input: {
+  title: string;
+  detail?: string;
+  priority: DevPriority;
+  status?: DevTicketStatus;
+  remindOn?: string;
+  createdById?: string;
+  createdByName: string;
+  createdByEmail?: string;
+  attachments?: DevAttachmentInput[];
+}): Promise<DevTicket> {
+  const status = input.status ?? "backlog";
+  const row = await getDb().devTicket.create({
+    data: {
+      title: input.title,
+      detail: input.detail ?? null,
+      priority: input.priority,
+      status,
+      remindOn: toDate(input.remindOn),
+      completedAt: status === "done" ? new Date() : null,
+      createdById: input.createdById ?? null,
+      createdByName: input.createdByName,
+      createdByEmail: input.createdByEmail ?? null,
+      attachments: input.attachments?.length
+        ? { create: input.attachments.map(attachmentData) }
+        : undefined,
+    },
+    include: { attachments: { orderBy: { createdAt: "asc" } } },
+  });
+  return toDevTicket(row);
+}
+
+export async function updateDevTicket(
+  id: string,
+  patch: {
+    title?: string;
+    detail?: string;
+    priority?: DevPriority;
+    status?: DevTicketStatus;
+    remindOn?: string | null;
+  }
+): Promise<DevTicket | null> {
+  const db = getDb();
+  const existing = await db.devTicket.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const data: Prisma.DevTicketUpdateInput = {};
+  if (patch.title !== undefined) data.title = patch.title;
+  if (patch.detail !== undefined) data.detail = patch.detail || null;
+  if (patch.priority !== undefined) data.priority = patch.priority;
+
+  // Moving the date re-arms the reminder: a date you have just changed is one
+  // you want to hear about, even if the previous one had already fired.
+  if (patch.remindOn !== undefined) {
+    const next = patch.remindOn ? new Date(patch.remindOn) : null;
+    data.remindOn = next;
+    if (dateOnly(next) !== dateOnly(existing.remindOn)) data.reminderSentAt = null;
+  }
+
+  if (patch.status !== undefined) {
+    data.status = patch.status;
+    // completedAt records the first time it was finished; re-opening clears it,
+    // so a ticket can never read as both open and completed.
+    if (patch.status === "done") {
+      if (!existing.completedAt) data.completedAt = new Date();
+    } else {
+      data.completedAt = null;
+    }
+  }
+
+  const row = await db.devTicket.update({
+    where: { id },
+    data,
+    include: { attachments: { orderBy: { createdAt: "asc" } } },
+  });
+  return toDevTicket(row);
+}
+
+/**
+ * Removes the ticket and (by cascade) its attachment rows, returning those rows
+ * so the caller can bin the blob bytes too.
+ */
+export async function deleteDevTicket(id: string): Promise<DevTicketAttachment[]> {
+  const db = getDb();
+  const row = await db.devTicket.findUnique({
+    where: { id },
+    include: { attachments: true },
+  });
+  if (!row) return [];
+  await db.devTicket.delete({ where: { id } });
+  return row.attachments.map(toDevAttachment);
+}
+
+export async function addDevTicketAttachments(
+  ticketId: string,
+  files: DevAttachmentInput[]
+): Promise<DevTicket | null> {
+  const db = getDb();
+  const exists = await db.devTicket.findUnique({
+    where: { id: ticketId },
+    select: { id: true },
+  });
+  if (!exists) return null;
+
+  await db.devTicketAttachment.createMany({
+    data: files.map((f) => ({ ticketId, ...attachmentData(f) })),
+  });
+  return getDevTicket(ticketId);
+}
+
+/** Detaches one file, returning it so the caller can bin the bytes. */
+export async function removeDevTicketAttachment(
+  attachmentId: string
+): Promise<DevTicketAttachment | null> {
+  const db = getDb();
+  const row = await db.devTicketAttachment.findUnique({ where: { id: attachmentId } });
+  if (!row) return null;
+  await db.devTicketAttachment.delete({ where: { id: attachmentId } });
+  return toDevAttachment(row);
+}
+
+/**
+ * Tickets whose reminder has come due and has not been sent. Anything dated on
+ * or before today qualifies, so one that fell over a weekend — or during an
+ * outage — is still chased rather than silently skipped.
+ */
+export async function listDueDevReminders(now: Date): Promise<DevTicket[]> {
+  const endOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59)
+  );
+  const rows = await getDb().devTicket.findMany({
+    where: {
+      status: { not: "done" },
+      reminderSentAt: null,
+      remindOn: { not: null, lte: endOfToday },
+    },
+    orderBy: DEV_TICKET_ORDER,
+    include: { attachments: { orderBy: { createdAt: "asc" } } },
+  });
+  return rows.map(toDevTicket);
+}
+
+export async function markDevReminderSent(id: string): Promise<void> {
+  await getDb().devTicket.update({
+    where: { id },
+    data: { reminderSentAt: new Date() },
+  });
+}
+
 // ---- helpers ---------------------------------------------------------------
+
+/** A file on its way to a ticket, before it becomes a row. */
+type DevAttachmentInput = {
+  fileName: string;
+  url: string;
+  pathname: string;
+  contentType?: string;
+  size?: number;
+};
+
+const attachmentData = (a: DevAttachmentInput) => ({
+  fileName: a.fileName,
+  url: a.url,
+  pathname: a.pathname,
+  contentType: a.contentType ?? null,
+  size: a.size ?? null,
+});
 
 /** The interactive-transaction client Prisma hands to $transaction callbacks. */
 type TxClient = Parameters<Parameters<ReturnType<typeof getDb>["$transaction"]>[0]>[0];

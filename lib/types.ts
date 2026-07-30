@@ -10,7 +10,8 @@ export type Permission =
   | "onboard_self" // a panel beater editing their own listing
   | "view_dashboard"
   | "build_quotes"
-  | "manage_parts";
+  | "manage_parts"
+  | "manage_dev_tickets"; // Super Admin: the dev planner
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
@@ -372,3 +373,79 @@ export interface BuiltQuote {
 }
 
 export type QuoteStatus = "awaiting_approval" | "accepted" | "declined";
+
+// ---------------------------------------------------------------------------
+// Dev planner — Super Admin's own pipeline of development work. Nothing here is
+// visible to panel beaters or consumers.
+// ---------------------------------------------------------------------------
+
+/** Three levels, deliberately: drop-everything / committed / only-if-there's-time. */
+export type DevPriority = "urgent" | "must_do" | "nice_to_have";
+
+export type DevTicketStatus = "backlog" | "in_progress" | "done";
+
+export const DEV_PRIORITIES: DevPriority[] = ["urgent", "must_do", "nice_to_have"];
+export const DEV_TICKET_STATUSES: DevTicketStatus[] = ["backlog", "in_progress", "done"];
+
+export const DEV_PRIORITY_LABEL: Record<DevPriority, string> = {
+  urgent: "Urgent",
+  must_do: "Not urgent but must be done",
+  nice_to_have: "Nice to have",
+};
+
+/** The same three, shortened for table cells and the stat cards. */
+export const DEV_PRIORITY_SHORT: Record<DevPriority, string> = {
+  urgent: "Urgent",
+  must_do: "Must be done",
+  nice_to_have: "Nice to have",
+};
+
+export const DEV_STATUS_LABEL: Record<DevTicketStatus, string> = {
+  backlog: "Backlog",
+  in_progress: "In progress",
+  done: "Done",
+};
+
+export interface DevTicketAttachment extends MediaRef {
+  id: string;
+  /** The name the file had on the uploader's machine. */
+  fileName: string;
+  size?: number;
+  createdAt: string;
+}
+
+export interface DevTicket {
+  id: string;
+  title: string;
+  detail?: string;
+  priority: DevPriority;
+  status: DevTicketStatus;
+
+  /** "yyyy-mm-dd". The daily cron emails the author on this date. */
+  remindOn?: string;
+  reminderSentAt?: string;
+
+  createdById?: string;
+  createdByName: string;
+  createdByEmail?: string;
+
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+
+  attachments: DevTicketAttachment[];
+}
+
+/**
+ * The four cards. Counts are of OPEN tickets only (backlog + in progress) —
+ * a pipeline that includes finished work only ever grows, which tells you
+ * nothing about what's left to do.
+ */
+export interface DevTicketStats {
+  open: number;
+  urgent: number;
+  mustDo: number;
+  niceToHave: number;
+  done: number;
+  overdue: number;
+}

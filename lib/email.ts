@@ -1,5 +1,6 @@
 import { Resend } from "resend";
-import type { PanelBeater, QuoteRequest, WarrantyApproval } from "./types";
+import type { DevTicket, PanelBeater, QuoteRequest, WarrantyApproval } from "./types";
+import { DEV_PRIORITY_SHORT, DEV_STATUS_LABEL } from "./types";
 import { getUsers, getRoles } from "./store";
 import { permissionsForRole } from "./permissions";
 
@@ -556,4 +557,81 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
     subject: `New panel beater application — ${pb.tradingAs || pb.companyName}`,
     html: shell("Panel beater application", body),
   });
+}
+
+/**
+ * The reminder a dev ticket was given a date for. Goes to whoever LOGGED the
+ * ticket — they're the one who wanted to be nudged. If that address is missing
+ * (an old ticket, or the author was deleted) it falls back to the admin list,
+ * because a reminder nobody receives is worse than one sent to the team.
+ */
+export async function sendDevTicketReminder(
+  ticket: DevTicket
+): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+
+  const to = ticket.createdByEmail ? [ticket.createdByEmail] : await notifyRecipients();
+  if (to.length === 0) return { sent: false, error: "no recipient for this ticket" };
+
+  const due = ticket.remindOn
+    ? new Date(`${ticket.remindOn}T00:00:00Z`).toLocaleDateString("en-ZA", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${ticket.createdByName || "there"},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      You asked to be reminded about this item in the dev pipeline.
+    </p>
+    <div style="background:${BRAND.ink};border-radius:12px;padding:16px;margin:18px 0;">
+      <div style="color:${BRAND.teal};font-size:11px;letter-spacing:2px;text-transform:uppercase;">
+        ${DEV_PRIORITY_SHORT[ticket.priority]} · ${DEV_STATUS_LABEL[ticket.status]}
+      </div>
+      <div style="color:#fff;font-size:18px;font-weight:bold;margin-top:6px;">${ticket.title}</div>
+      ${due ? `<div style="color:#9fc4c8;font-size:13px;margin-top:6px;">Reminder set for ${due}</div>` : ""}
+    </div>
+    ${
+      ticket.detail
+        ? `<p style="font-size:14px;line-height:1.5;color:#41575b;white-space:pre-wrap;">${escapeHtml(ticket.detail)}</p>`
+        : ""
+    }
+    ${
+      ticket.attachments.length
+        ? `<p style="font-size:13px;color:#6b7f82;">${ticket.attachments.length} attachment${ticket.attachments.length === 1 ? "" : "s"} on this ticket.</p>`
+        : ""
+    }
+    <p style="margin-top:20px;">
+      <a href="${baseUrl()}/portal/admin/dev-planner"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Open the dev planner
+      </a>
+    </p>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to,
+      subject: `Reminder — ${ticket.title} (${DEV_PRIORITY_SHORT[ticket.priority]})`,
+      html: shell("Dev pipeline reminder", body),
+    });
+    if (error)
+      return { sent: false, error: (error as { message?: string }).message || "send failed" };
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
+/** Ticket detail is user-typed and goes into an HTML email — escape it. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

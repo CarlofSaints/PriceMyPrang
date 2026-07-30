@@ -79,6 +79,10 @@ export default async function PortalLayout({
   // lib/rateCard.ts, so there's nothing for an admin to manage.
   if (can(user, "manage_insurers"))
     adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
+  // PMP's own backlog. Last in the list — it's internal housekeeping, not a
+  // part of running the network.
+  if (can(user, "manage_dev_tickets"))
+    adminItems.push({ href: "/portal/admin/dev-planner", label: "Dev planner" });
 
   // Vetting is a property of the WORKSHOP, not the login — every user attached
   // to an unapproved panel beater sees this, however many of them there are.
