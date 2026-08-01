@@ -27,6 +27,7 @@ import type {
   WarrantyApproval,
   DevTicket,
   DevTicketAttachment,
+  DevTicketNote,
   DevTicketStats,
   DevPriority,
   DevTicketStatus,
@@ -1491,7 +1492,26 @@ type DevTicketRow = {
   updatedAt: Date;
   completedAt: Date | null;
   attachments?: DevAttachmentRow[];
+  notes?: DevNoteRow[];
 };
+
+type DevNoteRow = {
+  id: string;
+  body: string;
+  createdById: string | null;
+  createdByName: string;
+  createdByEmail: string | null;
+  createdAt: Date;
+};
+
+const toDevNote = (r: DevNoteRow): DevTicketNote => ({
+  id: r.id,
+  body: r.body,
+  createdById: r.createdById ?? undefined,
+  createdByName: r.createdByName,
+  createdByEmail: r.createdByEmail ?? undefined,
+  createdAt: iso(r.createdAt),
+});
 
 const toDevAttachment = (r: DevAttachmentRow): DevTicketAttachment => ({
   id: r.id,
@@ -1518,7 +1538,17 @@ const toDevTicket = (r: DevTicketRow): DevTicket => ({
   updatedAt: iso(r.updatedAt),
   completedAt: r.completedAt ? iso(r.completedAt) : undefined,
   attachments: (r.attachments ?? []).map(toDevAttachment),
+  notes: (r.notes ?? []).map(toDevNote),
 });
+
+/**
+ * Everything a ticket card needs in one go. Oldest note first so the thread
+ * reads top-to-bottom like a conversation.
+ */
+const DEV_TICKET_INCLUDE = {
+  attachments: { orderBy: { createdAt: "asc" } },
+  notes: { orderBy: { createdAt: "asc" } },
+} satisfies Prisma.DevTicketInclude;
 
 /**
  * Urgent first, then the committed work, then the wishlist. Within a priority
@@ -1554,7 +1584,7 @@ export async function listDevTickets(opts?: {
   const rows = await getDb().devTicket.findMany({
     where,
     orderBy: DEV_TICKET_ORDER,
-    include: { attachments: { orderBy: { createdAt: "asc" } } },
+    include: DEV_TICKET_INCLUDE,
   });
   return rows.map(toDevTicket);
 }
@@ -1562,7 +1592,7 @@ export async function listDevTickets(opts?: {
 export async function getDevTicket(id: string): Promise<DevTicket | null> {
   const row = await getDb().devTicket.findUnique({
     where: { id },
-    include: { attachments: { orderBy: { createdAt: "asc" } } },
+    include: DEV_TICKET_INCLUDE,
   });
   return row ? toDevTicket(row) : null;
 }
@@ -1623,7 +1653,7 @@ export async function createDevTicket(input: {
         ? { create: input.attachments.map(attachmentData) }
         : undefined,
     },
-    include: { attachments: { orderBy: { createdAt: "asc" } } },
+    include: DEV_TICKET_INCLUDE,
   });
   return toDevTicket(row);
 }
@@ -1669,7 +1699,7 @@ export async function updateDevTicket(
   const row = await db.devTicket.update({
     where: { id },
     data,
-    include: { attachments: { orderBy: { createdAt: "asc" } } },
+    include: DEV_TICKET_INCLUDE,
   });
   return toDevTicket(row);
 }
@@ -1706,6 +1736,55 @@ export async function addDevTicketAttachments(
   return getDevTicket(ticketId);
 }
 
+/**
+ * Adds a note to a ticket. The author is passed in from the SESSION by the
+ * route — never from the request body — and `createdByName` is stored as a
+ * verbatim copy so a deleted user doesn't erase who said what.
+ */
+export async function addDevTicketNote(
+  ticketId: string,
+  note: {
+    body: string;
+    createdById?: string;
+    createdByName: string;
+    createdByEmail?: string;
+  }
+): Promise<DevTicket | null> {
+  const db = getDb();
+  const exists = await db.devTicket.findUnique({
+    where: { id: ticketId },
+    select: { id: true },
+  });
+  if (!exists) return null;
+
+  await db.devTicketNote.create({
+    data: {
+      ticketId,
+      body: note.body,
+      createdById: note.createdById ?? null,
+      createdByName: note.createdByName,
+      createdByEmail: note.createdByEmail ?? null,
+    },
+  });
+  return getDevTicket(ticketId);
+}
+
+/**
+ * Removes one note and hands back the ticket it belonged to. Returns null if
+ * the note is already gone, so a double-click can't 500.
+ */
+export async function deleteDevTicketNote(noteId: string): Promise<DevTicket | null> {
+  const db = getDb();
+  const row = await db.devTicketNote.findUnique({
+    where: { id: noteId },
+    select: { ticketId: true },
+  });
+  if (!row) return null;
+
+  await db.devTicketNote.delete({ where: { id: noteId } });
+  return getDevTicket(row.ticketId);
+}
+
 /** Detaches one file, returning it so the caller can bin the bytes. */
 export async function removeDevTicketAttachment(
   attachmentId: string
@@ -1733,7 +1812,7 @@ export async function listDueDevReminders(now: Date): Promise<DevTicket[]> {
       remindOn: { not: null, lte: endOfToday },
     },
     orderBy: DEV_TICKET_ORDER,
-    include: { attachments: { orderBy: { createdAt: "asc" } } },
+    include: DEV_TICKET_INCLUDE,
   });
   return rows.map(toDevTicket);
 }

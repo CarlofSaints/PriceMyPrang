@@ -414,6 +414,20 @@ export interface DevTicketAttachment extends MediaRef {
   createdAt: string;
 }
 
+/**
+ * A comment on a ticket. Deliberately separate from `DevTicket.detail`: the
+ * detail is the original ask and must survive, notes are the conversation that
+ * follows. Author is stamped from the session, never the request body.
+ */
+export interface DevTicketNote {
+  id: string;
+  body: string;
+  createdById?: string;
+  createdByName: string;
+  createdByEmail?: string;
+  createdAt: string;
+}
+
 export interface DevTicket {
   id: string;
   title: string;
@@ -434,6 +448,7 @@ export interface DevTicket {
   completedAt?: string;
 
   attachments: DevTicketAttachment[];
+  notes: DevTicketNote[];
 }
 
 /**

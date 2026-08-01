@@ -599,10 +599,35 @@ model DevTicket {
   completedAt DateTime?
 
   attachments DevTicketAttachment[]
+  notes       DevTicketNote[]
 
   @@index([status, priority])
   @@index([remindOn])
   @@map("dev_tickets")
+}
+
+/// A comment on a ticket — the running conversation about the work, kept apart
+/// from `detail` so the original ask is never overwritten by a later remark.
+/// Notes are append-only in the UI: you may delete your own, never rewrite one,
+/// because a thread you can silently edit is not a record of anything.
+model DevTicketNote {
+  id       String @id @default(uuid())
+  ticketId String
+
+  body String
+
+  /// Same arrangement as the ticket's author: the id may dangle if the user is
+  /// deleted, the name is a verbatim COPY so the note still says who wrote it.
+  createdById    String?
+  createdByName  String
+  createdByEmail String?
+
+  createdAt DateTime @default(now())
+
+  ticket DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("dev_ticket_notes")
 }
 
 /// A document or image pinned to a ticket. Same arrangement as RequestMedia:

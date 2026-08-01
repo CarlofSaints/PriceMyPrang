@@ -13,6 +13,7 @@ import {
   type DevPriority,
   type DevTicket,
   type DevTicketAttachment,
+  type DevTicketNote,
   type DevTicketStats,
   type DevTicketStatus,
 } from "@/lib/types";
@@ -76,6 +77,17 @@ export default function DevPlanner({
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Editing an existing ticket. Only one card is ever in edit mode, so the
+  // draft lives here rather than per-row.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDetail, setEditDetail] = useState("");
+
+  // Note drafts are keyed by ticket — you can start a note on one card, scroll
+  // off to read another, and come back to what you typed.
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [noteBusyId, setNoteBusyId] = useState<string | null>(null);
 
   const today = todayKey();
 
@@ -185,9 +197,24 @@ export default function DevPlanner({
     }
   }
 
-  async function patch(id: string, changes: Partial<DevTicket>) {
+  /**
+   * Returns whether the save stuck, so callers can keep an edit form open.
+   *
+   * `remindOn: null` clears the date. It has to be null rather than undefined:
+   * JSON.stringify drops undefined keys entirely, and the API reads a missing
+   * key as "leave this field alone" — so undefined could never clear anything.
+   */
+  async function patch(
+    id: string,
+    changes: Partial<Omit<DevTicket, "remindOn">> & { remindOn?: string | null }
+  ): Promise<boolean> {
     const prev = tickets;
-    setTickets((list) => list.map((t) => (t.id === id ? { ...t, ...changes } : t)));
+    // The optimistic copy carries the app's own shape, where "no date" is
+    // undefined rather than the null we put on the wire.
+    const { remindOn, ...rest } = changes;
+    const local: Partial<DevTicket> = { ...rest };
+    if (remindOn !== undefined) local.remindOn = remindOn ?? undefined;
+    setTickets((list) => list.map((t) => (t.id === id ? { ...t, ...local } : t)));
     setError(null);
     try {
       const res = await fetch("/api/dev-tickets", {
@@ -199,8 +226,81 @@ export default function DevPlanner({
       const updated = (await res.json()) as DevTicket;
       setTickets((list) => list.map((t) => (t.id === updated.id ? updated : t)));
       await refreshStats();
+      return true;
     } catch (err) {
       setTickets(prev); // put the row back the way it was
+      setError((err as Error).message);
+      return false;
+    }
+  }
+
+  function startEdit(t: DevTicket) {
+    setEditingId(t.id);
+    setEditTitle(t.title);
+    setEditDetail(t.detail ?? "");
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle("");
+    setEditDetail("");
+  }
+
+  /**
+   * Saves the title/detail of an existing ticket. Sends `detail` even when it
+   * is empty so clearing it actually clears it — the API treats undefined as
+   * "leave alone", which would otherwise make the field impossible to empty.
+   */
+  async function saveEdit(id: string) {
+    const next = editTitle.trim();
+    if (!next) return setError("A ticket still needs a title.");
+    setBusy(true);
+    try {
+      // Keep the form open if the save failed, or the typing is lost.
+      if (await patch(id, { title: next, detail: editDetail.trim() })) cancelEdit();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addNote(ticketId: string) {
+    const body = (noteDrafts[ticketId] ?? "").trim();
+    if (!body) return;
+    setNoteBusyId(ticketId);
+    setError(null);
+    try {
+      const res = await fetch("/api/dev-tickets/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, body }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Could not add the note");
+      const updated = (await res.json()) as DevTicket;
+      setTickets((list) => list.map((t) => (t.id === updated.id ? updated : t)));
+      // Only clear the box once the note is safely saved, so a failed send
+      // doesn't lose what was typed.
+      setNoteDrafts((d) => ({ ...d, [ticketId]: "" }));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setNoteBusyId(null);
+    }
+  }
+
+  async function removeNote(note: DevTicketNote) {
+    if (!confirm(`Delete this note by ${note.createdByName}?`)) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/dev-tickets/notes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ noteId: note.id }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Could not delete the note");
+      const updated = (await res.json()) as DevTicket;
+      setTickets((list) => list.map((t) => (t.id === updated.id ? updated : t)));
+    } catch (err) {
       setError((err as Error).message);
     }
   }
@@ -497,16 +597,46 @@ export default function DevPlanner({
                     )}
                   </div>
 
-                  <h3
-                    className={`mt-2 font-display text-lg font-semibold text-ink ${
-                      t.status === "done" ? "line-through opacity-60" : ""
-                    }`}
-                  >
-                    {t.title}
-                  </h3>
+                  {editingId === t.id ? (
+                    <div className="mt-2 space-y-3">
+                      <Field label="What needs doing" required>
+                        <input
+                          className={inputClass}
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          autoFocus
+                        />
+                      </Field>
+                      <Field label="Detail">
+                        <textarea
+                          className={`${inputClass} min-h-32`}
+                          value={editDetail}
+                          onChange={(e) => setEditDetail(e.target.value)}
+                        />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button type="button" disabled={busy} onClick={() => saveEdit(t.id)}>
+                          {busy ? "Saving…" : "Save changes"}
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={cancelEdit}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h3
+                        className={`mt-2 font-display text-lg font-semibold text-ink ${
+                          t.status === "done" ? "line-through opacity-60" : ""
+                        }`}
+                      >
+                        {t.title}
+                      </h3>
 
-                  {t.detail && (
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink/70">{t.detail}</p>
+                      {t.detail && (
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-ink/70">{t.detail}</p>
+                      )}
+                    </>
                   )}
 
                   <p className="mt-2 text-xs text-ink/50">
@@ -550,39 +680,110 @@ export default function DevPlanner({
                       ))}
                     </ul>
                   )}
+
+                  {/* ---- Notes: the running conversation on this ticket ---- */}
+                  <div className="mt-4 border-t border-ink/10 pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">
+                      Notes {t.notes.length > 0 && `(${t.notes.length})`}
+                    </p>
+
+                    {t.notes.length > 0 && (
+                      <ul className="mt-2 space-y-2">
+                        {t.notes.map((n) => (
+                          <li key={n.id} className="rounded-lg bg-ink/[0.04] px-3 py-2">
+                            <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body}</p>
+                            <p className="mt-1 flex items-center gap-2 text-xs text-ink/45">
+                              <span>
+                                {n.createdByName} · {shortDate(n.createdAt)}
+                              </span>
+                              <button
+                                type="button"
+                                className="text-coral underline"
+                                onClick={() => removeNote(n)}
+                              >
+                                delete
+                              </button>
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <div className="mt-2 flex items-start gap-2">
+                      <textarea
+                        className="min-h-10 flex-1 rounded-lg border border-ink/15 px-3 py-2 text-sm"
+                        rows={2}
+                        placeholder="Add a note…"
+                        value={noteDrafts[t.id] ?? ""}
+                        onChange={(e) =>
+                          setNoteDrafts((d) => ({ ...d, [t.id]: e.target.value }))
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={noteBusyId === t.id || !(noteDrafts[t.id] ?? "").trim()}
+                        onClick={() => addNote(t.id)}
+                      >
+                        {noteBusyId === t.id ? "Adding…" : "Add note"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex flex-col items-stretch gap-2">
-                  <select
-                    className="rounded-lg border border-ink/15 px-3 py-2 text-sm"
-                    value={t.priority}
-                    onChange={(e) => patch(t.id, { priority: e.target.value as DevPriority })}
-                  >
-                    {DEV_PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {DEV_PRIORITY_LABEL[p]}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex w-full flex-col items-stretch gap-2 sm:w-52">
+                  {/* Labelled, because two bare dropdowns stacked together give
+                      no clue which one is the status. */}
+                  <label className="block text-xs font-semibold text-ink/50">
+                    Priority
+                    <select
+                      className="mt-1 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm font-normal text-ink"
+                      value={t.priority}
+                      onChange={(e) => patch(t.id, { priority: e.target.value as DevPriority })}
+                    >
+                      {DEV_PRIORITIES.map((p) => (
+                        <option key={p} value={p}>
+                          {DEV_PRIORITY_LABEL[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                  <select
-                    className="rounded-lg border border-ink/15 px-3 py-2 text-sm"
-                    value={t.status}
-                    onChange={(e) => patch(t.id, { status: e.target.value as DevTicketStatus })}
-                  >
-                    {DEV_TICKET_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {DEV_STATUS_LABEL[s]}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-semibold text-ink/50">
+                    Status
+                    <select
+                      className="mt-1 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm font-normal text-ink"
+                      value={t.status}
+                      onChange={(e) => patch(t.id, { status: e.target.value as DevTicketStatus })}
+                    >
+                      {DEV_TICKET_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {DEV_STATUS_LABEL[s]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                  <input
-                    type="date"
-                    className="rounded-lg border border-ink/15 px-3 py-2 text-sm"
-                    value={t.remindOn ?? ""}
-                    onChange={(e) => patch(t.id, { remindOn: e.target.value || undefined })}
-                  />
+                  <label className="block text-xs font-semibold text-ink/50">
+                    Remind me on
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm font-normal text-ink"
+                      value={t.remindOn ?? ""}
+                      // null (not undefined) clears the date — undefined is
+                      // dropped by JSON.stringify, which the API reads as
+                      // "leave it alone", making a date impossible to remove.
+                      onChange={(e) => patch(t.id, { remindOn: e.target.value || null })}
+                    />
+                  </label>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => (editingId === t.id ? cancelEdit() : startEdit(t))}
+                  >
+                    {editingId === t.id ? "Cancel edit" : "Edit"}
+                  </Button>
 
                   <label className="cursor-pointer rounded-full border border-teal/30 bg-white px-4 py-2 text-center text-sm font-semibold text-ink hover:bg-teal/5">
                     Attach file
