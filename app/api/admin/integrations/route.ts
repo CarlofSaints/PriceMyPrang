@@ -76,6 +76,15 @@ export async function POST(request: Request) {
   const key = typeof b.key === "string" ? b.key.trim() : "";
   if (!key) return NextResponse.json({ error: "Paste the API key" }, { status: 400 });
 
+  // Browsers read this page as a login form and have been seen filling the key
+  // box with the saved username. A whole-string email is never an API key, and
+  // catching it here beats discovering it as a 401 from imagin8 weeks later.
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key))
+    return NextResponse.json(
+      { error: "That looks like an email address, not an API key — check the field was not autofilled." },
+      { status: 400 }
+    );
+
   await setIntegrationSecret(
     id,
     { ...encryptSecret(key), masked: maskSecret(key) },

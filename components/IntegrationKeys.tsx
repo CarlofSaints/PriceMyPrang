@@ -144,6 +144,10 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
                   className={inputClass}
                   value={revealPassword}
                   onChange={(e) => setRevealPassword(e.target.value)}
+                  name="confirm-reveal"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
                   autoFocus
                 />
               </Field>
@@ -180,14 +184,32 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
 
       {editing && (
         <div className="space-y-4">
+          {/* Chrome reads "text field followed by password field" as a login
+              form and fills the first one with the saved username — which put
+              an email address in the API key box. The decoys below absorb that,
+              and the real inputs opt out by name as well as by attribute. */}
+          <input type="text" name="username" autoComplete="username" className="hidden" readOnly />
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            className="hidden"
+            readOnly
+          />
+
           <Field label={meta ? "New API key" : "API key"} required>
             <input
               className={`${inputClass} font-mono`}
               value={key}
               onChange={(e) => setKey(e.target.value)}
               placeholder="Paste the key from your imagin8 portal"
+              name="imagin8-key"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
               spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
             />
           </Field>
 
@@ -197,7 +219,10 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
               className={inputClass}
               value={savePassword}
               onChange={(e) => setSavePassword(e.target.value)}
-              autoComplete="current-password"
+              name="confirm-identity"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
             />
           </Field>
 
