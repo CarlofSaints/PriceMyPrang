@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import PortalChrome from "@/components/PortalChrome";
 import { type NavItem } from "@/components/PortalNav";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
+import ResendVerification from "@/components/ResendVerification";
 import LogoutButton from "@/components/LogoutButton";
 import { Logo } from "@/components/Logo";
 import { getCurrentUser } from "@/lib/auth";
@@ -37,6 +38,35 @@ export default async function PortalLayout({
           </p>
           <div className="pmp-card mt-6">
             <ChangePasswordForm forced />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Unconfirmed address: same treatment, and deliberately AFTER the password
+  // gate — someone holding a temporary password should finish that first, or
+  // they'd be asked to confirm an address while still on credentials they
+  // didn't choose. Accounts predating verification were backfilled, so this
+  // only ever stops a new sign-up.
+  if (!user.emailVerifiedAt) {
+    return (
+      <div className="min-h-dvh bg-offwhite">
+        <header className="sticky top-0 z-30 bg-ink">
+          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-5">
+            <Logo variant="horizontal-dark" className="h-9 w-auto sm:h-11" />
+            <LogoutButton />
+          </div>
+        </header>
+        <main className="mx-auto max-w-md px-4 py-10 sm:py-16">
+          <h1 className="font-display text-2xl font-bold text-ink">Confirm your email</h1>
+          <p className="mt-1 text-sm text-ink/70">
+            We&apos;ve sent a link to <strong>{user.email}</strong>. Open it and you&apos;re in.
+            It&apos;s one click, and it&apos;s how we know an account belongs to the person who
+            owns the address.
+          </p>
+          <div className="pmp-card mt-6">
+            <ResendVerification />
           </div>
         </main>
       </div>

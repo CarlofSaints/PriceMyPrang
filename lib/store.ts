@@ -77,6 +77,8 @@ type UserRow = {
   panelBeaterId: string | null;
   active: boolean;
   mustChangePassword: boolean;
+  emailVerifiedAt: Date | null;
+  twoFactorEnabled: boolean;
   createdAt: Date;
 };
 
@@ -89,6 +91,8 @@ const toUser = (r: UserRow): User => ({
   panelBeaterId: r.panelBeaterId ?? undefined,
   active: r.active,
   mustChangePassword: r.mustChangePassword,
+  emailVerifiedAt: r.emailVerifiedAt ? iso(r.emailVerifiedAt) : undefined,
+  twoFactorEnabled: r.twoFactorEnabled,
   createdAt: iso(r.createdAt),
 });
 
@@ -2484,4 +2488,92 @@ export async function requestReferenceById(id: string): Promise<string | null> {
     select: { reference: true },
   });
   return row?.reference ?? null;
+}
+
+// ---- Email verification and second factor ---------------------------------
+
+/** Issue a "prove you own this address" token. */
+export async function createEmailVerification(
+  userId: string,
+  email: string,
+  ttlHours = 72
+): Promise<string> {
+  const token = crypto.randomUUID();
+  await getDb().emailVerification.create({
+    data: {
+      token,
+      userId,
+      email: email.toLowerCase(),
+      expiresAt: new Date(Date.now() + ttlHours * 3600_000),
+    },
+  });
+  return token;
+}
+
+/**
+ * Redeem a verification token. Returns the user's email on success.
+ *
+ * Re-checks that the account still carries the address the link was issued for,
+ * so an old link can't complete a verification for an address the account no
+ * longer uses.
+ */
+export async function redeemEmailVerification(token: string): Promise<{ email: string } | null> {
+  const db = getDb();
+  const row = await db.emailVerification.findUnique({ where: { token }, include: { user: true } });
+  if (!row || row.usedAt || row.expiresAt < new Date()) return null;
+  if (row.user.email.toLowerCase() !== row.email.toLowerCase()) return null;
+
+  await db.$transaction([
+    db.emailVerification.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+    db.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } }),
+  ]);
+  return { email: row.user.email };
+}
+
+export async function setTwoFactorEnabled(userId: string, enabled: boolean): Promise<void> {
+  await getDb().user.update({ where: { id: userId }, data: { twoFactorEnabled: enabled } });
+}
+
+/**
+ * Start a second-factor challenge. The code is stored HASHED — a leaked row
+ * must not be a working second factor.
+ */
+export async function createLoginChallenge(
+  userId: string,
+  codeHash: string,
+  ttlMinutes = 10
+): Promise<string> {
+  const row = await getDb().loginChallenge.create({
+    data: {
+      userId,
+      codeHash,
+      expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
+    },
+  });
+  return row.id;
+}
+
+export async function getLoginChallenge(id: string) {
+  const row = await getDb().loginChallenge.findUnique({ where: { id } });
+  if (!row || row.consumedAt || row.expiresAt < new Date()) return null;
+  return row;
+}
+
+/** Counts a wrong guess. Five kills the challenge, so a 6-digit code can't be walked. */
+export async function recordChallengeAttempt(id: string): Promise<number> {
+  const row = await getDb().loginChallenge.update({
+    where: { id },
+    data: { attempts: { increment: 1 } },
+  });
+  if (row.attempts >= 5) {
+    await getDb().loginChallenge.update({ where: { id }, data: { consumedAt: new Date() } });
+  }
+  return row.attempts;
+}
+
+export async function consumeLoginChallenge(id: string): Promise<void> {
+  await getDb().loginChallenge.updateMany({
+    where: { id, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
 }

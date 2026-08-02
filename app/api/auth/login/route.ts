@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { findUserByEmail } from "@/lib/store";
-import { verifyPassword, createSession } from "@/lib/auth";
+import { findUserByEmail, createLoginChallenge } from "@/lib/store";
+import { verifyPassword, createSession, hashPassword, generateOtp } from "@/lib/auth";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { sendLoginCode } from "@/lib/email";
 
 // Two limits, because they stop different attacks:
 //
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
   // not be distinguishable, or this becomes a way to discover who has an account.
   if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  // Second factor. NO SESSION is created here — a correct password alone must
+  // not be enough to be signed in, which is the entire point of the factor.
+  if (user.twoFactorEnabled) {
+    const code = generateOtp();
+    const challengeId = await createLoginChallenge(user.id, await hashPassword(code));
+    await sendLoginCode(user.email, user.name, code);
+    return NextResponse.json({ twoFactorRequired: true, challengeId });
   }
 
   await createSession(user.id);

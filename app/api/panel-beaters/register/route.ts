@@ -4,6 +4,7 @@ import {
   upsertPanelBeater,
   findUserByEmail,
   upsertUser,
+  createEmailVerification,
   getActiveAgreementDocument,
   createRepairerAgreement,
 } from "@/lib/store";
@@ -14,6 +15,7 @@ import { mergeWarranties } from "@/lib/warrantyReminders";
 import {
   sendPanelBeaterRegistrationNotification,
   sendPanelBeaterWelcome,
+  sendEmailVerification,
   sendRepairerAgreementInvite,
 } from "@/lib/email";
 import type { PanelBeater, User } from "@/lib/types";
@@ -78,6 +80,19 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
       });
     } catch (err) {
       console.error("panel beater welcome email failed", email, err);
+    }
+
+    // Confirmation of the address itself, kept SEPARATE from the welcome. The
+    // welcome carries a password, so anyone forwarding it hands over an
+    // account; this one proves the address belongs to whoever typed it, which
+    // is the only thing standing between the sign-up form and a stranger
+    // registering a workshop under someone else's email.
+    try {
+      const token = await createEmailVerification(user.id, email);
+      await sendEmailVerification(email, user.name, token);
+    } catch (err) {
+      // Non-fatal: they can ask for a fresh link from the portal.
+      console.error("verification email failed", email, err);
     }
   }
 

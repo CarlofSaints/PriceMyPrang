@@ -748,3 +748,86 @@ export async function sendConsumerFeedbackLink(
     console.error("consumer feedback link email failed", err);
   }
 }
+
+/** "Prove you own this address" — sent on sign-up and on request. */
+export async function sendEmailVerification(
+  email: string,
+  name: string,
+  token: string
+): Promise<void> {
+  const resend = client();
+  if (!resend) return;
+
+  const link = `${baseUrl()}/verify-email/${token}`;
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${name},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      Please confirm this is your email address. It's how we reach you about quotes, and
+      it's the address we'd use if we ever needed to verify who you are.
+    </p>
+    <p style="margin:20px 0;">
+      <a href="${link}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Confirm my email
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      This link works for 3 days. If you didn&apos;t create a Price my Prang account, you can
+      ignore this email — nothing happens until the link is used.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to: email,
+      subject: "Confirm your email address",
+      html: shell("One quick check", body),
+    });
+  } catch (err) {
+    console.error("email verification send failed", err);
+  }
+}
+
+/**
+ * The second-factor code. Deliberately spare: no link, nothing to click, and
+ * an explicit line about what to do if it wasn't them — a code arriving out of
+ * nowhere is the earliest sign someone else has your password.
+ */
+export async function sendLoginCode(
+  email: string,
+  name: string,
+  code: string
+): Promise<void> {
+  const resend = client();
+  if (!resend) return;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${name},</p>
+    <p style="font-size:15px;line-height:1.5;">Your sign-in code is:</p>
+    <p style="margin:18px 0;text-align:center;">
+      <span style="display:inline-block;background:${BRAND.offwhite};border-radius:12px;
+                   padding:14px 26px;font-size:30px;letter-spacing:7px;font-weight:bold;
+                   font-family:monospace;color:${BRAND.ink};">${code}</span>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      It expires in 10 minutes and can only be used once. We will never ask you for it —
+      not by phone, not by email, not by WhatsApp.
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      <strong>If you weren&apos;t signing in just now</strong>, someone else has your password.
+      Change it as soon as you can and let us know.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to: email,
+      subject: `${code} is your Price my Prang sign-in code`,
+      html: shell("Your sign-in code", body),
+    });
+  } catch (err) {
+    console.error("login code send failed", err);
+  }
+}

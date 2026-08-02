@@ -89,6 +89,19 @@ export async function requireUser(): Promise<
       ),
     };
 
+  // Same shape as the password gate. Accounts that predate verification were
+  // backfilled in the migration, so this only ever holds up a new sign-up.
+  if (!user.emailVerifiedAt)
+    return {
+      response: NextResponse.json(
+        {
+          error: "Confirm your email address before continuing.",
+          code: "email_verification_required",
+        },
+        { status: 403 }
+      ),
+    };
+
   return { user };
 }
 
@@ -113,4 +126,18 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * A six-digit second-factor code.
+ *
+ * crypto.getRandomValues, not Math.random — this is a credential, however
+ * short-lived. The modulo bias across 2^32 into 10^6 is far below anything
+ * that matters for a code that expires in ten minutes and dies after five
+ * wrong guesses.
+ */
+export function generateOtp(): string {
+  const v = new Uint32Array(1);
+  crypto.getRandomValues(v);
+  return String(v[0] % 1_000_000).padStart(6, "0");
 }

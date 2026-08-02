@@ -132,6 +132,10 @@ export interface User {
   active: boolean;
   /** True while the user is still on an admin-issued temporary password. */
   mustChangePassword?: boolean;
+  /** When they proved they control this address. Undefined = unverified. */
+  emailVerifiedAt?: string;
+  /** Second factor by emailed one-time code. Opt-in per user. */
+  twoFactorEnabled?: boolean;
   createdAt: string;
 }
 

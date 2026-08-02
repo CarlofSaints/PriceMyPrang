@@ -185,6 +185,19 @@ model User {
   /// but the change-password screen until the user picks their own.
   mustChangePassword Boolean @default(false)
 
+  /// When they proved they control this address. NULL means unverified, and
+  /// the portal shows nothing but the "check your email" screen.
+  ///
+  /// Users who existed before verification was introduced were backfilled to
+  /// their createdAt — they were vouched for by an admin or by the sign-up
+  /// flow of the day, and locking them all out to prove a point would have
+  /// been the more dangerous change.
+  emailVerifiedAt DateTime?
+
+  /// Second factor by emailed one-time code. Opt-in per user: turning it on
+  /// for everybody at once would lock out anyone whose address bounces.
+  twoFactorEnabled Boolean @default(false)
+
   roleId String
   role   Role   @relation(fields: [roleId], references: [id])
 
@@ -192,12 +205,61 @@ model User {
   panelBeaterId String?
   panelBeater   PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: SetNull)
 
+  verifications  EmailVerification[]
+  loginChallenges LoginChallenge[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([roleId])
   @@index([panelBeaterId])
   @@map("users")
+}
+
+/// A "prove you own this address" link. One row per issue, so a reissued link
+/// invalidates nothing — the old one simply expires on its own.
+model EmailVerification {
+  id     String @id @default(uuid())
+  token  String @unique
+  userId String
+
+  /// The address as it was when the link was issued. Checked at redemption, so
+  /// changing the account's email can't be completed by an older link.
+  email String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verifications")
+}
+
+/// A half-finished sign-in: the password was right, the emailed code is still
+/// outstanding. Holding this instead of a session is the whole point — a
+/// correct password alone must not be enough to be signed in.
+model LoginChallenge {
+  id     String @id @default(uuid())
+  userId String
+
+  /// The code is HASHED. A leaked database row must not be a working
+  /// second factor.
+  codeHash String
+
+  /// Wrong guesses. The challenge dies at 5, so a 6-digit code can't be walked.
+  attempts Int @default(0)
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("login_challenges")
 }
 
 // ---- Rate cards ------------------------------------------------------------
