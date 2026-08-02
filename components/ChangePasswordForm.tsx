@@ -68,7 +68,17 @@ export default function ChangePasswordForm({ forced = false }: { forced?: boolea
         </p>
       )}
 
-      <Field label={forced ? "Temporary password" : "Current password"}>
+      {/* Spell out WHICH password this is. Someone who has already set their
+          own tends to reach for the temporary one from the welcome email, gets
+          "Current password is incorrect", and reads that as being locked out. */}
+      <Field
+        label={forced ? "Temporary password" : "Current password"}
+        hint={
+          forced
+            ? "The one from your welcome email."
+            : "The password you sign in with today — not the temporary one from your welcome email, if you have already replaced it."
+        }
+      >
         <input
           className={inputClass}
           type="password"

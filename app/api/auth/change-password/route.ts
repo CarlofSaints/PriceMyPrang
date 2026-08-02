@@ -23,8 +23,17 @@ export async function POST(request: Request) {
 
   // Re-check the current password even though they hold a valid session, so a
   // borrowed unlocked screen can't be used to lock the real owner out.
+  // Name the likely cause. Bare "incorrect" reads as being locked out, when it
+  // usually means the temporary password has already been replaced.
   if (!(await verifyPassword(currentPassword, user.passwordHash)))
-    return NextResponse.json({ error: "Current password is incorrect" }, { status: 403 });
+    return NextResponse.json(
+      {
+        error: user.mustChangePassword
+          ? "That temporary password doesn't match the one we emailed you."
+          : "That isn't your current password. If you've already replaced the temporary one from your welcome email, use the password you set.",
+      },
+      { status: 403 }
+    );
 
   if (newPassword.length < MIN_LENGTH)
     return NextResponse.json(

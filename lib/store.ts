@@ -33,6 +33,13 @@ import type {
   DevPriority,
   DevTicketStatus,
   VinLookupResult,
+  Rating,
+  RatingSummary,
+  Complaint,
+  ComplaintCategory,
+  ComplaintStatus,
+  ComplaintOutcome,
+  VehicleSafety,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -2100,4 +2107,381 @@ export async function cacheVin(
     create: { vin, ...data },
     update: data,
   });
+}
+
+// ---- Consumer QC: access links, ratings, complaints ------------------------
+
+/**
+ * Issue a one-time link for a job, addressed to the email already on it.
+ *
+ * The email is COPIED onto the link rather than read at redemption time, so
+ * changing the job's email later can't redirect a link already sitting in
+ * somebody's inbox.
+ */
+export async function createConsumerAccessLink(
+  requestId: string,
+  sentToEmail: string,
+  ttlHours = 48
+): Promise<string> {
+  const token = crypto.randomUUID();
+  await getDb().consumerAccessLink.create({
+    data: {
+      token,
+      requestId,
+      sentToEmail,
+      expiresAt: new Date(Date.now() + ttlHours * 3600_000),
+    },
+  });
+  return token;
+}
+
+/**
+ * Resolve a link to its request. Returns null for unknown or expired tokens —
+ * the caller cannot tell which, so a expired token leaks nothing about whether
+ * the reference behind it exists.
+ *
+ * Deliberately does NOT consume the link: a consumer may want to rate and then
+ * come back to complain, and burning it on first view would strand them.
+ */
+export async function resolveConsumerAccessLink(
+  token: string
+): Promise<{ requestId: string; email: string } | null> {
+  const row = await getDb().consumerAccessLink.findUnique({ where: { token } });
+  if (!row || row.expiresAt < new Date()) return null;
+  return { requestId: row.requestId, email: row.sentToEmail };
+}
+
+/** Stamped on first use, for the audit trail. Never blocks a second visit. */
+export async function markConsumerLinkUsed(token: string): Promise<void> {
+  await getDb().consumerAccessLink.updateMany({
+    where: { token, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+}
+
+/**
+ * The workshop a consumer may rate or complain about: the one whose quote they
+ * ACCEPTED. Returns null when no quote was accepted, so the caller can decide
+ * whether to fall back rather than silently letting any workshop be rated.
+ */
+export async function acceptedPanelBeaterFor(
+  requestId: string
+): Promise<{ id: string; name: string } | null> {
+  const q = await getDb().quote.findFirst({
+    where: { requestId, status: "accepted" },
+    include: { panelBeater: { select: { id: true, companyName: true, tradingAs: true } } },
+  });
+  if (!q) return null;
+  return {
+    id: q.panelBeater.id,
+    name: q.panelBeater.tradingAs || q.panelBeater.companyName,
+  };
+}
+
+/** Every workshop the job was sent to — the fallback when nothing was accepted. */
+export async function quotedPanelBeatersFor(
+  requestId: string
+): Promise<{ id: string; name: string }[]> {
+  const rows = await getDb().requestPanelBeater.findMany({
+    where: { requestId },
+    include: { panelBeater: { select: { id: true, companyName: true, tradingAs: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.panelBeater.id,
+    name: r.panelBeater.tradingAs || r.panelBeater.companyName,
+  }));
+}
+
+const toRating = (r: {
+  id: string;
+  requestId: string;
+  panelBeaterId: string;
+  score: number;
+  comment: string | null;
+  hidden: boolean;
+  hiddenByName: string | null;
+  createdAt: Date;
+}): Rating => ({
+  id: r.id,
+  requestId: r.requestId,
+  panelBeaterId: r.panelBeaterId,
+  score: r.score,
+  comment: r.comment ?? undefined,
+  hidden: r.hidden,
+  hiddenByName: r.hiddenByName ?? undefined,
+  createdAt: iso(r.createdAt),
+});
+
+/** One rating per job per workshop — a second submission replaces the first. */
+export async function upsertRating(input: {
+  requestId: string;
+  panelBeaterId: string;
+  score: number;
+  comment?: string;
+}): Promise<Rating> {
+  const data = { score: input.score, comment: input.comment ?? null };
+  const row = await getDb().rating.upsert({
+    where: {
+      requestId_panelBeaterId: {
+        requestId: input.requestId,
+        panelBeaterId: input.panelBeaterId,
+      },
+    },
+    create: { requestId: input.requestId, panelBeaterId: input.panelBeaterId, ...data },
+    update: data,
+  });
+  return toRating(row);
+}
+
+export async function getRatingFor(
+  requestId: string,
+  panelBeaterId: string
+): Promise<Rating | null> {
+  const row = await getDb().rating.findUnique({
+    where: { requestId_panelBeaterId: { requestId, panelBeaterId } },
+  });
+  return row ? toRating(row) : null;
+}
+
+/**
+ * A workshop's public score. HIDDEN comments still count toward the average —
+ * hiding is for abusive wording, not for burying a low mark.
+ */
+export async function ratingSummaryFor(panelBeaterId: string): Promise<RatingSummary> {
+  const agg = await getDb().rating.aggregate({
+    where: { panelBeaterId },
+    _avg: { score: true },
+    _count: { _all: true },
+  });
+  return {
+    average: agg._avg.score ? Math.round(agg._avg.score * 10) / 10 : 0,
+    count: agg._count._all,
+  };
+}
+
+/** Public comments for a workshop's listing. Hidden ones are never returned. */
+export async function publicRatingsFor(panelBeaterId: string, take = 20): Promise<Rating[]> {
+  const rows = await getDb().rating.findMany({
+    where: { panelBeaterId, hidden: false, comment: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
+  return rows.map(toRating);
+}
+
+export async function setRatingHidden(
+  id: string,
+  hidden: boolean,
+  byName?: string
+): Promise<void> {
+  await getDb().rating.update({
+    where: { id },
+    data: {
+      hidden,
+      hiddenByName: hidden ? byName ?? null : null,
+      hiddenAt: hidden ? new Date() : null,
+    },
+  });
+}
+
+type ComplaintRow = {
+  id: string;
+  requestId: string;
+  panelBeaterId: string;
+  category: ComplaintCategory;
+  description: string;
+  vehicleSafety: VehicleSafety | null;
+  collectedOn: Date | null;
+  problemNoticedOn: Date | null;
+  stillWithRepairer: boolean | null;
+  desiredOutcome: ComplaintOutcome | null;
+  raisedWithRepairer: boolean | null;
+  status: ComplaintStatus;
+  resolvedAt: Date | null;
+  createdAt: Date;
+  request?: { reference: string } | null;
+  panelBeater?: { companyName: string; tradingAs: string | null } | null;
+  media?: {
+    id: string;
+    url: string;
+    pathname: string;
+    contentType: string | null;
+    isVideo: boolean;
+  }[];
+  notes?: {
+    id: string;
+    body: string;
+    authorName: string;
+    internal: boolean;
+    createdAt: Date;
+  }[];
+};
+
+const toComplaint = (r: ComplaintRow): Complaint => ({
+  id: r.id,
+  requestId: r.requestId,
+  reference: r.request?.reference,
+  panelBeaterId: r.panelBeaterId,
+  panelBeaterName: r.panelBeater
+    ? r.panelBeater.tradingAs || r.panelBeater.companyName
+    : undefined,
+  category: r.category,
+  description: r.description,
+  vehicleSafety: r.vehicleSafety ?? undefined,
+  collectedOn: dateOnly(r.collectedOn),
+  problemNoticedOn: dateOnly(r.problemNoticedOn),
+  stillWithRepairer: r.stillWithRepairer ?? undefined,
+  desiredOutcome: r.desiredOutcome ?? undefined,
+  raisedWithRepairer: r.raisedWithRepairer ?? undefined,
+  status: r.status,
+  resolvedAt: r.resolvedAt ? iso(r.resolvedAt) : undefined,
+  createdAt: iso(r.createdAt),
+  media: (r.media ?? []).map((m) => ({
+    id: m.id,
+    url: m.url,
+    pathname: m.pathname,
+    contentType: m.contentType ?? undefined,
+    isVideo: m.isVideo,
+  })),
+  notes: (r.notes ?? []).map((n) => ({
+    id: n.id,
+    body: n.body,
+    authorName: n.authorName,
+    internal: n.internal,
+    createdAt: iso(n.createdAt),
+  })),
+});
+
+const COMPLAINT_INCLUDE = {
+  request: { select: { reference: true } },
+  panelBeater: { select: { companyName: true, tradingAs: true } },
+  media: { orderBy: { sortOrder: "asc" } },
+  notes: { orderBy: { createdAt: "asc" } },
+} satisfies Prisma.ComplaintInclude;
+
+export async function createComplaint(input: {
+  requestId: string;
+  panelBeaterId: string;
+  category: ComplaintCategory;
+  description: string;
+  vehicleSafety?: VehicleSafety;
+  collectedOn?: string;
+  problemNoticedOn?: string;
+  stillWithRepairer?: boolean;
+  desiredOutcome?: ComplaintOutcome;
+  raisedWithRepairer?: boolean;
+  submittedIp?: string;
+  submittedUserAgent?: string;
+  media?: { url: string; pathname: string; contentType?: string; isVideo: boolean }[];
+}): Promise<Complaint> {
+  const row = await getDb().complaint.create({
+    data: {
+      requestId: input.requestId,
+      panelBeaterId: input.panelBeaterId,
+      category: input.category,
+      description: input.description,
+      vehicleSafety: input.vehicleSafety ?? null,
+      collectedOn: toDate(input.collectedOn),
+      problemNoticedOn: toDate(input.problemNoticedOn),
+      stillWithRepairer: input.stillWithRepairer ?? null,
+      desiredOutcome: input.desiredOutcome ?? null,
+      raisedWithRepairer: input.raisedWithRepairer ?? null,
+      submittedIp: input.submittedIp ?? null,
+      submittedUserAgent: input.submittedUserAgent ?? null,
+      media: input.media?.length
+        ? {
+            create: input.media.map((m, i) => ({
+              url: m.url,
+              pathname: m.pathname,
+              contentType: m.contentType ?? null,
+              isVideo: m.isVideo,
+              sortOrder: i,
+            })),
+          }
+        : undefined,
+    },
+    include: COMPLAINT_INCLUDE,
+  });
+  return toComplaint(row);
+}
+
+export async function listComplaints(opts?: {
+  status?: ComplaintStatus;
+  panelBeaterId?: string;
+}): Promise<Complaint[]> {
+  const where: Prisma.ComplaintWhereInput = {};
+  if (opts?.status) where.status = opts.status;
+  if (opts?.panelBeaterId) where.panelBeaterId = opts.panelBeaterId;
+
+  const rows = await getDb().complaint.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: COMPLAINT_INCLUDE,
+  });
+  return rows.map(toComplaint);
+}
+
+export async function getComplaint(id: string): Promise<Complaint | null> {
+  const row = await getDb().complaint.findUnique({ where: { id }, include: COMPLAINT_INCLUDE });
+  return row ? toComplaint(row) : null;
+}
+
+export async function updateComplaintStatus(
+  id: string,
+  status: ComplaintStatus
+): Promise<Complaint | null> {
+  const row = await getDb().complaint.update({
+    where: { id },
+    data: { status, resolvedAt: status === "resolved" ? new Date() : null },
+    include: COMPLAINT_INCLUDE,
+  });
+  return row ? toComplaint(row) : null;
+}
+
+/**
+ * A note on a complaint. `internal` keeps it inside Price my Prang; anything
+ * else is part of the record the repairer can be shown.
+ */
+export async function addComplaintNote(
+  complaintId: string,
+  note: { body: string; authorName: string; internal: boolean }
+): Promise<Complaint | null> {
+  const exists = await getDb().complaint.findUnique({
+    where: { id: complaintId },
+    select: { id: true },
+  });
+  if (!exists) return null;
+
+  await getDb().complaintNote.create({ data: { complaintId, ...note } });
+  return getComplaint(complaintId);
+}
+
+export async function complaintCountFor(panelBeaterId: string): Promise<number> {
+  return getDb().complaint.count({ where: { panelBeaterId } });
+}
+
+/**
+ * The database id behind a reference, plus the email on the job.
+ *
+ * The app-level QuoteRequest is keyed by `reference` and deliberately doesn't
+ * carry the row id, but the QC tables (access links, ratings, complaints)
+ * relate on it. Returns null for an unknown reference.
+ */
+export async function requestKeyByReference(
+  reference: string
+): Promise<{ id: string; email: string; reference: string } | null> {
+  const row = await getDb().quoteRequest.findUnique({
+    where: { reference },
+    select: { id: true, email: true, reference: true },
+  });
+  return row ?? null;
+}
+
+/** Same, for a request already resolved by access token. */
+export async function requestReferenceById(id: string): Promise<string | null> {
+  const row = await getDb().quoteRequest.findUnique({
+    where: { id },
+    select: { reference: true },
+  });
+  return row?.reference ?? null;
 }

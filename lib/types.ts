@@ -275,6 +275,138 @@ export interface VinLookupResult {
   fetchedAt?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Consumer QC. A RATING is public; a COMPLAINT never is. They are deliberately
+// separate records — a comment left with a rating is not a complaint.
+// ---------------------------------------------------------------------------
+
+export type ComplaintCategory =
+  | "workmanship"
+  | "paint"
+  | "parts"
+  | "delays"
+  | "billing"
+  | "conduct"
+  | "other";
+
+export type ComplaintStatus = "new" | "acknowledged" | "with_repairer" | "resolved" | "closed";
+export type VehicleSafety = "safe" | "unsafe" | "unsure";
+export type ComplaintOutcome = "rework" | "refund" | "explanation" | "other";
+
+export const COMPLAINT_CATEGORIES: ComplaintCategory[] = [
+  "workmanship",
+  "paint",
+  "parts",
+  "delays",
+  "billing",
+  "conduct",
+  "other",
+];
+
+export const COMPLAINT_CATEGORY_LABEL: Record<ComplaintCategory, string> = {
+  workmanship: "Quality of the repair",
+  paint: "Paintwork",
+  parts: "Parts used",
+  delays: "Delays / time taken",
+  billing: "Billing or cost",
+  conduct: "Staff conduct or service",
+  other: "Something else",
+};
+
+export const COMPLAINT_STATUSES: ComplaintStatus[] = [
+  "new",
+  "acknowledged",
+  "with_repairer",
+  "resolved",
+  "closed",
+];
+
+export const COMPLAINT_STATUS_LABEL: Record<ComplaintStatus, string> = {
+  new: "New",
+  acknowledged: "Acknowledged",
+  with_repairer: "With the repairer",
+  resolved: "Resolved",
+  closed: "Closed",
+};
+
+export const VEHICLE_SAFETY_LABEL: Record<VehicleSafety, string> = {
+  safe: "Yes, it's driveable",
+  unsafe: "No — I don't think it's safe",
+  unsure: "I'm not sure",
+};
+
+export const COMPLAINT_OUTCOMES: ComplaintOutcome[] = [
+  "rework",
+  "refund",
+  "explanation",
+  "other",
+];
+
+export const COMPLAINT_OUTCOME_LABEL: Record<ComplaintOutcome, string> = {
+  rework: "I want the work put right",
+  refund: "I want money back",
+  explanation: "I want an explanation",
+  other: "Something else",
+};
+
+/** The cap the API enforces on a complaint's description. */
+export const COMPLAINT_MAX_WORDS = 500;
+
+export interface Rating {
+  id: string;
+  requestId: string;
+  panelBeaterId: string;
+  score: number;
+  comment?: string;
+  hidden: boolean;
+  hiddenByName?: string;
+  createdAt: string;
+}
+
+/** What a workshop's public score looks like. */
+export interface RatingSummary {
+  average: number;
+  count: number;
+}
+
+export interface ComplaintMedia {
+  id: string;
+  url: string;
+  pathname: string;
+  contentType?: string;
+  isVideo: boolean;
+}
+
+export interface ComplaintNote {
+  id: string;
+  body: string;
+  authorName: string;
+  /** True = Price my Prang only; the repairer never sees it. */
+  internal: boolean;
+  createdAt: string;
+}
+
+export interface Complaint {
+  id: string;
+  requestId: string;
+  reference?: string;
+  panelBeaterId: string;
+  panelBeaterName?: string;
+  category: ComplaintCategory;
+  description: string;
+  vehicleSafety?: VehicleSafety;
+  collectedOn?: string;
+  problemNoticedOn?: string;
+  stillWithRepairer?: boolean;
+  desiredOutcome?: ComplaintOutcome;
+  raisedWithRepairer?: boolean;
+  status: ComplaintStatus;
+  resolvedAt?: string;
+  createdAt: string;
+  media: ComplaintMedia[];
+  notes: ComplaintNote[];
+}
+
 export type RequestStatus = "new" | "in_progress" | "completed";
 
 export interface QuoteRequest {

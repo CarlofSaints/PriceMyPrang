@@ -303,6 +303,8 @@ model PanelBeater {
   suppliers   Supplier[]
   warranties  Warranty[]
   users       User[]
+  ratings     Rating[]
+  complaints  Complaint[]
   quotes      Quote[]
   selectedFor RequestPanelBeater[]
 
@@ -445,6 +447,9 @@ model QuoteRequest {
 
   insurer              Insurer?             @relation(fields: [insurerId], references: [id], onDelete: SetNull)
   rateCard             RateCard?            @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
+  accessLinks          ConsumerAccessLink[]
+  ratings              Rating[]
+  complaints           Complaint[]
   media                RequestMedia[]
   selectedPanelBeaters RequestPanelBeater[]
   quotes               Quote[]
@@ -579,6 +584,182 @@ model QuoteLineItem {
 
   @@index([quoteId, sortOrder])
   @@map("quote_line_items")
+}
+
+// ---- Consumer QC: ratings and complaints -----------------------------------
+
+/// What a complaint is about. Fixed list so service levels can actually be
+/// reported on — free text alone can't be counted.
+enum ComplaintCategory {
+  workmanship
+  paint
+  parts
+  delays
+  billing
+  conduct
+  other
+}
+
+enum ComplaintStatus {
+  new
+  acknowledged
+  with_repairer
+  resolved
+  closed
+}
+
+/// Whether the car is safe to drive. `unsafe` is an escalation trigger, not a
+/// statistic — it changes the subject line of the notification.
+enum VehicleSafety {
+  safe
+  unsafe
+  unsure
+}
+
+enum ComplaintOutcome {
+  rework
+  refund
+  explanation
+  other
+}
+
+/// A one-time link emailed to the address already on a job.
+///
+/// The consumer types their REFERENCE on the site, but the reference is
+/// PMP-date-SURNAME-nn and therefore guessable — it identifies a job, it does
+/// not prove ownership of one. This token does. Without it, a guessed
+/// reference would be enough to read someone's vehicle details and to file
+/// complaints and ratings against a repairer in their name.
+model ConsumerAccessLink {
+  id        String @id @default(uuid())
+  token     String @unique
+  requestId String
+
+  /// Copied from the request at issue time, so changing the job's email later
+  /// can't retarget a link already in someone's inbox.
+  sentToEmail String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  request QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([expiresAt])
+  @@map("consumer_access_links")
+}
+
+/// A public star rating of the workshop that did the work. Separate from a
+/// complaint on purpose: ratings are surfaced, complaints never are.
+model Rating {
+  id            String @id @default(uuid())
+  requestId     String
+  panelBeaterId String
+
+  /// 1–5. Enforced in code; kept an Int so BI can average it directly.
+  score   Int
+  /// Optional public comment. A comment is NOT a complaint.
+  comment String?
+
+  /// Comments publish immediately and can be pulled down afterwards. Hidden
+  /// comments still count toward the score — hiding is for abuse, not for
+  /// burying a low mark.
+  hidden       Boolean   @default(false)
+  hiddenByName String?
+  hiddenAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request     QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater  @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+
+  /// One rating per job per workshop — a job is rated once, not repeatedly.
+  @@unique([requestId, panelBeaterId])
+  @@index([panelBeaterId])
+  @@map("ratings")
+}
+
+/// A private complaint. NEVER surfaced publicly — it goes to Price my Prang
+/// and to the repairer named in it, and nowhere else.
+model Complaint {
+  id            String @id @default(uuid())
+  requestId     String
+  panelBeaterId String
+
+  category    ComplaintCategory @default(other)
+  /// The consumer's account, capped at 500 words by the API.
+  description String
+
+  vehicleSafety     VehicleSafety?
+  collectedOn       DateTime?      @db.Date
+  problemNoticedOn  DateTime?      @db.Date
+  stillWithRepairer Boolean?
+  desiredOutcome    ComplaintOutcome?
+  raisedWithRepairer Boolean?
+
+  status     ComplaintStatus @default(new)
+  resolvedAt DateTime?
+
+  /// Observed at submission, not asked for. The consumer is already known via
+  /// the access link, so nothing about their identity is re-collected.
+  submittedIp        String?
+  submittedUserAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request     QuoteRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater     @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  media       ComplaintMedia[]
+  notes       ComplaintNote[]
+
+  @@index([status])
+  @@index([panelBeaterId])
+  @@index([createdAt(sort: Desc)])
+  @@map("complaints")
+}
+
+/// Photos and the single short clip attached to a complaint. Bytes stay in
+/// Blob, as everywhere else.
+model ComplaintMedia {
+  id          String @id @default(uuid())
+  complaintId String
+
+  url         String
+  pathname    String
+  contentType String?
+  /// True for the one video a complaint may carry.
+  isVideo     Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_media")
+}
+
+/// How a complaint was dealt with. The repairer records what they did; Price
+/// my Prang can add notes the repairer never sees.
+model ComplaintNote {
+  id          String @id @default(uuid())
+  complaintId String
+
+  body String
+
+  authorName String
+  /// True = Price my Prang eyes only. False = visible to the repairer too.
+  internal   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_notes")
 }
 
 // ---- Reference allocation --------------------------------------------------
