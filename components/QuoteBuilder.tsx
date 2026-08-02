@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import { GENERAL_FIELDS, SCOPED_FIELDS, type RateScope } from "@/lib/rateCard";
 import { QUOTE_LINE_CODES } from "@/lib/types";
+import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 import { Button, Field, inputClass } from "./ui";
 import { zar } from "@/lib/format";
 
@@ -53,6 +54,9 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const [pbId, setPbId] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([{ ...emptyLine }]);
   const [sundries, setSundries] = useState(0);
+  // Jerome asked for sundries as a percentage; Carl wanted BOTH, so the box
+  // holds either and this says which. A % is taken on PARTS only.
+  const [sundriesMode, setSundriesMode] = useState<SundriesMode>("rand");
   const [consumables, setConsumables] = useState(0);
   const [notes, setNotes] = useState("");
   const [building, setBuilding] = useState(false);
@@ -74,7 +78,15 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     const existing = req.quotes.find((q) => q.panelBeaterId === id);
     if (existing) {
       setLines(existing.lines.length ? existing.lines.map((l) => ({ ...l })) : [{ ...emptyLine }]);
-      setSundries(existing.sundries || 0);
+      // Reopen showing the percentage the estimator actually typed, not the
+      // rand value it happened to resolve to.
+      if (existing.sundriesPercent != null) {
+        setSundriesMode("percent");
+        setSundries(existing.sundriesPercent);
+      } else {
+        setSundriesMode("rand");
+        setSundries(existing.sundries || 0);
+      }
       setConsumables(existing.consumables || 0);
       setNotes(existing.notes || "");
     } else {
@@ -187,15 +199,24 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     );
   }
 
-  // Live totals
-  const partsTotal = lines.reduce((s, l) => s + (Number(l.partsAmount) || 0), 0);
-  const panelTotal = lines.reduce((s, l) => s + (Number(l.panelAmount) || 0), 0);
-  const paintTotal = lines.reduce((s, l) => s + (Number(l.paintAmount) || 0), 0);
-  const stripTotal = lines.reduce((s, l) => s + (Number(l.stripAmount) || 0), 0);
-  const labourTotal = panelTotal + paintTotal + stripTotal;
-  const subtotal = partsTotal + labourTotal + (Number(sundries) || 0) + (Number(consumables) || 0);
-  const vat = subtotal * 0.15;
-  const total = subtotal + vat;
+  // Live totals — same module the server uses, so the screen and the PDF can
+  // never disagree about what a quote comes to.
+  const {
+    partsTotal,
+    outWorkTotal,
+    panelTotal,
+    paintTotal,
+    stripTotal,
+    sundries: sundriesAmount,
+    subtotal,
+    vat,
+    total,
+  } = computeQuoteTotals({
+    lines,
+    sundriesMode,
+    sundriesValue: Number(sundries) || 0,
+    consumables: Number(consumables) || 0,
+  });
 
   async function build() {
     if (!request || !pbId) return;
@@ -210,6 +231,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
           panelBeaterId: pbId,
           lines,
           sundries,
+          sundriesMode,
           consumables,
           notes,
         }),
@@ -437,15 +459,37 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
 
             {/* Sundries / consumables / notes */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Sundries (R)">
-                <input
-                  className={inputClass}
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={numVal(sundries)}
-                  onChange={(e) => setSundries(Number(e.target.value) || 0)}
-                />
+              <Field
+                label="Sundries"
+                required
+                hint={
+                  sundriesMode === "percent"
+                    ? `Percentage of parts (${zar(partsTotal)}) — currently ${zar(sundriesAmount)}.`
+                    : "A flat rand amount. Switch to % to charge a share of parts instead."
+                }
+              >
+                <div className="flex gap-2">
+                  <input
+                    className={`${inputClass} flex-1`}
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={numVal(sundries)}
+                    onChange={(e) => setSundries(Number(e.target.value) || 0)}
+                    aria-label={sundriesMode === "percent" ? "Sundries percent" : "Sundries rand"}
+                  />
+                  {/* One box, two meanings — the toggle says which, and the
+                      hint above shows what a % works out to in rands. */}
+                  <select
+                    className={`${inputClass} w-20`}
+                    value={sundriesMode}
+                    onChange={(e) => setSundriesMode(e.target.value as SundriesMode)}
+                    aria-label="Sundries as rand or percent"
+                  >
+                    <option value="rand">R</option>
+                    <option value="percent">%</option>
+                  </select>
+                </div>
               </Field>
               <Field label="Consumables (R)">
                 <input
@@ -475,10 +519,11 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
             {/* Totals preview */}
             <div className="rounded-xl bg-offwhite p-4 text-sm">
               <TotalRow label="Parts" value={partsTotal} />
+              {outWorkTotal > 0 && <TotalRow label="Out work" value={outWorkTotal} />}
               <TotalRow label="Panel beating" value={panelTotal} />
               <TotalRow label="Paint" value={paintTotal} />
               <TotalRow label="Strip & assemble" value={stripTotal} />
-              <TotalRow label="Sundries" value={sundries} />
+              <TotalRow label="Sundries" value={sundriesAmount} />
               <TotalRow label="Consumables" value={consumables} />
               <div className="mt-1 border-t border-teal/15 pt-1">
                 <TotalRow label="Total ex VAT" value={subtotal} />

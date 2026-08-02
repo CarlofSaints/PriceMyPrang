@@ -6,6 +6,7 @@ import { uploadMedia } from "@/lib/blob";
 import { buildQuotePdf } from "@/lib/quotePdf";
 import { sendConsumerQuoteReady } from "@/lib/email";
 import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
+import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 
 export const maxDuration = 60;
 
@@ -13,7 +14,9 @@ interface Payload {
   reference: string;
   panelBeaterId: string;
   lines: QuoteLineItem[];
+  /** A rand amount, or a percentage of parts when sundriesMode is "percent". */
   sundries?: number;
+  sundriesMode?: "rand" | "percent";
   consumables?: number;
   notes?: string;
 }
@@ -78,19 +81,29 @@ export async function POST(request: Request) {
         x.stripAmount
     );
 
-  const sundries = num(p.sundries);
-  const consumables = num(p.consumables);
-
-  const partsTotal = lines.reduce((s, x) => s + x.partsAmount, 0);
-  const panelTotal = lines.reduce((s, x) => s + x.panelAmount, 0);
-  const paintTotal = lines.reduce((s, x) => s + x.paintAmount, 0);
-  const stripTotal = lines.reduce((s, x) => s + x.stripAmount, 0);
-  const labourTotal = panelTotal + paintTotal + stripTotal;
-  const totalHours = lines.reduce((s, x) => s + x.panelHours + x.paintHours + x.stripHours, 0);
-
-  const subtotal = partsTotal + labourTotal + sundries + consumables;
-  const vat = subtotal * 0.15;
-  const total = subtotal + vat;
+  // Totals come from lib/quoteTotals so the number on screen and the number in
+  // the PDF are produced by the same code, not two copies of it.
+  const sundriesMode: SundriesMode = p.sundriesMode === "percent" ? "percent" : "rand";
+  const t = computeQuoteTotals({
+    lines,
+    sundriesMode,
+    sundriesValue: num(p.sundries),
+    consumables: num(p.consumables),
+  });
+  const {
+    partsTotal,
+    outWorkTotal,
+    panelTotal,
+    paintTotal,
+    stripTotal,
+    labourTotal,
+    totalHours,
+    sundries,
+    consumables,
+    subtotal,
+    vat,
+    total,
+  } = t;
 
   const quote: BuiltQuote = {
     id: crypto.randomUUID(),
@@ -102,8 +115,10 @@ export async function POST(request: Request) {
     status: "awaiting_approval",
     lines,
     sundries,
+    sundriesPercent: sundriesMode === "percent" ? num(p.sundries) : undefined,
     consumables,
     partsTotal,
+    outWorkTotal,
     panelTotal,
     paintTotal,
     stripTotal,

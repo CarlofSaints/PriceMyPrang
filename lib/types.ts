@@ -364,10 +364,15 @@ export interface BuiltQuote {
   panelBeaterId: string;
   lines: QuoteLineItem[];
 
+  /** The resolved rand amount, however it was entered. */
   sundries: number;
+  /** Set only when sundries were entered as a percentage of parts. */
+  sundriesPercent?: number;
   consumables: number;
 
   partsTotal: number;
+  /** Third-party work, totalled apart from parts. */
+  outWorkTotal: number;
   panelTotal: number;
   paintTotal: number;
   stripTotal: number;

@@ -265,6 +265,14 @@ export async function buildQuotePdf(
             <Text>Parts</Text>
             <Text>{zar(quote.partsTotal)}</Text>
           </View>
+          {/* Only when there is any — an "Out work R 0,00" line on every quote
+              would be noise on the majority that have none. */}
+          {quote.outWorkTotal > 0 ? (
+            <View style={styles.totalRow}>
+              <Text>Out work</Text>
+              <Text>{zar(quote.outWorkTotal)}</Text>
+            </View>
+          ) : null}
           <View style={styles.totalRow}>
             <Text>Labour (panel · paint · strip)</Text>
             <Text>{zar(quote.labourTotal)}</Text>

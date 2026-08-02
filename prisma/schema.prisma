@@ -468,10 +468,19 @@ model Quote {
   requestId     String
   panelBeaterId String
 
-  sundries    Decimal @default(0) @db.Decimal(12, 2)
-  consumables Decimal @default(0) @db.Decimal(12, 2)
+  /// The resolved rand amount, however it was entered. Everything downstream
+  /// (PDF, totals, BI) reads this and needs to know nothing about percentages.
+  sundries        Decimal  @default(0) @db.Decimal(12, 2)
+  /// Set only when sundries were entered as a % OF PARTS, so reopening the
+  /// quote shows the estimator the percentage they actually typed.
+  sundriesPercent Decimal? @db.Decimal(6, 2)
+  consumables     Decimal  @default(0) @db.Decimal(12, 2)
 
   partsTotal  Decimal @default(0) @db.Decimal(12, 2)
+  /// Work sent out to a third party. Priced in the same money box on the line
+  /// as a part, but deliberately totalled apart: it is not stock the repairer
+  /// bought, and bundling it into parts hid it from them.
+  outWorkTotal Decimal @default(0) @db.Decimal(12, 2)
   panelTotal  Decimal @default(0) @db.Decimal(12, 2)
   paintTotal  Decimal @default(0) @db.Decimal(12, 2)
   stripTotal  Decimal @default(0) @db.Decimal(12, 2)

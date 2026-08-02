@@ -819,8 +819,10 @@ const toQuote = (q: QuoteRow, reference: string): BuiltQuote => ({
     })
   ),
   sundries: num(q.sundries),
+  sundriesPercent: numOpt(q.sundriesPercent),
   consumables: num(q.consumables),
   partsTotal: num(q.partsTotal),
+  outWorkTotal: num(q.outWorkTotal),
   panelTotal: num(q.panelTotal),
   paintTotal: num(q.paintTotal),
   stripTotal: num(q.stripTotal),
@@ -1035,8 +1037,10 @@ export async function upsertQuote(reference: string, quote: BuiltQuote): Promise
 
     const totals = {
       sundries: quote.sundries,
+      sundriesPercent: quote.sundriesPercent ?? null,
       consumables: quote.consumables,
       partsTotal: quote.partsTotal,
+      outWorkTotal: quote.outWorkTotal,
       panelTotal: quote.panelTotal,
       paintTotal: quote.paintTotal,
       stripTotal: quote.stripTotal,
