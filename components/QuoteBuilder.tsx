@@ -563,12 +563,36 @@ function LineCard({
   const cat = "rounded-xl border border-teal/15 bg-offwhite/40 p-3";
   return (
     <div className="rounded-2xl border border-teal/15 bg-white p-3">
+      {/* Column labels. Placeholders disappear the moment a field is filled,
+          which left the estimator guessing which box was which — QTY in
+          particular read as an unexplained "1". */}
+      <div className="mb-1 hidden grid-cols-12 gap-2 px-1 sm:grid">
+        <span className="col-span-2 text-xs font-semibold uppercase tracking-wide text-ink/45">
+          Code
+        </span>
+        <span className="col-span-4 text-xs font-semibold uppercase tracking-wide text-ink/45">
+          Description
+        </span>
+        <span className="col-span-1 text-xs font-semibold uppercase tracking-wide text-ink/45">
+          Qty
+        </span>
+        <span className="col-span-2 text-xs font-semibold uppercase tracking-wide text-ink/45">
+          Cost
+        </span>
+        <span className="col-span-2 text-xs font-semibold uppercase tracking-wide text-ink/45">
+          Charge
+        </span>
+      </div>
+
       {/* Line basics */}
       <div className="grid grid-cols-12 gap-2">
         <input
           className={`${inputClass} col-span-6 sm:col-span-2`}
           list="quote-codes"
           placeholder="Code"
+          // Free text with suggestions, capped so a code stays a code and
+          // doesn't run into the description column on the printed quote.
+          maxLength={8}
           value={line.code ?? ""}
           onChange={(e) => onChange({ code: e.target.value })}
           aria-label="Code"
@@ -703,7 +727,18 @@ function WorkBlock({
           min={0}
           placeholder="R"
           value={numVal(amount)}
-          onChange={(e) => onChange({ code, amount: Number(e.target.value) || 0, hours })}
+          onChange={(e) => {
+            const nextAmount = Number(e.target.value) || 0;
+            // The mirror of the hours box: with a rate on the card, typing a
+            // rand value back-solves the hours. An estimator quoting "that's
+            // about R1 250 of panel work" gets the hours filled in for them,
+            // which is what the labour total on the printed quote is built on.
+            onChange({
+              code,
+              amount: nextAmount,
+              hours: rate ? Number((nextAmount / rate).toFixed(2)) : hours,
+            });
+          }}
           aria-label={`${title} amount`}
         />
         <input

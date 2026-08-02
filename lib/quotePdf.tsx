@@ -1,3 +1,4 @@
+import React from "react";
 import { readFile } from "fs/promises";
 import path from "path";
 import {
@@ -43,7 +44,18 @@ const styles = StyleSheet.create({
   label: { fontSize: 7, color: MUTE, textTransform: "uppercase", marginBottom: 2 },
   strong: { fontFamily: "Helvetica-Bold" },
   quoteNo: { fontSize: 13, fontFamily: "Helvetica-Bold", color: TEAL },
-  pbLogo: { height: 22, marginBottom: 4 },
+  /**
+   * A height alone let react-pdf stretch the logo to the full box width, which
+   * squashed wide marks and ballooned tall ones. objectFit keeps the aspect
+   * ratio; the width cap and flex-start stop it filling the box.
+   */
+  pbLogo: {
+    height: 22,
+    maxWidth: 110,
+    objectFit: "contain",
+    alignSelf: "flex-start",
+    marginBottom: 4,
+  },
   line: { marginBottom: 1 },
 
   groupHead: { flexDirection: "row", marginTop: 4 },
@@ -56,6 +68,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRight: "1px solid #fff",
   },
+  /** The empty span above code/description/qty/parts — no banner, just rule. */
+  groupCellBlank: { backgroundColor: "#fff", borderRight: "1px solid #fff" },
   subHead: { flexDirection: "row", backgroundColor: "#eef6f6", paddingVertical: 3 },
   th: { fontFamily: "Helvetica-Bold", fontSize: 7, color: INK, paddingHorizontal: 3 },
   row: { flexDirection: "row", paddingVertical: 3, borderBottom: `1px solid ${LINE}` },
@@ -186,9 +200,11 @@ export async function buildQuotePdf(
           </View>
         </View>
 
-        {/* Grouped table header */}
+        {/* Grouped table header. The first span is deliberately BLANK: a
+            "Parts" banner sitting over code/description/qty as well read as a
+            heading for the whole sheet. */}
         <View style={styles.groupHead}>
-          <Text style={[styles.groupCell, { width: PARTS_SPAN, backgroundColor: INK }]}>Parts</Text>
+          <Text style={[styles.groupCell, styles.groupCellBlank, { width: PARTS_SPAN }]}> </Text>
           <Text style={[styles.groupCell, { width: CAT_SPAN }]}>Panel Beating</Text>
           <Text style={[styles.groupCell, { width: CAT_SPAN }]}>Paint</Text>
           <Text style={[styles.groupCell, { width: CAT_SPAN, marginRight: 0 }]}>
@@ -196,18 +212,23 @@ export async function buildQuotePdf(
           </Text>
         </View>
 
-        {/* Sub header */}
+        {/* Sub header.
+            These cells are FLAT siblings, exactly like the data rows below.
+            They used to be wrapped in a per-group View of width CAT_SPAN, which
+            made "5%" mean 5% OF THAT 19% — about 1% of the page — so Code /
+            Amount / Hrs overflowed and printed on top of each other. Keep this
+            flat, or the header and the rows stop agreeing. */}
         <View style={styles.subHead}>
           <Text style={[styles.th, { width: W.code }]}>Code</Text>
           <Text style={[styles.th, { width: W.desc }]}>Description</Text>
           <Text style={[styles.th, { width: W.qty }, styles.center]}>Qty</Text>
           <Text style={[styles.th, { width: W.parts }, styles.right]}>Parts</Text>
           {["Panel", "Paint", "Strip"].map((g) => (
-            <View key={g} style={{ flexDirection: "row", width: CAT_SPAN }}>
+            <React.Fragment key={g}>
               <Text style={[styles.th, { width: W.cCode }]}>Code</Text>
               <Text style={[styles.th, { width: W.cAmt }, styles.right]}>Amount</Text>
               <Text style={[styles.th, { width: W.cHrs }, styles.right]}>Hrs</Text>
-            </View>
+            </React.Fragment>
           ))}
         </View>
 
