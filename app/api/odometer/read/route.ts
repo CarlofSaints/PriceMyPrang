@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { readMediaBytes } from "@/lib/blob";
+import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 
 export const maxDuration = 60;
 
@@ -13,9 +15,19 @@ interface OdometerReading {
 
 // Reads a vehicle odometer from a dashboard photo and extracts the total km.
 export async function POST(request: Request) {
+  // Anonymous by design — see the note in /api/disc/read. Same two guards.
+  const ip = clientIp(request);
+  const limited = rateLimit(`odo-read:${ip}`, 12, 60_000);
+  if (!limited.ok)
+    return tooManyRequests(limited.retryAfter, "Too many reads. Please wait a moment.");
+
   const { pathname, url } = (await request.json()) as { pathname?: string; url?: string };
   const ref = pathname || url;
   if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
+
+  // Without this, a caller could name any blob and have its text read back.
+  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref)))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({} satisfies OdometerReading);

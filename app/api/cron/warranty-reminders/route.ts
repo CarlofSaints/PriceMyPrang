@@ -8,9 +8,18 @@ export const maxDuration = 60;
 // Runs daily (see vercel.json). For every warranty with "remind" on, sends the
 // appropriate expiry reminder once (3m / 2m / 1m / 2w / 1 day before expiry).
 export async function GET(request: Request) {
-  // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is set.
+  // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`.
+  //
+  // FAILS CLOSED. This used to read `if (secret && ...)`, so an unset
+  // CRON_SECRET disabled the check entirely and left the route open to anyone
+  // — a guard written as a condition that is skipped when its own input is
+  // missing. A missing secret is now a misconfiguration, not permission.
   const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret) {
+    console.error("CRON_SECRET is not set — refusing to run the cron.");
+    return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  }
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

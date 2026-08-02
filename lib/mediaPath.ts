@@ -16,6 +16,28 @@ export function isMediaPathname(pathname: string): boolean {
   return MEDIA_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/**
+ * The only prefix an UNAUTHENTICATED endpoint may read bytes from.
+ *
+ * `requests/` is where a consumer's own upload lands — their licence disc and
+ * odometer photo, taken seconds earlier by someone with no account. Everything
+ * else in the store belongs to somebody: `dev-tickets/` is internal, and
+ * `panel-beaters/` holds warranty certificates.
+ *
+ * This exists because the OCR endpoints take a pathname from the request body
+ * and read it with the SERVER's token. Without an allowlist they will happily
+ * read a document that /api/media deliberately refuses to serve, and hand it
+ * back as extracted text — the permission check bypassed, not defeated.
+ */
+export const ANON_READABLE_PREFIXES = ["requests/"] as const;
+
+export function isAnonReadableMedia(pathname: string): boolean {
+  // Reject traversal and absolute paths before the prefix test, or
+  // "requests/../dev-tickets/x" would sail through it.
+  if (!pathname || pathname.includes("..") || pathname.startsWith("/")) return false;
+  return ANON_READABLE_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 /** Build the proxy URL the browser/email uses to view a private media blob. */
 export function mediaPath(pathname: string): string {
   return "/api/media/" + pathname.split("/").map(encodeURIComponent).join("/");

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import type { VehicleDetails } from "@/lib/types";
 import { readMediaBytes } from "@/lib/blob";
+import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 
 export const maxDuration = 60;
 
@@ -11,12 +13,27 @@ const ALLOWED_MEDIA = ["image/jpeg", "image/png", "image/gif", "image/webp"] as 
 // NOTE: MVP approach — Claude reads the disc directly. The VIN lookup will be
 // upgraded to a proper VIN → vehicle-details API later (firstcheck / vindocs).
 export async function POST(request: Request) {
+  // Anonymous by design — a consumer photographs their disc before any account
+  // exists. That makes both guards below load-bearing.
+  const ip = clientIp(request);
+  const limited = rateLimit(`disc-read:${ip}`, 12, 60_000);
+  if (!limited.ok)
+    return tooManyRequests(limited.retryAfter, "Too many reads. Please wait a moment.");
+
   const { pathname, url } = (await request.json()) as {
     pathname?: string;
     url?: string;
   };
   const ref = pathname || url;
   if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
+
+  // The pathname arrives in the REQUEST BODY and is then read with the server's
+  // own token, so without this an anonymous caller could name any blob —
+  // including a dev-ticket document that /api/media refuses to serve them — and
+  // get its text back through Claude. Normalise first: a proxy URL and a raw
+  // pathname must be judged as the same thing.
+  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref)))
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
