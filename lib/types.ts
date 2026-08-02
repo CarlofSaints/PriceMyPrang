@@ -12,7 +12,11 @@ export type Permission =
   | "build_quotes"
   | "manage_parts"
   | "manage_dev_tickets" // Super Admin: the dev planner
-  | "manage_integrations"; // Super Admin: third-party API keys (imagin8 VIN lookup)
+  | "manage_integrations" // Super Admin: third-party API keys (imagin8 VIN lookup)
+  // A workshop's OWN supplier book. Deliberately two permissions: the buyer
+  // maintains it, the estimator only needs to read it while quoting.
+  | "manage_own_suppliers"
+  | "view_own_suppliers";
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
@@ -198,6 +202,8 @@ export const PART_TYPES: { value: PartType; label: string }[] = [
 
 export interface Supplier {
   id: string;
+  /** Undefined = Price my Prang's own list; set = private to that workshop. */
+  panelBeaterId?: string;
   name: string;
   /** Which kinds of parts they supply. */
   partTypes: PartType[];
@@ -207,6 +213,19 @@ export interface Supplier {
   supplies?: string;
   email?: string;
   phone?: string;
+
+  companyRegNumber?: string;
+  vatNumber?: string;
+  address?: string;
+
+  mainContactName?: string;
+  mainContactPhone?: string;
+  mainContactEmail?: string;
+
+  billingContactName?: string;
+  billingContactPhone?: string;
+  billingContactEmail?: string;
+
   active: boolean;
   createdAt: string;
 }

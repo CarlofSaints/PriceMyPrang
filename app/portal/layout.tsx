@@ -59,6 +59,10 @@ export default async function PortalLayout({
     items.push({ href: "/portal/warranties", label: "Warranties" });
   if (can(user, "manage_panel_beaters") || can(user, "onboard_self"))
     items.push({ href: "/portal/rates", label: "Rates" });
+  // A workshop's own supplier book. Either permission gets in; the page itself
+  // decides whether the buttons are there.
+  if (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers"))
+    items.push({ href: "/portal/suppliers", label: "Suppliers" });
   if (can(user, "manage_users"))
     items.push({ href: "/portal/users", label: can(user, "manage_panel_beaters") ? "Users" : "Team" });
   // Read-only view of what each role can do, for a workshop's own people.

@@ -13,6 +13,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_parts: "Manage suppliers",
   manage_dev_tickets: "Manage the dev planner",
   manage_integrations: "Manage integration keys",
+  manage_own_suppliers: "Manage own suppliers",
+  view_own_suppliers: "View own suppliers",
 };
 
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
@@ -28,6 +30,10 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
     "Super Admin: log development work, set its priority and reminders, and attach documents. Not visible to panel beaters.",
   manage_integrations:
     "Super Admin: set the third-party API keys the platform bills against (currently the imagin8 VIN lookup). Revealing a key requires re-entering your own password.",
+  manage_own_suppliers:
+    "A workshop maintaining its OWN book of parts suppliers — add, edit, remove. Typically the buyer. Never shows another workshop's suppliers.",
+  view_own_suppliers:
+    "See the workshop's own supplier list without being able to change it — enough to source a part while quoting.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];
@@ -59,10 +65,23 @@ export const DEFAULT_ROLES: Role[] = [
     id: "pb_admin",
     name: "Panel Beater Admin",
     scope: "panel_beater",
-    permissions: ["onboard_self", "manage_users"],
+    permissions: ["onboard_self", "manage_users", "manage_own_suppliers"],
   },
-  { id: "pb_estimator", name: "Estimator", scope: "panel_beater", permissions: ["onboard_self"] },
-  { id: "pb_buyer", name: "Buyer", scope: "panel_beater", permissions: ["onboard_self"] },
+  // The first real difference between these two. Sourcing parts is the buyer's
+  // job, so the buyer keeps the supplier book and the estimator reads it while
+  // quoting. Until now they differed in name only.
+  {
+    id: "pb_estimator",
+    name: "Estimator",
+    scope: "panel_beater",
+    permissions: ["onboard_self", "view_own_suppliers"],
+  },
+  {
+    id: "pb_buyer",
+    name: "Buyer",
+    scope: "panel_beater",
+    permissions: ["onboard_self", "manage_own_suppliers"],
+  },
 ];
 
 /** The role every self-registered workshop's first two logins get. */

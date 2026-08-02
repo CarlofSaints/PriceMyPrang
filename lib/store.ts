@@ -706,25 +706,143 @@ const toSupplier = (r: {
   supplies: string | null;
   email: string | null;
   phone: string | null;
+  panelBeaterId?: string | null;
+  companyRegNumber?: string | null;
+  vatNumber?: string | null;
+  address?: string | null;
+  mainContactName?: string | null;
+  mainContactPhone?: string | null;
+  mainContactEmail?: string | null;
+  billingContactName?: string | null;
+  billingContactPhone?: string | null;
+  billingContactEmail?: string | null;
   active: boolean;
   createdAt: Date;
 }): Supplier => ({
   id: r.id,
+  panelBeaterId: r.panelBeaterId ?? undefined,
   name: r.name,
   partTypes: r.partTypes as PartType[],
   makes: r.makes,
   supplies: r.supplies ?? undefined,
   email: r.email ?? undefined,
   phone: r.phone ?? undefined,
+  companyRegNumber: r.companyRegNumber ?? undefined,
+  vatNumber: r.vatNumber ?? undefined,
+  address: r.address ?? undefined,
+  mainContactName: r.mainContactName ?? undefined,
+  mainContactPhone: r.mainContactPhone ?? undefined,
+  mainContactEmail: r.mainContactEmail ?? undefined,
+  billingContactName: r.billingContactName ?? undefined,
+  billingContactPhone: r.billingContactPhone ?? undefined,
+  billingContactEmail: r.billingContactEmail ?? undefined,
   active: r.active,
   createdAt: iso(r.createdAt),
 });
 
+/** Every optional detail field, shared by create and update. */
+const supplierDetail = (s: Partial<Supplier>) => ({
+  supplies: s.supplies ?? null,
+  email: s.email ?? null,
+  phone: s.phone ?? null,
+  companyRegNumber: s.companyRegNumber ?? null,
+  vatNumber: s.vatNumber ?? null,
+  address: s.address ?? null,
+  mainContactName: s.mainContactName ?? null,
+  mainContactPhone: s.mainContactPhone ?? null,
+  mainContactEmail: s.mainContactEmail ?? null,
+  billingContactName: s.billingContactName ?? null,
+  billingContactPhone: s.billingContactPhone ?? null,
+  billingContactEmail: s.billingContactEmail ?? null,
+});
+
+/**
+ * Price my Prang's OWN list only. Deliberately excludes workshop-private
+ * suppliers, or the Control Centre page would fill up with every repairer's
+ * private book.
+ */
 export async function getSuppliers(): Promise<Supplier[]> {
-  const rows = await getDb().supplier.findMany({ orderBy: { name: "asc" } });
+  const rows = await getDb().supplier.findMany({
+    where: { panelBeaterId: null },
+    orderBy: { name: "asc" },
+  });
   return rows.map(toSupplier);
 }
 
+/** One workshop's own suppliers. Never another's. */
+export async function listSuppliersForPanelBeater(panelBeaterId: string): Promise<Supplier[]> {
+  const rows = await getDb().supplier.findMany({
+    where: { panelBeaterId },
+    orderBy: { name: "asc" },
+  });
+  return rows.map(toSupplier);
+}
+
+export async function createPanelBeaterSupplier(
+  panelBeaterId: string,
+  s: Partial<Supplier> & { name: string }
+): Promise<Supplier> {
+  const row = await getDb().supplier.create({
+    data: {
+      panelBeaterId,
+      name: s.name,
+      partTypes: s.partTypes ?? [],
+      makes: s.makes ?? [],
+      active: s.active ?? true,
+      ...supplierDetail(s),
+    },
+  });
+  return toSupplier(row);
+}
+
+/**
+ * Update ONE supplier, and only if it belongs to the given workshop.
+ *
+ * Deliberately NOT saveSuppliers() — that replaces the entire collection and
+ * deletes anything missing from the list it is handed, which from a workshop's
+ * own page would wipe Price my Prang's list and every other repairer's book.
+ * Returns null when the row isn't theirs, so the route can 404 rather than
+ * confirm that someone else's supplier exists.
+ */
+export async function updatePanelBeaterSupplier(
+  id: string,
+  panelBeaterId: string,
+  s: Partial<Supplier>
+): Promise<Supplier | null> {
+  const db = getDb();
+  const existing = await db.supplier.findFirst({ where: { id, panelBeaterId } });
+  if (!existing) return null;
+
+  const row = await db.supplier.update({
+    where: { id },
+    data: {
+      ...(s.name !== undefined ? { name: s.name } : {}),
+      ...(s.partTypes !== undefined ? { partTypes: s.partTypes } : {}),
+      ...(s.makes !== undefined ? { makes: s.makes } : {}),
+      ...(s.active !== undefined ? { active: s.active } : {}),
+      ...supplierDetail(s),
+    },
+  });
+  return toSupplier(row);
+}
+
+/** Same ownership check as the update — a miss is a 404, never a 403. */
+export async function deletePanelBeaterSupplier(
+  id: string,
+  panelBeaterId: string
+): Promise<boolean> {
+  const { count } = await getDb().supplier.deleteMany({ where: { id, panelBeaterId } });
+  return count > 0;
+}
+
+/**
+ * Replace Price my Prang's OWN supplier list (the Control Centre page posts the
+ * whole collection).
+ *
+ * The prune is scoped to `panelBeaterId: null`. Without that it would delete
+ * every workshop's private supplier book on any save from this page, since none
+ * of those ids appear in the list it is handed.
+ */
 export async function saveSuppliers(suppliers: Supplier[]): Promise<void> {
   const db = getDb();
   await db.$transaction(async (tx) => {
@@ -733,18 +851,18 @@ export async function saveSuppliers(suppliers: Supplier[]): Promise<void> {
         name: s.name,
         partTypes: s.partTypes,
         makes: s.makes,
-        supplies: s.supplies ?? null,
-        email: s.email ?? null,
-        phone: s.phone ?? null,
         active: s.active,
+        ...supplierDetail(s),
       };
       await tx.supplier.upsert({
         where: { id: s.id },
-        create: { id: s.id, ...data, createdAt: new Date(s.createdAt) },
+        create: { id: s.id, panelBeaterId: null, ...data, createdAt: new Date(s.createdAt) },
         update: data,
       });
     }
-    await tx.supplier.deleteMany({ where: { id: { notIn: suppliers.map((s) => s.id) } } });
+    await tx.supplier.deleteMany({
+      where: { panelBeaterId: null, id: { notIn: suppliers.map((s) => s.id) } },
+    });
   });
 }
 
@@ -758,10 +876,8 @@ export async function upsertSupplier(supplier: Supplier): Promise<void> {
     name: supplier.name,
     partTypes: supplier.partTypes,
     makes: supplier.makes,
-    supplies: supplier.supplies ?? null,
-    email: supplier.email ?? null,
-    phone: supplier.phone ?? null,
     active: supplier.active,
+    ...supplierDetail(supplier),
   };
   await getDb().supplier.upsert({
     where: { id: supplier.id },

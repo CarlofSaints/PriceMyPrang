@@ -300,6 +300,7 @@ model PanelBeater {
 
   rateCards   RateCard[]
   agreements  RepairerAgreement[]
+  suppliers   Supplier[]
   warranties  Warranty[]
   users       User[]
   quotes      Quote[]
@@ -340,19 +341,47 @@ model Warranty {
 
 // ---- Suppliers -------------------------------------------------------------
 
+/// A parts supplier. Scoped by `panelBeaterId`: NULL is Price my Prang's own
+/// list, a value is that workshop's own book of suppliers. One model rather
+/// than two, so the quote builder can ask "who supplies this workshop" without
+/// caring which kind it is.
 model Supplier {
-  id        String     @id @default(uuid())
+  id String @id @default(uuid())
+
+  /// NULL = Price my Prang's own list. Set = private to that workshop, and
+  /// never visible to another one.
+  panelBeaterId String?
+
   name      String
   partTypes PartType[]
   makes     String[]
+  /// Free text: what they sell.
   supplies  String?
   email     String?
   phone     String?
-  active    Boolean    @default(true)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+
+  // Company detail. All optional on purpose — a workshop adding a supplier
+  // mid-quote should not be stopped by a VAT number they have to go and find.
+  companyRegNumber String?
+  vatNumber        String?
+  address          String?
+
+  mainContactName  String?
+  mainContactPhone String?
+  mainContactEmail String?
+
+  billingContactName  String?
+  billingContactPhone String?
+  billingContactEmail String?
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  panelBeater PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
 
   @@index([active])
+  @@index([panelBeaterId])
   @@map("suppliers")
 }
 
