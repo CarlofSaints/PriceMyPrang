@@ -12,6 +12,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   build_quotes: "Build quotations",
   manage_parts: "Manage suppliers",
   manage_dev_tickets: "Manage the dev planner",
+  manage_integrations: "Manage integration keys",
 };
 
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
@@ -25,6 +26,8 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
   onboard_self: "A panel-beater login editing only their own listing.",
   manage_dev_tickets:
     "Super Admin: log development work, set its priority and reminders, and attach documents. Not visible to panel beaters.",
+  manage_integrations:
+    "Super Admin: set the third-party API keys the platform bills against (currently the imagin8 VIN lookup). Revealing a key requires re-entering your own password.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];

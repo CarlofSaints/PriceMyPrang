@@ -79,6 +79,8 @@ export default async function PortalLayout({
   // lib/rateCard.ts, so there's nothing for an admin to manage.
   if (can(user, "manage_insurers"))
     adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
+  if (can(user, "manage_integrations"))
+    adminItems.push({ href: "/portal/admin/integrations", label: "Integrations" });
   // PMP's own backlog. Last in the list — it's internal housekeeping, not a
   // part of running the network.
   if (can(user, "manage_dev_tickets"))

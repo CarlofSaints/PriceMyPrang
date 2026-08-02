@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { decryptSecret, type SealedSecret } from "./secrets";
 import type { Prisma, MediaKind } from "./generated/prisma/client";
 import { nextReference } from "./reference";
 import { DEFAULT_ROLES } from "./permissions";
@@ -31,6 +32,7 @@ import type {
   DevTicketStats,
   DevPriority,
   DevTicketStatus,
+  VinLookupResult,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -1853,4 +1855,108 @@ function isUniqueViolation(err: unknown, field: string): boolean {
   const target = e.meta?.target;
   if (Array.isArray(target)) return target.includes(field);
   return typeof target === "string" ? target.includes(field) : true;
+}
+
+// ---- Integration secrets ---------------------------------------------------
+
+/**
+ * Third-party API keys entered in the portal. The plaintext key never touches
+ * this table — `lib/secrets.ts` seals it first — because Power BI reads this
+ * database directly.
+ */
+export async function setIntegrationSecret(
+  id: string,
+  sealed: SealedSecret & { masked: string },
+  updatedByName?: string
+): Promise<void> {
+  const data = {
+    ciphertext: sealed.ciphertext,
+    iv: sealed.iv,
+    authTag: sealed.authTag,
+    masked: sealed.masked,
+    updatedByName: updatedByName ?? null,
+  };
+  await getDb().integrationSecret.upsert({
+    where: { id },
+    create: { id, ...data },
+    update: data,
+  });
+}
+
+/** What the Integrations page may show without a password: never the key. */
+export async function getIntegrationSecretMeta(
+  id: string
+): Promise<{ masked: string; updatedByName?: string; updatedAt: string } | null> {
+  const row = await getDb().integrationSecret.findUnique({ where: { id } });
+  if (!row) return null;
+  return {
+    masked: row.masked,
+    updatedByName: row.updatedByName ?? undefined,
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+/**
+ * The decrypted key, for server-side use only. Returns null when unset OR when
+ * the stored value can no longer be decrypted (a rotated SESSION_SECRET) — the
+ * caller cannot tell the difference and does not need to; the Integrations page
+ * reports the distinction to the admin.
+ */
+export async function getIntegrationKey(id: string): Promise<string | null> {
+  const row = await getDb().integrationSecret.findUnique({ where: { id } });
+  if (!row) return null;
+  return decryptSecret(row);
+}
+
+export async function deleteIntegrationSecret(id: string): Promise<void> {
+  await getDb().integrationSecret.deleteMany({ where: { id } });
+}
+
+// ---- VIN lookup cache ------------------------------------------------------
+
+/**
+ * imagin8 bills per transaction, so every decode is cached — including a MISS,
+ * or an undecodable VIN would be re-billed on every page load.
+ */
+export async function getCachedVin(vin: string): Promise<VinLookupResult | null> {
+  const row = await getDb().vinLookup.findUnique({ where: { vin: vin.toUpperCase() } });
+  if (!row) return null;
+  return {
+    vin: row.vin,
+    found: row.found,
+    make: row.make ?? undefined,
+    model: row.model ?? undefined,
+    series: row.series ?? undefined,
+    year: row.year ?? undefined,
+    mmCode: row.mmCode ?? undefined,
+    retailValue: numOpt(row.retailValue),
+    tradeValue: numOpt(row.tradeValue),
+    marketValue: numOpt(row.marketValue),
+    fetchedAt: iso(row.fetchedAt),
+  };
+}
+
+export async function cacheVin(
+  result: VinLookupResult,
+  raw?: unknown
+): Promise<void> {
+  const vin = result.vin.toUpperCase();
+  const data = {
+    found: result.found,
+    make: result.make ?? null,
+    model: result.model ?? null,
+    series: result.series ?? null,
+    year: result.year ?? null,
+    mmCode: result.mmCode ?? null,
+    retailValue: result.retailValue ?? null,
+    tradeValue: result.tradeValue ?? null,
+    marketValue: result.marketValue ?? null,
+    raw: (raw ?? undefined) as Prisma.InputJsonValue | undefined,
+    fetchedAt: new Date(),
+  };
+  await getDb().vinLookup.upsert({
+    where: { vin },
+    create: { vin, ...data },
+    update: data,
+  });
 }

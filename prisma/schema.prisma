@@ -606,6 +606,57 @@ model DevTicket {
   @@map("dev_tickets")
 }
 
+/// A third-party credential entered in the portal rather than set as a Vercel
+/// env var. The value is AES-256-GCM ciphertext (see lib/secrets.ts) — never
+/// the key itself — because Power BI reads this database directly and a live
+/// billable credential must not travel there in readable form.
+model IntegrationSecret {
+  /// Stable name, e.g. "imagin8". One row per integration.
+  id String @id
+
+  ciphertext String
+  iv         String
+  authTag    String
+
+  /// Enough to confirm WHICH key is loaded without revealing it.
+  masked String
+
+  /// Who last changed it. A verbatim copy, like the dev-planner author, so a
+  /// deleted user doesn't erase the audit trail on a billable credential.
+  updatedByName String?
+  updatedAt     DateTime @updatedAt
+
+  @@map("integration_secrets")
+}
+
+/// A decoded VIN, cached. imagin8 bills per transaction, so re-opening a quote,
+/// rebuilding it, or an assessor reviewing it must never re-charge us for a VIN
+/// already looked up. `raw` keeps the untouched vendor payload so new fields can
+/// be surfaced later without paying to fetch them again.
+model VinLookup {
+  vin String @id
+
+  make        String?
+  model       String?
+  series      String?
+  year        String?
+  /// Mead & McGrouther code — the industry key Carl asked for by name.
+  mmCode      String?
+  retailValue Decimal? @db.Decimal(12, 2)
+  tradeValue  Decimal? @db.Decimal(12, 2)
+  marketValue Decimal? @db.Decimal(12, 2)
+
+  raw Json?
+
+  /// False when the vendor had no record, so a miss is cached too and a VIN
+  /// they cannot decode isn't retried (and re-billed) on every page load.
+  found Boolean @default(true)
+
+  fetchedAt DateTime @default(now())
+
+  @@map("vin_lookups")
+}
+
 /// A comment on a ticket — the running conversation about the work, kept apart
 /// from `detail` so the original ask is never overwritten by a later remark.
 /// Notes are append-only in the UI: you may delete your own, never rewrite one,

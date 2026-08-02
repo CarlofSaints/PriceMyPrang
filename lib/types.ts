@@ -11,7 +11,8 @@ export type Permission =
   | "view_dashboard"
   | "build_quotes"
   | "manage_parts"
-  | "manage_dev_tickets"; // Super Admin: the dev planner
+  | "manage_dev_tickets" // Super Admin: the dev planner
+  | "manage_integrations"; // Super Admin: third-party API keys (imagin8 VIN lookup)
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
@@ -233,6 +234,26 @@ export interface VehicleDetails {
   registration?: string;
   /** Raw text Claude read off the licence disc, for the assessor. */
   discRawText?: string;
+}
+
+/**
+ * A VIN decoded by imagin8. `found: false` is a real, cached answer — the
+ * vendor had no record — not an error, so an undecodable VIN isn't re-billed
+ * on every page load.
+ */
+export interface VinLookupResult {
+  vin: string;
+  found: boolean;
+  make?: string;
+  model?: string;
+  series?: string;
+  year?: string;
+  /** Mead & McGrouther code. */
+  mmCode?: string;
+  retailValue?: number;
+  tradeValue?: number;
+  marketValue?: number;
+  fetchedAt?: string;
 }
 
 export type RequestStatus = "new" | "in_progress" | "completed";
