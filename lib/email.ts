@@ -692,3 +692,59 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+/**
+ * The one-time link a consumer asks for when they want to rate their repairer
+ * or lodge a complaint.
+ *
+ * They type their REFERENCE on the site, but PMP-date-SURNAME-nn is guessable —
+ * it names a job, it doesn't prove you own one. This email is what turns a
+ * reference into proof: it can only be read by whoever holds the address
+ * already on the job.
+ */
+export async function sendConsumerFeedbackLink(
+  req: QuoteRequest,
+  token: string
+): Promise<void> {
+  const resend = client();
+  if (!resend || !req.email) return;
+
+  const link = `${baseUrl()}/feedback/${token}`;
+  const vehicle = [req.vehicle.make, req.vehicle.model].filter(Boolean).join(" ") || "your vehicle";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${req.firstName},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      You asked for a link to leave feedback on the repair to ${vehicle}.
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Reference", req.reference)}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${link}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Rate your repairer
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      From there you can leave a star rating, or raise a complaint if something went wrong.
+      This link works for 48 hours and is personal to you — please don&apos;t forward it.
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      If you didn&apos;t ask for this, you can ignore this email. Nothing has changed on your job.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to: req.email,
+      subject: `Leave feedback on your repair — ${req.reference}`,
+      html: shell("Your feedback link", body),
+    });
+  } catch (err) {
+    console.error("consumer feedback link email failed", err);
+  }
+}
