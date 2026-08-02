@@ -1,5 +1,16 @@
 import { Resend } from "resend";
-import type { DevTicket, PanelBeater, QuoteRequest, WarrantyApproval } from "./types";
+import type {
+  Complaint,
+  DevTicket,
+  PanelBeater,
+  QuoteRequest,
+  WarrantyApproval,
+} from "./types";
+import {
+  COMPLAINT_CATEGORY_LABEL,
+  COMPLAINT_OUTCOME_LABEL,
+  VEHICLE_SAFETY_LABEL,
+} from "./types";
 import { DEV_PRIORITY_SHORT, DEV_STATUS_LABEL } from "./types";
 import { getUsers, getRoles } from "./store";
 import { permissionsForRole } from "./permissions";
@@ -829,5 +840,145 @@ export async function sendLoginCode(
     });
   } catch (err) {
     console.error("login code send failed", err);
+  }
+}
+
+/**
+ * A complaint has been lodged. Goes to Price my Prang AND to the repairer named
+ * in it — Carl's instruction, and the consumer is told so before they submit.
+ *
+ * An unsafe vehicle changes the subject line rather than adding a field
+ * somewhere in the body: this lands in a mailbox alongside everything else, and
+ * "not safe to drive" has to be legible without opening it.
+ */
+export async function sendComplaintLodged(
+  complaint: Complaint,
+  req: QuoteRequest,
+  pb: PanelBeater | null
+): Promise<void> {
+  const resend = client();
+  if (!resend) return;
+
+  const staff = await notifyRecipients();
+  const repairer = pb?.email || pb?.ownerEmail || pb?.completedByEmail;
+  const to = [...new Set([...staff, ...(repairer ? [repairer] : [])])];
+  if (!to.length) return;
+
+  const unsafe = complaint.vehicleSafety === "unsafe";
+  const vehicle =
+    [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" ") ||
+    "the vehicle";
+
+  const body = `
+    ${
+      unsafe
+        ? `<p style="background:#fdecea;border-left:4px solid ${BRAND.coral};padding:12px 14px;margin:0 0 16px;font-size:15px;">
+             <strong>The customer says this vehicle is not safe to drive.</strong>
+           </p>`
+        : ""
+    }
+    <p style="font-size:15px;line-height:1.5;">
+      A customer has raised a complaint about a repair carried out by
+      <strong>${pb ? pb.tradingAs || pb.companyName : "a workshop"}</strong>.
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Reference", req.reference)}
+        ${detailRow("Customer", `${req.firstName} ${req.lastName}`)}
+        ${detailRow("Contact", `${req.email}${req.phone ? ` · ${req.phone}` : ""}`)}
+        ${detailRow("Vehicle", vehicle)}
+        ${req.vehicle.registration ? detailRow("Registration", req.vehicle.registration) : ""}
+        ${detailRow("About", COMPLAINT_CATEGORY_LABEL[complaint.category])}
+        ${
+          complaint.vehicleSafety
+            ? detailRow("Safe to drive?", VEHICLE_SAFETY_LABEL[complaint.vehicleSafety])
+            : ""
+        }
+        ${
+          complaint.desiredOutcome
+            ? detailRow("They want", COMPLAINT_OUTCOME_LABEL[complaint.desiredOutcome])
+            : ""
+        }
+        ${complaint.media.length ? detailRow("Attached", `${complaint.media.length} file(s)`) : ""}
+      </table>
+    </div>
+    <p style="font-size:13px;color:#6b7f82;margin-bottom:4px;">In their words:</p>
+    <p style="font-size:15px;line-height:1.6;white-space:pre-wrap;background:#fff;
+              border:1px solid rgba(0,132,141,0.15);border-radius:12px;padding:14px;">${
+                complaint.description
+              }</p>
+    <p style="margin:20px 0;">
+      <a href="${baseUrl()}/portal/complaints"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Open it in the portal
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      Record what you do about this on the complaint itself, so there is one account of how it
+      was resolved.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to,
+      subject: `${unsafe ? "[UNSAFE VEHICLE] " : ""}Complaint — ${req.reference} — ${
+        pb ? pb.tradingAs || pb.companyName : "workshop"
+      }`,
+      html: shell("A complaint has been lodged", body),
+    });
+  } catch (err) {
+    console.error("complaint lodged email failed", err);
+  }
+}
+
+/** The customer's receipt. Carl's wording, with the job details filled in. */
+export async function sendComplaintConfirmation(
+  complaint: Complaint,
+  req: QuoteRequest,
+  workshopName: string
+): Promise<void> {
+  const resend = client();
+  if (!resend || !req.email) return;
+
+  const vehicle =
+    [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" ") ||
+    "your vehicle";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${req.firstName},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      We have received your complaint. A copy of which has been sent to the repairer. We will be
+      dealing with this as a matter of urgency and we will be in touch shortly. Thank you.
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Reference", req.reference)}
+        ${detailRow("Repairer", workshopName)}
+        ${detailRow("Vehicle", vehicle)}
+        ${req.vehicle.registration ? detailRow("Registration", req.vehicle.registration) : ""}
+        ${detailRow("About", COMPLAINT_CATEGORY_LABEL[complaint.category])}
+        ${complaint.media.length ? detailRow("Attached", `${complaint.media.length} file(s)`) : ""}
+      </table>
+    </div>
+    <p style="font-size:13px;color:#6b7f82;margin-bottom:4px;">What you told us:</p>
+    <p style="font-size:14px;line-height:1.6;white-space:pre-wrap;color:#43575a;">${
+      complaint.description
+    }</p>
+    <p style="font-size:13px;color:#6b7f82;">
+      Keep this email — the reference above is how we find your complaint if you call us.
+    </p>
+  `;
+
+  try {
+    await resend.emails.send({
+      from: fromAddress(),
+      to: req.email,
+      subject: `We've received your complaint — ${req.reference}`,
+      html: shell("Complaint received", body),
+    });
+  } catch (err) {
+    console.error("complaint confirmation email failed", err);
   }
 }

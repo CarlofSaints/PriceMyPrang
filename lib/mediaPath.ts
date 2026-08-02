@@ -10,7 +10,23 @@ export const MEDIA_PREFIXES = [
   "panel-beaters/",
   "quotes/",
   "dev-tickets/",
+  "complaints/",
 ] as const;
+
+/**
+ * Prefixes /api/media will not serve without a permission check.
+ *
+ * The proxy is otherwise deliberately open: emailed quote PDFs and certificate
+ * links have to work for people with no login, and they rely on the pathname
+ * being unguessable. Internal documents and complaint evidence have no such
+ * excuse — a complaint is private between the customer, the workshop named in
+ * it, and us.
+ */
+export const GUARDED_MEDIA_PREFIXES = ["dev-tickets/", "complaints/"] as const;
+
+export function isGuardedMedia(pathname: string): boolean {
+  return GUARDED_MEDIA_PREFIXES.some((p) => pathname.startsWith(p));
+}
 
 export function isMediaPathname(pathname: string): boolean {
   return MEDIA_PREFIXES.some((p) => pathname.startsWith(p));

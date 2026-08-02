@@ -22,11 +22,22 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
+  // 404 rather than 403 throughout — a signed-out caller learns nothing about
+  // whether the file exists.
   if (pathname.startsWith("dev-tickets/")) {
     const user = await getCurrentUser();
-    // 404 rather than 403 — a signed-out caller learns nothing about whether
-    // the file exists.
     if (!can(user, "manage_dev_tickets")) {
+      return new Response("Not found", { status: 404 });
+    }
+  }
+
+  // Complaint evidence. Private between the customer, the workshop named in the
+  // complaint, and us — so unlike a quote PDF it is never reachable by URL
+  // alone. Either complaints permission gets in; the pathname's random suffix
+  // is what stops one workshop stumbling onto another's.
+  if (pathname.startsWith("complaints/")) {
+    const user = await getCurrentUser();
+    if (!can(user, "manage_complaints") && !can(user, "manage_own_complaints")) {
       return new Response("Not found", { status: 404 });
     }
   }
