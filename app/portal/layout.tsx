@@ -97,8 +97,15 @@ export default async function PortalLayout({
   // "Suppliers" sitting above the Control Centre one that is actually theirs.
   if (user.panelBeaterId && (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers")))
     items.push({ href: "/portal/suppliers", label: "Suppliers" });
+  // Complaints against THIS workshop, with their rating on top.
+  if (user.panelBeaterId && can(user, "manage_own_complaints"))
+    items.push({ href: "/portal/complaints", label: "Complaints" });
   if (can(user, "manage_users"))
     items.push({ href: "/portal/users", label: can(user, "manage_panel_beaters") ? "Users" : "Team" });
+  // Plain-language explanation of how their data is protected. Shown to the
+  // workshops, who are the ones anxious about it.
+  if (can(user, "onboard_self"))
+    items.push({ href: "/portal/security", label: "Security" });
   // Read-only view of what each role can do, for a workshop's own people.
   // Super Admins get the editable version in the Control Centre instead.
   if (can(user, "onboard_self") && !can(user, "manage_roles"))
@@ -117,6 +124,8 @@ export default async function PortalLayout({
   // lib/rateCard.ts, so there's nothing for an admin to manage.
   if (can(user, "manage_insurers"))
     adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
+  if (can(user, "manage_complaints"))
+    adminItems.push({ href: "/portal/admin/complaints", label: "Complaints" });
   if (can(user, "manage_integrations"))
     adminItems.push({ href: "/portal/admin/integrations", label: "Integrations" });
   // PMP's own backlog. Last in the list — it's internal housekeeping, not a

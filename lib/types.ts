@@ -16,7 +16,10 @@ export type Permission =
   // A workshop's OWN supplier book. Deliberately two permissions: the buyer
   // maintains it, the estimator only needs to read it while quoting.
   | "manage_own_suppliers"
-  | "view_own_suppliers";
+  | "view_own_suppliers"
+  // Complaints. A workshop sees only its own; PMP staff see every one.
+  | "manage_own_complaints"
+  | "manage_complaints";
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;

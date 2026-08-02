@@ -15,6 +15,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_integrations: "Manage integration keys",
   manage_own_suppliers: "Manage own suppliers",
   view_own_suppliers: "View own suppliers",
+  manage_own_complaints: "See and answer complaints against us",
+  manage_complaints: "Manage all complaints",
 };
 
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
@@ -34,6 +36,10 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
     "A workshop maintaining its OWN book of parts suppliers — add, edit, remove. Typically the buyer. Never shows another workshop's suppliers.",
   view_own_suppliers:
     "See the workshop's own supplier list without being able to change it — enough to source a part while quoting.",
+  manage_own_complaints:
+    "A workshop reading complaints made against it and recording how each was put right. Never shows another workshop's complaints.",
+  manage_complaints:
+    "Super Admin: every complaint across the network, including internal notes the repairer never sees.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];
@@ -54,7 +60,7 @@ export const DEFAULT_ROLES: Role[] = [
     id: "assessor",
     name: "Assessor",
     scope: "platform",
-    permissions: ["view_dashboard", "build_quotes", "manage_parts", "manage_panel_beaters"],
+    permissions: ["view_dashboard", "build_quotes", "manage_parts", "manage_panel_beaters", "manage_complaints"],
   },
 
   // ---- A panel beater's own team ----
@@ -65,7 +71,7 @@ export const DEFAULT_ROLES: Role[] = [
     id: "pb_admin",
     name: "Panel Beater Admin",
     scope: "panel_beater",
-    permissions: ["onboard_self", "manage_users", "manage_own_suppliers"],
+    permissions: ["onboard_self", "manage_users", "manage_own_suppliers", "manage_own_complaints"],
   },
   // The first real difference between these two. Sourcing parts is the buyer's
   // job, so the buyer keeps the supplier book and the estimator reads it while
