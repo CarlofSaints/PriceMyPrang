@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
@@ -38,6 +38,33 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
+const SITE_DOMAIN = "pricemyprang.co.za";
+
+/**
+ * Which domain the session cookie should belong to.
+ *
+ * THE BUG THIS FIXES: proxy.ts 308s the bare apex and the .vercel.app host to
+ * www, but /api is exempt from that redirect. So signing in at
+ * `pricemyprang.co.za` succeeded and set a cookie scoped to the APEX — and the
+ * very next page load 308'd to `www`, which never receives an apex-scoped
+ * cookie. The result was a login that worked and then bounced straight back to
+ * /login, over and over, in any browser.
+ *
+ * Scoping to `.pricemyprang.co.za` lets the apex and www share one session.
+ *
+ * Returns undefined for any other host — a preview deployment, localhost, the
+ * .vercel.app domain. A browser silently DISCARDS a cookie whose Domain it
+ * doesn't belong to, so naming our domain there would set no cookie at all and
+ * trade a redirect loop for a sign-in that fails without saying why.
+ */
+async function cookieDomain(): Promise<string | undefined> {
+  const host = (await headers()).get("host")?.split(":")[0]?.toLowerCase();
+  if (!host) return undefined;
+  return host === SITE_DOMAIN || host.endsWith(`.${SITE_DOMAIN}`)
+    ? `.${SITE_DOMAIN}`
+    : undefined;
+}
+
 export async function createSession(userId: string): Promise<void> {
   const token = await new SignJWT({ sub: userId })
     .setProtectedHeader({ alg: "HS256" })
@@ -52,12 +79,18 @@ export async function createSession(userId: string): Promise<void> {
     sameSite: "lax",
     path: "/",
     maxAge: 7 * DAY,
+    domain: await cookieDomain(),
   });
 }
 
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
+  const domain = await cookieDomain();
+  // Delete BOTH shapes. A cookie set before this change is scoped to the exact
+  // host, and clearing only the domain-scoped one would leave the old one
+  // behind — signing out would appear to do nothing.
   jar.delete(COOKIE_NAME);
+  if (domain) jar.set(COOKIE_NAME, "", { path: "/", domain, maxAge: 0 });
 }
 
 /**
