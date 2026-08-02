@@ -43,8 +43,21 @@ export default function Home() {
           no runaround. Just snap, pick and go.
         </p>
 
-        <div className="mt-9 flex justify-center">
+        {/* Two audiences land here: someone who has just pranged, and someone
+            whose repair is finished. The second had no way in at all until
+            this — the page existed but nothing on the site pointed at it. */}
+        <div className="mt-9 flex flex-wrap items-start justify-center gap-6">
           <QuoteLauncher size="lg" />
+
+          <div className="flex flex-col items-center gap-2">
+            <Link
+              href="/feedback"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-teal/40 bg-white px-7 py-4 text-base font-semibold text-ink shadow-lg transition-colors hover:bg-teal/5"
+            >
+              Rate my repair
+            </Link>
+            <span className="text-sm font-medium text-ink/60">already had the work done</span>
+          </div>
         </div>
       </section>
 
@@ -107,6 +120,14 @@ export default function Home() {
         <div className="mb-4 flex justify-center">
           <RegisterLauncher className="rounded-full bg-coral px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#d94a33]" />
         </div>
+        {/* A second, quieter way back for someone scrolling to the bottom
+            looking for it. The primary route is the button beside "Price my
+            Prang" in the hero. */}
+        <p className="mb-4">
+          <Link href="/feedback" className="text-white underline hover:text-white/80">
+            Rate your repairer or raise a problem
+          </Link>
+        </p>
         <p>© {new Date().getFullYear()} Price my Prang · Crash · Quote · Claim</p>
       </footer>
     </main>

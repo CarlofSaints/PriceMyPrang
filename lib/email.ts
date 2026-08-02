@@ -364,6 +364,12 @@ export async function sendConsumerQuoteReady(
       one lets the other workshops know they weren&apos;t selected. Keep this link private — anyone
       with it can see and accept your quotes.
     </p>
+    <p style="font-size:13px;color:#6b7f82;border-top:1px solid rgba(0,132,141,0.12);padding-top:14px;">
+      Once the work is done, you can
+      <a href="${baseUrl()}/feedback" style="color:${BRAND.teal};">rate your repairer</a> — or tell
+      us if something went wrong. You&apos;ll need reference <strong>${req.reference}</strong>,
+      which is why it&apos;s worth keeping this email.
+    </p>
   `;
 
   try {
