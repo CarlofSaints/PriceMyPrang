@@ -83,7 +83,11 @@ export default function ChangePasswordForm({ forced = false }: { forced?: boolea
           className={inputClass}
           type="password"
           value={current}
-          onChange={(e) => setCurrent(e.target.value)}
+          // A temporary password is always pasted, and a pasted value routinely
+          // carries a trailing space or newline that silently fails the check.
+          // Ours never contain whitespace, so stripping it here can only help.
+          // A self-chosen password is left exactly as typed.
+          onChange={(e) => setCurrent(forced ? e.target.value.trim() : e.target.value)}
           autoComplete="current-password"
           required
         />
