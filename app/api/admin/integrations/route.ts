@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     action?: "save" | "reveal";
     id?: string;
     key?: string;
+    clientId?: string;
     password?: string;
   };
 
@@ -85,13 +86,17 @@ export async function POST(request: Request) {
       { status: 400 }
     );
 
+  // imagin8 issue a client ID alongside the key. It's an identifier, not a
+  // secret, so it is stored in the clear and shown back for confirmation.
+  const clientId = typeof b.clientId === "string" ? b.clientId.trim() : "";
+
   await setIntegrationSecret(
     id,
-    { ...encryptSecret(key), masked: maskSecret(key) },
+    { ...encryptSecret(key), masked: maskSecret(key), clientId: clientId || undefined },
     gate.user.name
   );
 
-  return NextResponse.json({ ok: true, masked: maskSecret(key) });
+  return NextResponse.json({ ok: true, masked: maskSecret(key), clientId: clientId || undefined });
 }
 
 export async function DELETE(request: Request) {

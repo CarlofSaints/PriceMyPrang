@@ -1866,10 +1866,11 @@ function isUniqueViolation(err: unknown, field: string): boolean {
  */
 export async function setIntegrationSecret(
   id: string,
-  sealed: SealedSecret & { masked: string },
+  sealed: SealedSecret & { masked: string; clientId?: string },
   updatedByName?: string
 ): Promise<void> {
   const data = {
+    clientId: sealed.clientId ?? null,
     ciphertext: sealed.ciphertext,
     iv: sealed.iv,
     authTag: sealed.authTag,
@@ -1886,14 +1887,34 @@ export async function setIntegrationSecret(
 /** What the Integrations page may show without a password: never the key. */
 export async function getIntegrationSecretMeta(
   id: string
-): Promise<{ masked: string; updatedByName?: string; updatedAt: string } | null> {
+): Promise<{
+  masked: string;
+  clientId?: string;
+  updatedByName?: string;
+  updatedAt: string;
+} | null> {
   const row = await getDb().integrationSecret.findUnique({ where: { id } });
   if (!row) return null;
   return {
     masked: row.masked,
+    clientId: row.clientId ?? undefined,
     updatedByName: row.updatedByName ?? undefined,
     updatedAt: iso(row.updatedAt),
   };
+}
+
+/**
+ * Both halves of the pair, for the server-side caller that will actually talk
+ * to imagin8. Returns null when there is no usable key.
+ */
+export async function getIntegrationCredentials(
+  id: string
+): Promise<{ clientId?: string; key: string } | null> {
+  const row = await getDb().integrationSecret.findUnique({ where: { id } });
+  if (!row) return null;
+  const key = decryptSecret(row);
+  if (key === null) return null;
+  return { clientId: row.clientId ?? undefined, key };
 }
 
 /**

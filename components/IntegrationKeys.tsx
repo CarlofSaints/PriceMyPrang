@@ -6,6 +6,8 @@ import { Button, Field, inputClass } from "./ui";
 
 export type IntegrationMeta = {
   masked: string;
+  /** The non-secret half — shown in full, it identifies the account. */
+  clientId?: string;
   updatedByName?: string;
   updatedAt: string;
   /** False when the stored value can no longer be decrypted. */
@@ -21,6 +23,7 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
   // Entering a new key
   const [editing, setEditing] = useState(!initial);
   const [key, setKey] = useState("");
+  const [clientId, setClientId] = useState(initial?.clientId ?? "");
   const [savePassword, setSavePassword] = useState("");
 
   // Revealing the stored one
@@ -45,13 +48,20 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
       const res = await fetch("/api/admin/integrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", id: "imagin8", key, password: savePassword }),
+        body: JSON.stringify({
+          action: "save",
+          id: "imagin8",
+          key,
+          clientId,
+          password: savePassword,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not save the key");
 
       setMeta({
         masked: data.masked,
+        clientId: data.clientId,
         updatedAt: new Date().toISOString(),
         readable: true,
       });
@@ -118,9 +128,20 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
 
       {meta && !editing && (
         <div className="space-y-3">
-          <div className="rounded-xl bg-ink/[0.04] px-4 py-3">
-            <p className="font-mono text-sm text-ink">{revealed ?? meta.masked}</p>
-            <p className="mt-1 text-xs text-ink/50">
+          <div className="space-y-3 rounded-xl bg-ink/[0.04] px-4 py-3">
+            {meta.clientId && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">
+                  Client ID
+                </p>
+                <p className="font-mono text-sm text-ink">{meta.clientId}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">API key</p>
+              <p className="font-mono text-sm text-ink">{revealed ?? meta.masked}</p>
+            </div>
+            <p className="text-xs text-ink/50">
               {meta.updatedByName ? `Set by ${meta.updatedByName}` : "Set"} on{" "}
               {shortDate(meta.updatedAt)}
             </p>
@@ -196,6 +217,25 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
             className="hidden"
             readOnly
           />
+
+          <Field
+            label="Client ID"
+            hint="Issued by imagin8 alongside the key. Not a secret — shown in full so you can confirm which account is wired up."
+          >
+            <input
+              className={`${inputClass} font-mono`}
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="Client ID from the imagin8 email"
+              name="imagin8-client-id"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+            />
+          </Field>
 
           <Field label={meta ? "New API key" : "API key"} required>
             <input

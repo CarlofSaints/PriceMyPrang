@@ -614,6 +614,12 @@ model IntegrationSecret {
   /// Stable name, e.g. "imagin8". One row per integration.
   id String @id
 
+  /// The non-secret half of the pair (imagin8 issue a client ID alongside the
+  /// key). Stored in the clear on purpose: it is an identifier, not a
+  /// credential, and showing it is how an admin confirms WHICH account is
+  /// wired up without having to reveal the secret.
+  clientId String?
+
   ciphertext String
   iv         String
   authTag    String
