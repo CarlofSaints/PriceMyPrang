@@ -61,7 +61,11 @@ export default async function PortalLayout({
     items.push({ href: "/portal/rates", label: "Rates" });
   // A workshop's own supplier book. Either permission gets in; the page itself
   // decides whether the buttons are there.
-  if (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers"))
+  //
+  // Requires an actual workshop, not just the permission: a Site Admin holds
+  // ALL_PERMISSIONS but has no panelBeaterId, so they'd get a second, empty
+  // "Suppliers" sitting above the Control Centre one that is actually theirs.
+  if (user.panelBeaterId && (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers")))
     items.push({ href: "/portal/suppliers", label: "Suppliers" });
   if (can(user, "manage_users"))
     items.push({ href: "/portal/users", label: can(user, "manage_panel_beaters") ? "Users" : "Team" });
