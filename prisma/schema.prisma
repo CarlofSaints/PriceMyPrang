@@ -442,6 +442,7 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  quoteLines  QuoteLineItem[]
   panelBeater PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
 
   @@index([active])
@@ -627,8 +628,17 @@ model QuoteLineItem {
 
   // Legacy parts-catalogue link (the catalogue itself is gone).
   partId     String?
-  supplier   String?
   partNumber String?
+
+  /// Where this part was sourced. `supplierId` points at the workshop's own
+  /// supplier book; `supplier` is a verbatim NAME COPY so the provenance
+  /// survives the supplier later being removed — an estimator who leaves must
+  /// not take "where did this come from" with them.
+  ///
+  /// BACK OFFICE ONLY. Never rendered on the customer's quote: it is the
+  /// workshop's buying relationship, not the customer's business.
+  supplierId String?
+  supplier   String?
 
   panelCode   String?
   panelAmount Decimal @default(0) @db.Decimal(12, 2)
@@ -642,9 +652,11 @@ model QuoteLineItem {
   stripAmount Decimal @default(0) @db.Decimal(12, 2)
   stripHours  Decimal @default(0) @db.Decimal(10, 2)
 
-  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote       Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  supplierRef Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@index([quoteId, sortOrder])
+  @@index([supplierId])
   @@map("quote_line_items")
 }
 

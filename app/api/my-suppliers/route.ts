@@ -12,18 +12,30 @@ import type { Supplier } from "@/lib/types";
 // A workshop's OWN supplier book. Separate from /api/suppliers, which is Price
 // my Prang's platform-wide list under manage_parts.
 //
-// The workshop id ALWAYS comes from the session, never the request body — a
-// posted panelBeaterId would let one repairer write into another's book, and
-// their supplier list is commercially sensitive (it is who they buy from and,
-// by implication, at what price).
+// For a workshop's own login the id comes from the SESSION and nowhere else — a
+// posted panelBeaterId would let one repairer read or write another's book, and
+// a supplier list is commercially sensitive (it is who they buy from and, by
+// implication, at what price).
+//
+// The single exception is PMP staff building a quote on a workshop's behalf:
+// they need that workshop's suppliers and have none of their own. See gate().
 
 type Gate =
   | { error: NextResponse }
   | { panelBeaterId: string; canEdit: boolean };
 
-async function gate(): Promise<Gate> {
+/**
+ * @param target a workshop id from the caller. HONOURED ONLY for PMP staff
+ *   building a quote on a workshop's behalf — they need that workshop's
+ *   supplier book, not their own (they have none). A workshop's own login can
+ *   never use it, or one repairer could read another's suppliers.
+ */
+async function gate(target?: string | null): Promise<Gate> {
   const { user, response } = await requireUser();
   if (response) return { error: response };
+
+  const isStaff = can(user, "build_quotes") || can(user, "manage_panel_beaters");
+  if (target && isStaff) return { panelBeaterId: target, canEdit: true };
 
   const canEdit = can(user, "manage_own_suppliers");
   if (!canEdit && !can(user, "view_own_suppliers"))
@@ -60,8 +72,8 @@ function fields(b: Record<string, unknown>): Partial<Supplier> {
   };
 }
 
-export async function GET() {
-  const g = await gate();
+export async function GET(request: Request) {
+  const g = await gate(new URL(request.url).searchParams.get("panelBeaterId"));
   if ("error" in g) return g.error;
   return NextResponse.json({
     suppliers: await listSuppliersForPanelBeater(g.panelBeaterId),
@@ -70,7 +82,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const g = await gate();
+  const b0 = (await request.clone().json()) as { panelBeaterId?: string };
+  const g = await gate(b0.panelBeaterId);
   if ("error" in g) return g.error;
   if (!g.canEdit) return NextResponse.json({ error: "Read-only access" }, { status: 403 });
 

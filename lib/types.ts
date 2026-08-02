@@ -495,10 +495,17 @@ export interface QuoteLineItem {
   /** What the part is CHARGED at — cost plus the rate card's mark-up. */
   partsAmount: number;
 
-  // Optional parts-catalogue link (from the parts picker).
+  // Optional parts-catalogue link (from the old parts picker).
   partId?: string;
-  supplier?: string;
   partNumber?: string;
+
+  /**
+   * Where the part was sourced. BACK OFFICE ONLY — never printed on the
+   * customer's quote. `supplier` is a verbatim name copy so provenance
+   * survives the supplier being removed from the workshop's book.
+   */
+  supplierId?: string;
+  supplier?: string;
 
   // Panel beating work on this line.
   panelCode?: string;

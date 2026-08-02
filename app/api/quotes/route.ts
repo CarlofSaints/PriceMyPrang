@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getRequest, upsertQuote, getPanelBeater } from "@/lib/store";
+import {
+  getRequest,
+  upsertQuote,
+  getPanelBeater,
+  listSuppliersForPanelBeater,
+} from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
 import { buildQuotePdf } from "@/lib/quotePdf";
 import { sendConsumerQuoteReady } from "@/lib/email";
@@ -60,6 +65,7 @@ export async function POST(request: Request) {
       partsCost: x.partsCost == null ? undefined : num(x.partsCost),
       partsAmount: num(x.partsAmount),
       partId: x.partId,
+      supplierId: x.supplierId,
       supplier: x.supplier,
       partNumber: x.partNumber,
       panelCode: x.panelCode?.trim() || undefined,
@@ -80,6 +86,17 @@ export async function POST(request: Request) {
         x.paintAmount ||
         x.stripAmount
     );
+
+  // A supplier id arrives from the browser, so it is checked against the
+  // quoting workshop's OWN book before it is stored. Otherwise a posted id
+  // could link a line to another repairer's supplier — a quiet cross-tenant
+  // reference sitting in a table Power BI reads. An unrecognised id is dropped
+  // rather than rejected: the NAME is kept either way, so provenance survives
+  // and the estimator isn't blocked mid-quote by a bad id they can't see.
+  const ownSuppliers = new Set((await listSuppliersForPanelBeater(pb.id)).map((s) => s.id));
+  for (const l of lines) {
+    if (l.supplierId && !ownSuppliers.has(l.supplierId)) l.supplierId = undefined;
+  }
 
   // Totals come from lib/quoteTotals so the number on screen and the number in
   // the PDF are produced by the same code, not two copies of it.

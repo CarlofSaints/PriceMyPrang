@@ -7,6 +7,7 @@ import type {
   QuoteLineItem,
   QuoteRequest,
   RateCard,
+  Supplier,
 } from "@/lib/types";
 import { GENERAL_FIELDS, SCOPED_FIELDS, type RateScope } from "@/lib/rateCard";
 import { QUOTE_LINE_CODES } from "@/lib/types";
@@ -60,6 +61,11 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const [consumables, setConsumables] = useState(0);
   const [notes, setNotes] = useState("");
   const [building, setBuilding] = useState(false);
+
+  // The workshop's own supplier book, for sourcing New / Used / Alternate
+  // parts. Fetched for the workshop the quote is FOR — not the same as the
+  // signed-in user's workshop when PMP staff quote on a repairer's behalf.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   // Rates the quote is priced on: which of the workshop's cards, and which
   // block of it. Labour and paint amounts are then hours x rate rather than
@@ -124,6 +130,17 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     }
   }, []);
 
+  const loadSuppliers = useCallback(async (id: string) => {
+    if (!id) return setSuppliers([]);
+    try {
+      const res = await fetch(`/api/my-suppliers?panelBeaterId=${encodeURIComponent(id)}`);
+      const data = res.ok ? await res.json() : { suppliers: [] };
+      setSuppliers(data.suppliers ?? []);
+    } catch {
+      setSuppliers([]);
+    }
+  }, []);
+
   const load = useCallback(
     async (reference: string) => {
       setError(null);
@@ -148,13 +165,14 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
         // only asked yes/no/unsure, and "unsure" is safest treated as out.
         setScope(req.underWarranty === "yes" ? "in_warranty" : "out_of_warranty");
         await loadRateCards(chosen, req);
+        await loadSuppliers(chosen);
       } catch (err) {
         setError((err as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [loadFormFor, loadRateCards]
+    [loadFormFor, loadRateCards, loadSuppliers]
   );
 
   useEffect(() => {
@@ -171,6 +189,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     setPbId(id);
     if (request) loadFormFor(request, id);
     loadRateCards(id, request);
+    loadSuppliers(id);
   }
 
   /**
@@ -448,6 +467,9 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                   line={line}
                   labourRate={labourRate}
                   paintRate={paintRate}
+                  suppliers={suppliers}
+                  panelBeaterId={pbId}
+                  onSupplierAdded={(s) => setSuppliers((l) => [...l, s])}
                   onChange={(patch) => updateLine(i, patch)}
                   onRemove={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls))}
                 />
@@ -591,10 +613,16 @@ function TotalRow({ label, value }: { label: string; value: number }) {
   );
 }
 
+/** Codes that mean the line IS a part, and therefore came from somewhere. */
+const SOURCED_CODES = new Set(["New", "Alt", "Used"]);
+
 function LineCard({
   line,
   labourRate,
   paintRate,
+  suppliers,
+  panelBeaterId,
+  onSupplierAdded,
   onChange,
   onRemove,
 }: {
@@ -602,10 +630,50 @@ function LineCard({
   /** From the chosen rate card. Undefined = no card, so amounts stay manual. */
   labourRate?: number;
   paintRate?: number;
+  suppliers: Supplier[];
+  panelBeaterId: string;
+  onSupplierAdded: (s: Supplier) => void;
   onChange: (patch: Partial<Line>) => void;
   onRemove: () => void;
 }) {
   const cat = "rounded-xl border border-teal/15 bg-offwhite/40 p-3";
+
+  const needsSupplier = SOURCED_CODES.has((line.code ?? "").trim());
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingSupplier, setSavingSupplier] = useState(false);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
+
+  /**
+   * Add a supplier without leaving the quote. Jerome's point: the estimator is
+   * mid-job when they discover the supplier isn't on the list, and sending them
+   * to another page to add it is how "where did this part come from" ends up
+   * blank.
+   */
+  async function addSupplier() {
+    const name = newName.trim();
+    if (!name) return;
+    setSavingSupplier(true);
+    setSupplierError(null);
+    try {
+      const res = await fetch("/api/my-suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, panelBeaterId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not add the supplier");
+      onSupplierAdded(data as Supplier);
+      // Select what they just created — that was the point of adding it.
+      onChange({ supplierId: data.id, supplier: data.name });
+      setAdding(false);
+      setNewName("");
+    } catch (err) {
+      setSupplierError((err as Error).message);
+    } finally {
+      setSavingSupplier(false);
+    }
+  }
   return (
     <div className="rounded-2xl border border-teal/15 bg-white p-3">
       {/* Column labels. Placeholders disappear the moment a field is filled,
@@ -693,6 +761,86 @@ function LineCard({
           ✕
         </button>
       </div>
+
+      {/* Where the part came from. Only for New / Alt / Used — a Repair or a
+          Note wasn't bought from anyone.
+
+          BACK OFFICE ONLY: this never reaches the customer's quote. It is here
+          because the workshop needs to know where a part was sourced after the
+          estimator who ordered it has moved on. */}
+      {needsSupplier && (
+        <div className="mt-2 rounded-xl border border-teal/15 bg-offwhite/40 p-3">
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-ink/50">
+            Sourced from{" "}
+            <span className="font-normal normal-case tracking-normal text-ink/40">
+              — not shown on the customer&apos;s quote
+            </span>
+          </p>
+
+          {adding ? (
+            <div className="space-y-2">
+              <input
+                className={`${inputClass} text-sm`}
+                placeholder="Supplier company name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                autoFocus
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="md" disabled={savingSupplier} onClick={addSupplier}>
+                  {savingSupplier ? "Adding…" : "Add and use"}
+                </Button>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="ghost"
+                  onClick={() => {
+                    setAdding(false);
+                    setNewName("");
+                    setSupplierError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <span className="text-xs text-ink/45">
+                  Add the rest of their details later on the Suppliers page.
+                </span>
+              </div>
+              {supplierError && <p className="text-xs text-coral">{supplierError}</p>}
+            </div>
+          ) : (
+            <select
+              className={`${inputClass} text-sm`}
+              value={line.supplierId ?? ""}
+              onChange={(e) => {
+                if (e.target.value === "__add") return setAdding(true);
+                const s = suppliers.find((x) => x.id === e.target.value);
+                // Store the NAME alongside the id, so provenance survives the
+                // supplier later being removed from the book.
+                onChange({ supplierId: s?.id, supplier: s?.name });
+              }}
+              aria-label="Supplier"
+            >
+              <option value="">— choose a supplier —</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+              <option value="__add">+ Add a supplier…</option>
+            </select>
+          )}
+
+          {/* A quote built before this existed, or one whose supplier has since
+              been removed, still knows the name. Say so rather than silently
+              showing an empty picker. */}
+          {!adding && !line.supplierId && line.supplier && (
+            <p className="mt-1 text-xs text-ink/50">
+              Previously recorded as <strong>{line.supplier}</strong>.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Work categories */}
       <div className="mt-2 grid gap-2 sm:grid-cols-3">
