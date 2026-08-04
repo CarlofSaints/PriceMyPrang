@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, hashPassword } from "@/lib/auth";
 import { can, permissionsForRole } from "@/lib/permissions";
-import { getUsers, saveUsers, getRoles, deleteUser } from "@/lib/store";
+import { getUsers, saveUsers, getRoles, deleteUser, setTwoFactorEnabled } from "@/lib/store";
 import { sendUserCredentials } from "@/lib/email";
 import type { AuthUser, User } from "@/lib/types";
 
@@ -179,6 +179,7 @@ export async function PATCH(request: Request) {
     password?: string;
     sendEmail?: boolean;
     mustChangePassword?: boolean;
+    twoFactorEnabled?: boolean;
   };
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -203,6 +204,28 @@ export async function PATCH(request: Request) {
     u.role = b.role;
   }
   if (typeof b.active === "boolean") u.active = b.active;
+
+  // Two-step sign-in, set by an admin on someone else's behalf.
+  //
+  // Turning it ON is how a workshop puts its whole team behind a second
+  // factor; turning it OFF is the only way back in for someone whose inbox
+  // has died, since the codes go to that same address. Both are ordinary
+  // admin work, so no password is asked for here — but NOT on your own
+  // account: that would let anyone at a signed-in admin's unlocked screen
+  // strip the admin's own second factor without knowing their password,
+  // which is exactly what /api/auth/two-factor demands a password to stop.
+  if (typeof b.twoFactorEnabled === "boolean") {
+    if (u.id === admin.id)
+      return NextResponse.json(
+        {
+          error:
+            "Change your own two-step sign-in on the Security page — it needs your password.",
+        },
+        { status: 403 }
+      );
+    u.twoFactorEnabled = b.twoFactorEnabled;
+  }
+
   let mail: { sent: boolean; error?: string } | null = null;
   let skipped = false;
   if (b.password) {
@@ -225,6 +248,13 @@ export async function PATCH(request: Request) {
   }
 
   await saveUsers(users);
+
+  // Written separately and on purpose: saveUsers() rewrites a fixed set of
+  // columns and twoFactorEnabled is not one of them, so assigning it above
+  // would look like it saved and quietly change nothing.
+  if (typeof b.twoFactorEnabled === "boolean")
+    await setTwoFactorEnabled(u.id, b.twoFactorEnabled);
+
   return NextResponse.json({
     ...scrub(u),
     emailSent: mail?.sent,

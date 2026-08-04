@@ -143,7 +143,40 @@ export default function UsersManager({
       setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, ...u } : x)));
       return u;
     }
+    // The row's controls are driven by state the server confirmed, so a refused
+    // change snaps back on its own. Say why, or that looks like a broken tick box.
+    const data = await res.json().catch(() => ({}));
+    setNotice({ ok: false, text: data.error || "Couldn't save that change." });
     return null;
+  }
+
+  /**
+   * Turn the emailed second factor on or off for someone else.
+   *
+   * Confirmed both ways, because both directions can bite. ON sends every
+   * future sign-in through their inbox — if mail doesn't reach that address
+   * they can't get in at all, and an address we've never verified is exactly
+   * the case to say out loud. OFF drops a protection the user may have chosen
+   * for themselves on their own Security page.
+   */
+  async function setTwoFactor(u: SafeUser, enabled: boolean) {
+    const warning = enabled
+      ? `Turn on two-step sign-in for ${u.name}?\n\nEvery sign-in will then need a 6-digit code emailed to ${u.email}.${
+          u.emailVerifiedAt
+            ? ""
+            : "\n\n⚠ That address has never been verified — if mail doesn't reach it, they won't be able to sign in."
+        }`
+      : `Turn off two-step sign-in for ${u.name}?\n\nTheir password alone will get them in again.`;
+    if (!confirm(warning)) return;
+
+    const res = await patch(u.id, { twoFactorEnabled: enabled });
+    if (res)
+      setNotice({
+        ok: true,
+        text: enabled
+          ? `Two-step sign-in is on for ${u.email} — it applies from their next sign-in.`
+          : `Two-step sign-in is off for ${u.email}.`,
+      });
   }
 
   async function resetPw(id: string) {
@@ -300,6 +333,9 @@ export default function UsersManager({
               {!scopedToWorkshop && <th className="px-4 py-3">Panel beater</th>}
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Active</th>
+              <th className="px-4 py-3" title="Signing in also needs a 6-digit code emailed to them.">
+                2-step
+              </th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -368,6 +404,18 @@ export default function UsersManager({
                 </td>
                 <td className="px-4 py-3">
                   <input type="checkbox" checked={u.active} onChange={(e) => patch(u.id, { active: e.target.checked })} />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={!!u.twoFactorEnabled}
+                    title={
+                      u.twoFactorEnabled
+                        ? `${u.name} needs an emailed code to sign in.`
+                        : `${u.name} signs in with a password only.`
+                    }
+                    onChange={(e) => setTwoFactor(u, e.target.checked)}
+                  />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
