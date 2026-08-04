@@ -55,6 +55,19 @@ export type RateValues = Partial<Record<RateScope, Record<string, number>>>;
 
 export type RateScope = "in_warranty" | "out_of_warranty" | "aluminium" | "general";
 
+/**
+ * A rate a workshop invented for itself, on top of the fixed catalogue in
+ * lib/rateCard.ts. Defined once per workshop; priced separately on each of
+ * their cards, under the general block.
+ */
+export interface CustomRateType {
+  id: string;
+  panelBeaterId: string;
+  label: string;
+  unit: RateUnit;
+  createdAt: string;
+}
+
 export type RateCardKind = "cash" | "insurance";
 
 /**

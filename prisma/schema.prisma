@@ -309,6 +309,31 @@ model RateCard {
 
 /// A single rate on a card. Normalised rather than JSON because Power BI is a
 /// first-class consumer of this database.
+/// A rate a workshop invented for itself, on top of the fixed catalogue in
+/// lib/rateCard.ts. Defined ONCE per workshop and priced per card, because a
+/// custom rate is still a rate — an insurer may pay a different number for it
+/// than a cash client does.
+///
+/// The VALUES live in rate_card_values like every other rate, under scope
+/// `general` with field `custom:<id>`. Deliberately not a separate values
+/// table: Power BI reads rate_card_values directly, and a workshop's own rates
+/// splitting across two tables would be a reporting trap.
+model CustomRateType {
+  id            String   @id @default(uuid())
+  panelBeaterId String
+  label         String
+  unit          RateUnit
+  createdAt     DateTime @default(now())
+
+  panelBeater PanelBeater @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+
+  /// One name per workshop. Case-insensitivity is enforced in code — Postgres
+  /// would otherwise treat "Polishing" and "polishing" as two rates.
+  @@unique([panelBeaterId, label])
+  @@index([panelBeaterId])
+  @@map("custom_rate_types")
+}
+
 model RateCardValue {
   rateCardId String
   scope      RateScope
@@ -361,6 +386,7 @@ model PanelBeater {
   updatedAt DateTime @updatedAt
 
   rateCards   RateCard[]
+  customRates CustomRateType[]
   agreements  RepairerAgreement[]
   suppliers   Supplier[]
   warranties  Warranty[]

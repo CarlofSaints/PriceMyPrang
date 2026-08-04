@@ -1,29 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { can } from "@/lib/permissions";
 import { getRateCards, getRateCard, upsertRateCard, deleteRateCard } from "@/lib/store";
+import { resolveRateTarget as resolveTarget } from "@/lib/rateAccess";
 import type { RateCard, RateValues } from "@/lib/types";
-
-/** The workshop this caller may touch: their own, or one a manager names. */
-async function resolveTarget(
-  user: { panelBeaterId?: string; permissions?: string[] },
-  requested?: string
-): Promise<{ id: string } | { error: NextResponse }> {
-  const canManage = can(user as never, "manage_panel_beaters");
-  if (!canManage && !can(user as never, "onboard_self"))
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-
-  const id = canManage ? requested || user.panelBeaterId : user.panelBeaterId;
-  if (!id)
-    return {
-      error: NextResponse.json({ error: "No workshop is linked to your login." }, { status: 400 }),
-    };
-  // A self-service login is confined to its own listing.
-  if (!canManage && id !== user.panelBeaterId)
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-
-  return { id };
-}
 
 export async function GET(request: Request) {
   const { user, response } = await requireUser();

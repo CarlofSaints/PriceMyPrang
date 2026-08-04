@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, getPanelBeater, getInsurers, getRateCards } from "@/lib/store";
+import {
+  getPanelBeaters,
+  getPanelBeater,
+  getInsurers,
+  getRateCards,
+  getCustomRateTypes,
+} from "@/lib/store";
 import RatesEditor, { type RatesPanelBeater } from "@/components/RatesEditor";
 
 export default async function RatesPage() {
@@ -21,9 +27,10 @@ export default async function RatesPage() {
     panelBeaters = pb ? [{ id: pb.id, name: pb.tradingAs || pb.companyName }] : [];
   }
 
-  const [insurers, initialCards] = await Promise.all([
+  const [insurers, initialCards, initialCustomTypes] = await Promise.all([
     getInsurers(),
     panelBeaters[0] ? getRateCards(panelBeaters[0].id) : Promise.resolve([]),
+    panelBeaters[0] ? getCustomRateTypes(panelBeaters[0].id) : Promise.resolve([]),
   ]);
 
   return (
@@ -39,6 +46,7 @@ export default async function RatesPage() {
         panelBeaters={panelBeaters}
         insurers={insurers.filter((i) => i.active).map((i) => ({ id: i.id, name: i.name }))}
         initialCards={initialCards}
+        initialCustomTypes={initialCustomTypes}
         canManage={canManage}
       />
     </div>

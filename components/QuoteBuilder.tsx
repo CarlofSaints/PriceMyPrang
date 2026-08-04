@@ -3,13 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   BuiltQuote,
+  CustomRateType,
   PanelBeater,
   QuoteLineItem,
   QuoteRequest,
   RateCard,
   Supplier,
 } from "@/lib/types";
-import { GENERAL_FIELDS, SCOPED_FIELDS, type RateScope } from "@/lib/rateCard";
+import {
+  GENERAL_FIELDS,
+  SCOPED_FIELDS,
+  customFieldKey,
+  type RateField,
+  type RateScope,
+} from "@/lib/rateCard";
 import { QUOTE_LINE_CODES } from "@/lib/types";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 import { Button, Field, inputClass } from "./ui";
@@ -71,6 +78,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   // block of it. Labour and paint amounts are then hours x rate rather than
   // typed from memory.
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
+  const [customTypes, setCustomTypes] = useState<CustomRateType[]>([]);
   const [rateCardId, setRateCardId] = useState<string>("");
   const [scope, setScope] = useState<RateScope>("out_of_warranty");
 
@@ -111,13 +119,22 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const loadRateCards = useCallback(async (id: string, req: QuoteRequest | null) => {
     if (!id) {
       setRateCards([]);
+      setCustomTypes([]);
       setRateCardId("");
       return;
     }
     try {
-      const res = await fetch(`/api/rate-cards?panelBeaterId=${encodeURIComponent(id)}`);
+      const qs = `panelBeaterId=${encodeURIComponent(id)}`;
+      // The custom rates come along because their VALUES sit on the card but
+      // their names and units don't — without them a custom rate is an
+      // unlabelled number the estimator can't identify.
+      const [res, customRes] = await Promise.all([
+        fetch(`/api/rate-cards?${qs}`),
+        fetch(`/api/rate-cards/custom-types?${qs}`),
+      ]);
       const cards: RateCard[] = res.ok ? await res.json() : [];
       setRateCards(cards);
+      setCustomTypes(customRes.ok ? await customRes.json() : []);
       // Prefer the card the job was opened against; else the cash card.
       const preferred =
         cards.find((c) => c.id === req?.rateCardId) ??
@@ -126,6 +143,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
       setRateCardId(preferred?.id ?? "");
     } catch {
       setRateCards([]);
+      setCustomTypes([]);
       setRateCardId("");
     }
   }, []);
@@ -427,7 +445,20 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
               {/* Fixed-price rates off the card, added as a line in one click. */}
               {rateCard && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {[...SCOPED_FIELDS, ...GENERAL_FIELDS]
+                  {[
+                    ...SCOPED_FIELDS,
+                    ...GENERAL_FIELDS,
+                    // The workshop's own rates get the same one-click
+                    // treatment — a custom rate the estimator has to retype is
+                    // a rate they'll stop using.
+                    ...customTypes.map(
+                      (c): RateField => ({
+                        key: customFieldKey(c.id),
+                        label: c.label,
+                        unit: c.unit,
+                      })
+                    ),
+                  ]
                     .filter((f) => f.unit === "rand")
                     .map((f) => {
                       const value =

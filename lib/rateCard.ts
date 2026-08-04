@@ -47,10 +47,15 @@ export const SCOPED_FIELDS: RateField[] = [
   { key: "wheel_alignment_4way", label: "Wheel alignment — 4 way", unit: "rand" },
 ];
 
-/** Charged the same however the job is funded, so they sit outside the blocks. */
+/**
+ * Charged the same however the job is funded, so they sit outside the blocks.
+ *
+ * "Mechanical / suspension" and "Cut & weld" were removed on 4 Aug 2026 — the
+ * client dropped them in favour of workshop-defined custom rates, which land
+ * in this same block. Their stored values were deleted by migration
+ * 20260804120000_custom_rate_types.
+ */
 export const GENERAL_FIELDS: RateField[] = [
-  { key: "mechanical_suspension", label: "Mechanical / suspension", unit: "rand_per_hour" },
-  { key: "cut_and_weld", label: "Cut & weld", unit: "rand_per_hour" },
   { key: "set_on_bench", label: "Set on bench", unit: "rand" },
   { key: "pull_and_align", label: "Pull and align", unit: "rand" },
   { key: "naja_body_measurement", label: "Naja body measurement", unit: "rand" },
@@ -66,8 +71,41 @@ export function fieldsFor(scope: RateScope): RateField[] {
   return scope === "general" ? GENERAL_FIELDS : SCOPED_FIELDS;
 }
 
-/** True when `key` is a real field in `scope` — anything else is rejected on save. */
+// ---------------------------------------------------------------------------
+// Workshop-defined custom rates.
+//
+// The catalogue above is fixed in code; these are not. A workshop defines one
+// once (custom_rate_types), and it then takes a value on every one of their
+// cards — an insurer may pay a different number for the same custom item.
+//
+// The value rides in rate_card_values like everything else, keyed
+// `custom:<uuid>` under the general scope, so there is still ONE table of
+// rates for Power BI to read. The prefix is what keeps a custom key from ever
+// colliding with a catalogue key, now or when the catalogue grows.
+// ---------------------------------------------------------------------------
+
+export const CUSTOM_FIELD_PREFIX = "custom:";
+
+/** The rate_card_values.field key holding this custom rate's value. */
+export const customFieldKey = (id: string): string => `${CUSTOM_FIELD_PREFIX}${id}`;
+
+/** True for a custom key. Its id is whatever follows the prefix. */
+export const isCustomFieldKey = (key: string): boolean => key.startsWith(CUSTOM_FIELD_PREFIX);
+
+/** The custom rate type id inside a key, or null if it isn't one. */
+export const customTypeId = (key: string): string | null =>
+  isCustomFieldKey(key) ? key.slice(CUSTOM_FIELD_PREFIX.length) || null : null;
+
+/**
+ * True when `key` is a real field in `scope` — anything else is rejected on save.
+ *
+ * Custom keys are accepted in `general` ONLY, which is where the client asked
+ * for them to live. This deliberately does not check the id against
+ * custom_rate_types: that lookup is per-workshop and belongs in the store,
+ * where the card's owner is known.
+ */
 export function isKnownField(scope: RateScope, key: string): boolean {
+  if (isCustomFieldKey(key)) return scope === "general" && key.length > CUSTOM_FIELD_PREFIX.length;
   return fieldsFor(scope).some((f) => f.key === key);
 }
 

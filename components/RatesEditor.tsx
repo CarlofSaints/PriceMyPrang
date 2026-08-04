@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RateScope } from "@/lib/rateCard";
-import type { RateCard, RateValues } from "@/lib/types";
+import type { CustomRateType, RateCard, RateUnit, RateValues } from "@/lib/types";
+import { customFieldKey } from "@/lib/rateCard";
 import RateValuesEditor from "./RateValuesEditor";
 import { Button, Field, inputClass } from "./ui";
 
@@ -27,11 +28,14 @@ export default function RatesEditor({
   panelBeaters,
   insurers,
   initialCards,
+  initialCustomTypes = [],
   canManage,
 }: {
   panelBeaters: RatesPanelBeater[];
   insurers: { id: string; name: string }[];
   initialCards: RateCard[];
+  /** The workshop's own rates — shared across all of their cards. */
+  initialCustomTypes?: CustomRateType[];
   /** Managers can switch between workshops; a panel beater sees only their own. */
   canManage: boolean;
 }) {
@@ -39,6 +43,7 @@ export default function RatesEditor({
 
   const [pbId, setPbId] = useState(panelBeaters[0]?.id ?? "");
   const [cards, setCards] = useState<RateCard[]>(initialCards);
+  const [customTypes, setCustomTypes] = useState<CustomRateType[]>(initialCustomTypes);
   const [draft, setDraft] = useState<RateCard | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +56,73 @@ export default function RatesEditor({
     setPbId(nextPbId);
     setDraft(null);
     setError(null);
+    const qs = `panelBeaterId=${encodeURIComponent(nextPbId)}`;
     try {
-      const res = await fetch(`/api/rate-cards?panelBeaterId=${encodeURIComponent(nextPbId)}`);
-      setCards(res.ok ? await res.json() : []);
+      // Both belong to the workshop being switched to — loading one without the
+      // other would price this workshop's cards against the last one's rates.
+      const [cardRes, customRes] = await Promise.all([
+        fetch(`/api/rate-cards?${qs}`),
+        fetch(`/api/rate-cards/custom-types?${qs}`),
+      ]);
+      setCards(cardRes.ok ? await cardRes.json() : []);
+      setCustomTypes(customRes.ok ? await customRes.json() : []);
     } catch {
       setCards([]);
+      setCustomTypes([]);
     }
+  }
+
+  /** Define a new custom rate. Returns an error message, or null on success. */
+  async function addCustomType(label: string, unit: RateUnit): Promise<string | null> {
+    try {
+      const res = await fetch("/api/rate-cards/custom-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ panelBeaterId: pbId, label, unit }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return data.error || "Couldn't add that rate.";
+      setCustomTypes((list) => [...list, data as CustomRateType]);
+      return null;
+    } catch {
+      return "Couldn't add that rate. Please try again.";
+    }
+  }
+
+  /**
+   * Remove a custom rate from the workshop entirely.
+   *
+   * Confirmed because it is NOT scoped to the card on screen — it takes the
+   * rate, and any value set for it, off every card the workshop has.
+   */
+  async function deleteCustomType(type: CustomRateType) {
+    if (
+      !confirm(
+        `Remove "${type.label}"?\n\nIt disappears from every one of your rate cards, along with any amount you've set for it.`
+      )
+    )
+      return;
+
+    const res = await fetch(
+      `/api/rate-cards/custom-types?id=${encodeURIComponent(type.id)}&panelBeaterId=${encodeURIComponent(pbId)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Couldn't remove that rate.");
+      return;
+    }
+    setCustomTypes((list) => list.filter((c) => c.id !== type.id));
+    // Drop it from the open draft too, or saving would re-post a value for a
+    // rate that no longer exists — the server drops it, but the box would sit
+    // there filled in until the next reload, looking saved.
+    setDraft((d) => {
+      if (!d) return d;
+      const general = { ...(d.values.general ?? {}) };
+      delete general[customFieldKey(type.id)];
+      return { ...d, values: { ...d.values, general } };
+    });
+    await loadFor(pbId);
   }
 
   function setValue(scope: RateScope, field: string, raw: string) {
@@ -262,6 +328,9 @@ export default function RatesEditor({
             aluminium={draft.aluminium}
             onAluminium={(on) => setDraft({ ...draft, aluminium: on })}
             onChange={setValue}
+            customTypes={customTypes}
+            onAddCustom={addCustomType}
+            onDeleteCustom={deleteCustomType}
           />
 
           <div className="flex gap-3">

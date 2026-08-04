@@ -3,15 +3,17 @@ import { decryptSecret, type SealedSecret } from "./secrets";
 import type { Prisma, MediaKind } from "./generated/prisma/client";
 import { nextReference } from "./reference";
 import { DEFAULT_ROLES } from "./permissions";
-import { isKnownField } from "./rateCard";
+import { customFieldKey, isKnownField } from "./rateCard";
 import type {
   User,
   Role,
   Permission,
   RateValues,
   RateScope,
+  RateUnit,
   RateCard,
   RateCardKind,
+  CustomRateType,
   AgreementDocument,
   RepairerAgreement,
   InsuranceCompany,
@@ -1443,6 +1445,89 @@ export async function upsertRateCard(card: RateCard): Promise<void> {
 
 export async function deleteRateCard(id: string): Promise<void> {
   await getDb().rateCard.delete({ where: { id } });
+}
+
+// ---- Custom rate types ----------------------------------------------------
+
+const toCustomRateType = (r: {
+  id: string;
+  panelBeaterId: string;
+  label: string;
+  unit: string;
+  createdAt: Date;
+}): CustomRateType => ({
+  id: r.id,
+  panelBeaterId: r.panelBeaterId,
+  label: r.label,
+  unit: r.unit as RateUnit,
+  createdAt: iso(r.createdAt),
+});
+
+export async function getCustomRateTypes(panelBeaterId: string): Promise<CustomRateType[]> {
+  const rows = await getDb().customRateType.findMany({
+    where: { panelBeaterId },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map(toCustomRateType);
+}
+
+/**
+ * Define a new custom rate for a workshop.
+ *
+ * Returns `null` when the name is already taken. Compared case-insensitively
+ * in code because the DB's unique index is not — without this, "Polishing" and
+ * "polishing" become two rates that look identical on the card.
+ */
+export async function createCustomRateType(
+  panelBeaterId: string,
+  label: string,
+  unit: RateUnit
+): Promise<CustomRateType | null> {
+  const trimmed = label.trim();
+  const existing = await getCustomRateTypes(panelBeaterId);
+  if (existing.some((c) => c.label.toLowerCase() === trimmed.toLowerCase())) return null;
+
+  const row = await getDb().customRateType.create({
+    data: { panelBeaterId, label: trimmed, unit },
+  });
+  return toCustomRateType(row);
+}
+
+/**
+ * Remove a custom rate and every value set against it.
+ *
+ * The values are NOT a foreign key — they're `custom:<id>` rows in
+ * rate_card_values — so nothing cascades and they must be cleared explicitly,
+ * or they'd linger as orphans that Power BI still reports.
+ *
+ * The delete is scoped to THIS workshop's cards even though the id makes the
+ * key globally unique. A prune that trusts a key shape rather than ownership
+ * is exactly the shape that wipes another tenant's data when the shape later
+ * changes.
+ */
+export async function deleteCustomRateType(
+  panelBeaterId: string,
+  id: string
+): Promise<boolean> {
+  const db = getDb();
+  return db.$transaction(async (tx) => {
+    const row = await tx.customRateType.findUnique({ where: { id } });
+    if (!row || row.panelBeaterId !== panelBeaterId) return false;
+
+    const cards = await tx.rateCard.findMany({
+      where: { panelBeaterId },
+      select: { id: true },
+    });
+    await tx.rateCardValue.deleteMany({
+      where: {
+        rateCardId: { in: cards.map((c) => c.id) },
+        scope: "general",
+        field: customFieldKey(id),
+      },
+    });
+    await tx.customRateType.delete({ where: { id } });
+    return true;
+  });
 }
 
 // ---- panel beater's own view ----------------------------------------------
