@@ -1,8 +1,10 @@
 import { Resend } from "resend";
 import type {
+  Additional,
   Complaint,
   DevTicket,
   PanelBeater,
+  QuoteLineItem,
   QuoteRequest,
   WarrantyApproval,
 } from "./types";
@@ -986,5 +988,225 @@ export async function sendComplaintConfirmation(
     });
   } catch (err) {
     console.error("complaint confirmation email failed", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Additionals — extra work found after stripping a vehicle.
+//
+// Two recipients, deliberately different letters. The INSURER is being asked to
+// approve a cost against a claim, so their copy leads with the claim number and
+// itemises the work. The CLIENT is being told their repair is now waiting on
+// someone else, so theirs leads with what that means for them — while still
+// carrying the full itemised list with amounts: the person whose car it is
+// shouldn't have to ask what was requested on their behalf.
+// ---------------------------------------------------------------------------
+
+const addNum = (v: number | undefined): number => (Number.isFinite(v) ? Number(v) : 0);
+
+const addMoney = (v: number): string =>
+  `R ${addNum(v).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** One additionals line as a table row. The three labour kinds fold into one column. */
+function additionalLineRow(l: QuoteLineItem): string {
+  const labour = addNum(l.panelAmount) + addNum(l.paintAmount) + addNum(l.stripAmount);
+  const hours = addNum(l.panelHours) + addNum(l.paintHours) + addNum(l.stripHours);
+  const lineTotal = addNum(l.partsAmount) + labour;
+  const cell = "padding:8px 6px;font-size:13px;border-bottom:1px solid rgba(0,132,141,0.10);";
+  return `<tr>
+    <td style="${cell}">${escapeHtml(l.description)}${
+      l.code ? `<span style="color:#6b7f82;font-size:11px;"> · ${escapeHtml(l.code)}</span>` : ""
+    }</td>
+    <td style="${cell}text-align:right;">${addNum(l.quantity) || 1}</td>
+    <td style="${cell}text-align:right;">${l.partsAmount ? addMoney(l.partsAmount) : "—"}</td>
+    <td style="${cell}text-align:right;">${labour ? addMoney(labour) : "—"}${
+      hours ? `<span style="color:#6b7f82;font-size:11px;"> (${hours}h)</span>` : ""
+    }</td>
+    <td style="${cell}text-align:right;font-weight:bold;">${addMoney(lineTotal)}</td>
+  </tr>`;
+}
+
+function additionalTable(add: Additional): string {
+  const th =
+    "text-align:right;padding:6px;font-size:11px;text-transform:uppercase;color:#6b7f82;";
+  return `
+  <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+    <thead>
+      <tr>
+        <th style="${th}text-align:left;">Item</th>
+        <th style="${th}">Qty</th>
+        <th style="${th}">Parts</th>
+        <th style="${th}">Labour</th>
+        <th style="${th}">Total</th>
+      </tr>
+    </thead>
+    <tbody>${add.lines.map(additionalLineRow).join("")}</tbody>
+  </table>
+  <table style="width:100%;border-collapse:collapse;">
+    ${detailRow("Parts", addMoney(add.partsTotal))}
+    ${add.outWorkTotal ? detailRow("Out work", addMoney(add.outWorkTotal)) : ""}
+    ${detailRow("Labour", addMoney(add.labourTotal))}
+    ${detailRow("Subtotal (excl VAT)", addMoney(add.subtotal))}
+    ${detailRow("VAT", addMoney(add.vat))}
+    ${detailRow("<strong>Total (incl VAT)</strong>", `<strong>${addMoney(add.total)}</strong>`)}
+  </table>`;
+}
+
+const vehicleLine = (req: QuoteRequest): string =>
+  [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" ") ||
+  "the vehicle";
+
+/**
+ * Ask the insurer to approve extra work.
+ *
+ * Returns whether it actually sent. The caller stamps `sentAt` only on a true —
+ * a request that looks sent but never left is worse than one that plainly
+ * failed, because nobody goes chasing it.
+ */
+export async function sendAdditionalsToInsurer(opts: {
+  additional: Additional;
+  request: QuoteRequest;
+  panelBeater: PanelBeater | null;
+  to: string;
+  contactName?: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "Email is not configured" };
+
+  const { additional: add, request: req, panelBeater: pb } = opts;
+  const workshop = pb ? pb.tradingAs || pb.companyName : "The repairer";
+  const reg = req.vehicle.registration;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">${
+      opts.contactName ? `Hi ${escapeHtml(opts.contactName)},` : "Hello,"
+    }</p>
+    <p style="font-size:15px;line-height:1.5;">
+      <strong>${escapeHtml(workshop)}</strong> has stripped ${escapeHtml(vehicleLine(req))}
+      ${reg ? `(<strong>${escapeHtml(reg)}</strong>)` : ""} and found additional damage that
+      was not visible when the original quote was prepared.
+      <strong>The repair is on hold pending your approval.</strong>
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow(
+          "Claim number",
+          add.claimNumber ? escapeHtml(add.claimNumber) : "Not supplied"
+        )}
+        ${detailRow("Our reference", escapeHtml(req.reference))}
+        ${detailRow("Additionals", `#${add.seq}`)}
+        ${detailRow("Insured", escapeHtml(`${req.firstName} ${req.lastName}`))}
+        ${detailRow("Vehicle", escapeHtml(vehicleLine(req)))}
+        ${reg ? detailRow("Registration", escapeHtml(reg)) : ""}
+        ${req.vehicle.vin ? detailRow("VIN", escapeHtml(req.vehicle.vin)) : ""}
+        ${detailRow("Repairer", escapeHtml(workshop))}
+      </table>
+    </div>
+    ${
+      add.reason
+        ? `<p style="font-size:15px;line-height:1.5;"><strong>What was found</strong><br/>${escapeHtml(
+            add.reason
+          ).replace(/\n/g, "<br/>")}</p>`
+        : ""
+    }
+    <h2 style="font-size:16px;margin:22px 0 6px;">Additional work requested</h2>
+    ${additionalTable(add)}
+    <p style="font-size:13px;color:#6b7f82;line-height:1.5;margin-top:18px;">
+      Please confirm approval by reply. Any query on the items above can go directly to
+      ${escapeHtml(workshop)}${pb?.phone ? ` on ${escapeHtml(pb.phone)}` : ""}.
+    </p>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to: opts.to,
+      subject: `Additionals for approval — ${
+        add.claimNumber ? `claim ${add.claimNumber}` : req.reference
+      }${reg ? ` · ${reg}` : ""}`,
+      html: shell("Additional work needs your approval", body),
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true };
+  } catch (err) {
+    console.error("additionals insurer email failed", err);
+    return { sent: false, error: (err as Error).message };
+  }
+}
+
+/** Tell the client what was found, and that the repair now waits on their insurer. */
+export async function sendAdditionalsToClient(opts: {
+  additional: Additional;
+  request: QuoteRequest;
+  panelBeater: PanelBeater | null;
+  insurerName?: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const resend = client();
+  if (!resend) return { sent: false, error: "Email is not configured" };
+
+  const { additional: add, request: req, panelBeater: pb } = opts;
+  if (!req.email) return { sent: false, error: "No client email on this job" };
+
+  const workshop = pb ? pb.tradingAs || pb.companyName : "your repairer";
+  const insurer = opts.insurerName || req.insurerName;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">Hi ${escapeHtml(req.firstName)},</p>
+    <p style="font-size:15px;line-height:1.5;">
+      While stripping ${escapeHtml(vehicleLine(req))}, <strong>${escapeHtml(workshop)}</strong>
+      found further damage that couldn&rsquo;t be seen before the car came apart. This is
+      normal on a repair — it means the original quote didn&rsquo;t cover everything.
+    </p>
+    <p style="font-size:15px;line-height:1.5;">
+      They have sent a request for this extra work
+      ${insurer ? `to <strong>${escapeHtml(insurer)}</strong>` : "to your insurer"}
+      and are <strong>waiting for approval before carrying on</strong>.
+      ${
+        insurer
+          ? "There is nothing you need to do — but if you want to move it along, your insurer is the one to call."
+          : "There is nothing you need to do right now."
+      }
+    </p>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${add.claimNumber ? detailRow("Claim number", escapeHtml(add.claimNumber)) : ""}
+        ${detailRow("Your reference", escapeHtml(req.reference))}
+        ${detailRow("Vehicle", escapeHtml(vehicleLine(req)))}
+        ${
+          req.vehicle.registration
+            ? detailRow("Registration", escapeHtml(req.vehicle.registration))
+            : ""
+        }
+        ${detailRow("Repairer", escapeHtml(workshop))}
+      </table>
+    </div>
+    ${
+      add.reason
+        ? `<p style="font-size:15px;line-height:1.5;"><strong>What they found</strong><br/>${escapeHtml(
+            add.reason
+          ).replace(/\n/g, "<br/>")}</p>`
+        : ""
+    }
+    <h2 style="font-size:16px;margin:22px 0 6px;">What has been requested</h2>
+    ${additionalTable(add)}
+    <p style="font-size:13px;color:#6b7f82;line-height:1.5;margin-top:18px;">
+      These amounts are what the repairer has asked your insurer to approve. What you
+      actually pay depends on your policy — your excess is unchanged by this request.
+      Any questions about the work itself, speak to ${escapeHtml(workshop)}${
+        pb?.phone ? ` on ${escapeHtml(pb.phone)}` : ""
+      }.
+    </p>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to: req.email,
+      subject: `Extra work found on your repair — ${req.reference}`,
+      html: shell("Additional work has been requested", body),
+    });
+    if (error) return { sent: false, error: error.message };
+    return { sent: true };
+  } catch (err) {
+    console.error("additionals client email failed", err);
+    return { sent: false, error: (err as Error).message };
   }
 }

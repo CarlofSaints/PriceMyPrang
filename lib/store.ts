@@ -17,6 +17,9 @@ import type {
   AgreementDocument,
   RepairerAgreement,
   InsuranceCompany,
+  InsurerContact,
+  Additional,
+  AdditionalStatus,
   PanelBeater,
   PartType,
   Supplier,
@@ -470,6 +473,420 @@ const toInsurer = (r: InsurerRow): InsuranceCompany => ({
 export async function getInsurers(): Promise<InsuranceCompany[]> {
   const rows = await getDb().insurer.findMany({ orderBy: { name: "asc" } });
   return rows.map(toInsurer);
+}
+
+// ---- Additionals ----------------------------------------------------------
+
+/** Line columns shared by quotes and additionals, mapped the same way. */
+type LineRowish = {
+  code: string | null;
+  description: string;
+  quantity: DecimalLike;
+  partsCost: DecimalLike | null;
+  partsAmount: DecimalLike;
+  supplierId: string | null;
+  supplier: string | null;
+  panelCode: string | null;
+  panelAmount: DecimalLike;
+  panelHours: DecimalLike;
+  paintCode: string | null;
+  paintAmount: DecimalLike;
+  paintHours: DecimalLike;
+  stripCode: string | null;
+  stripAmount: DecimalLike;
+  stripHours: DecimalLike;
+};
+
+const toLineItem = (l: LineRowish): QuoteLineItem => ({
+  code: l.code ?? undefined,
+  description: l.description,
+  quantity: num(l.quantity),
+  partsCost: numOpt(l.partsCost),
+  partsAmount: num(l.partsAmount),
+  supplierId: l.supplierId ?? undefined,
+  supplier: l.supplier ?? undefined,
+  panelCode: l.panelCode ?? undefined,
+  panelAmount: num(l.panelAmount),
+  panelHours: num(l.panelHours),
+  paintCode: l.paintCode ?? undefined,
+  paintAmount: num(l.paintAmount),
+  paintHours: num(l.paintHours),
+  stripCode: l.stripCode ?? undefined,
+  stripAmount: num(l.stripAmount),
+  stripHours: num(l.stripHours),
+});
+
+const ADDITIONAL_INCLUDE = {
+  lines: { orderBy: { sortOrder: "asc" } },
+  request: { select: { reference: true } },
+} as const;
+
+type AdditionalRow = {
+  id: string;
+  requestId: string;
+  panelBeaterId: string;
+  seq: number;
+  status: string;
+  reason: string | null;
+  partsTotal: DecimalLike;
+  outWorkTotal: DecimalLike;
+  panelTotal: DecimalLike;
+  paintTotal: DecimalLike;
+  stripTotal: DecimalLike;
+  labourTotal: DecimalLike;
+  totalHours: DecimalLike;
+  subtotal: DecimalLike;
+  vat: DecimalLike;
+  total: DecimalLike;
+  claimNumber: string | null;
+  contactId: string | null;
+  sentToEmail: string | null;
+  sentToName: string | null;
+  sentAt: Date | null;
+  clientEmail: string | null;
+  clientSentAt: Date | null;
+  respondedAt: Date | null;
+  responseNote: string | null;
+  createdAt: Date;
+  createdByName: string | null;
+  lines: LineRowish[];
+  request?: { reference: string };
+};
+
+const toAdditional = (a: AdditionalRow): Additional => ({
+  id: a.id,
+  requestId: a.requestId,
+  reference: a.request?.reference,
+  panelBeaterId: a.panelBeaterId,
+  seq: a.seq,
+  status: a.status as AdditionalStatus,
+  reason: a.reason ?? undefined,
+  lines: a.lines.map(toLineItem),
+  partsTotal: num(a.partsTotal),
+  outWorkTotal: num(a.outWorkTotal),
+  panelTotal: num(a.panelTotal),
+  paintTotal: num(a.paintTotal),
+  stripTotal: num(a.stripTotal),
+  labourTotal: num(a.labourTotal),
+  totalHours: num(a.totalHours),
+  subtotal: num(a.subtotal),
+  vat: num(a.vat),
+  total: num(a.total),
+  claimNumber: a.claimNumber ?? undefined,
+  contactId: a.contactId ?? undefined,
+  sentToEmail: a.sentToEmail ?? undefined,
+  sentToName: a.sentToName ?? undefined,
+  sentAt: a.sentAt ? iso(a.sentAt) : undefined,
+  clientEmail: a.clientEmail ?? undefined,
+  clientSentAt: a.clientSentAt ? iso(a.clientSentAt) : undefined,
+  respondedAt: a.respondedAt ? iso(a.respondedAt) : undefined,
+  responseNote: a.responseNote ?? undefined,
+  createdAt: iso(a.createdAt),
+  createdByName: a.createdByName ?? undefined,
+});
+
+/**
+ * Additionals raised on a job.
+ *
+ * `panelBeaterId` scopes it to one workshop's own — a repairer must never see
+ * what a competitor found on the same vehicle, exactly as with quotes.
+ */
+export async function listAdditionals(
+  requestId: string,
+  panelBeaterId?: string
+): Promise<Additional[]> {
+  const rows = await getDb().additional.findMany({
+    where: { requestId, ...(panelBeaterId ? { panelBeaterId } : {}) },
+    include: ADDITIONAL_INCLUDE,
+    orderBy: { seq: "asc" },
+  });
+  return rows.map(toAdditional);
+}
+
+export async function getAdditional(id: string): Promise<Additional | null> {
+  const row = await getDb().additional.findUnique({ where: { id }, include: ADDITIONAL_INCLUDE });
+  return row ? toAdditional(row) : null;
+}
+
+/** Everything a workshop has outstanding, newest first — for their dashboard. */
+export async function listAdditionalsForPanelBeater(
+  panelBeaterId: string
+): Promise<Additional[]> {
+  const rows = await getDb().additional.findMany({
+    where: { panelBeaterId },
+    include: ADDITIONAL_INCLUDE,
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(toAdditional);
+}
+
+const lineData = (l: QuoteLineItem, i: number) => ({
+  sortOrder: i,
+  code: l.code || null,
+  description: l.description,
+  quantity: l.quantity ?? 1,
+  partsCost: l.partsCost ?? null,
+  partsAmount: l.partsAmount ?? 0,
+  supplierId: l.supplierId || null,
+  supplier: l.supplier || null,
+  panelCode: l.panelCode || null,
+  panelAmount: l.panelAmount ?? 0,
+  panelHours: l.panelHours ?? 0,
+  paintCode: l.paintCode || null,
+  paintAmount: l.paintAmount ?? 0,
+  paintHours: l.paintHours ?? 0,
+  stripCode: l.stripCode || null,
+  stripAmount: l.stripAmount ?? 0,
+  stripHours: l.stripHours ?? 0,
+});
+
+/**
+ * Create an additionals request, or replace the lines on one not yet sent.
+ *
+ * Refuses to touch a SENT request: the insurer has already been given a set of
+ * numbers to approve, and rewriting them underneath that approval is how a
+ * dispute starts. `seq` is allocated inside the transaction so two estimators
+ * saving at once can't both take #2.
+ */
+export async function upsertAdditional(input: {
+  id?: string;
+  requestId: string;
+  panelBeaterId: string;
+  reason?: string;
+  claimNumber?: string;
+  lines: QuoteLineItem[];
+  totals: {
+    partsTotal: number;
+    outWorkTotal: number;
+    panelTotal: number;
+    paintTotal: number;
+    stripTotal: number;
+    labourTotal: number;
+    totalHours: number;
+    subtotal: number;
+    vat: number;
+    total: number;
+  };
+  createdByName?: string;
+}): Promise<Additional | { error: "already_sent" | "not_found" }> {
+  const db = getDb();
+  const id = await db.$transaction(async (tx) => {
+    if (input.id) {
+      const existing = await tx.additional.findUnique({ where: { id: input.id } });
+      if (!existing || existing.panelBeaterId !== input.panelBeaterId)
+        return { error: "not_found" as const };
+      if (existing.sentAt) return { error: "already_sent" as const };
+
+      await tx.additionalLine.deleteMany({ where: { additionalId: input.id } });
+      await tx.additional.update({
+        where: { id: input.id },
+        data: {
+          reason: input.reason?.trim() || null,
+          claimNumber: input.claimNumber?.trim() || null,
+          ...input.totals,
+          lines: { create: input.lines.map(lineData) },
+        },
+      });
+      return input.id;
+    }
+
+    const last = await tx.additional.findFirst({
+      where: { requestId: input.requestId, panelBeaterId: input.panelBeaterId },
+      orderBy: { seq: "desc" },
+      select: { seq: true },
+    });
+    const created = await tx.additional.create({
+      data: {
+        requestId: input.requestId,
+        panelBeaterId: input.panelBeaterId,
+        seq: (last?.seq ?? 0) + 1,
+        reason: input.reason?.trim() || null,
+        claimNumber: input.claimNumber?.trim() || null,
+        createdByName: input.createdByName || null,
+        ...input.totals,
+        lines: { create: input.lines.map(lineData) },
+      },
+    });
+    return created.id;
+  });
+
+  if (typeof id !== "string") return id;
+  return (await getAdditional(id))!;
+}
+
+/** Stamp what was sent, to whom, and when. Only ever called after the send. */
+export async function markAdditionalSent(
+  id: string,
+  sent: {
+    contactId?: string;
+    sentToEmail?: string;
+    sentToName?: string;
+    insurerSent: boolean;
+    clientEmail?: string;
+    clientSent: boolean;
+  }
+): Promise<void> {
+  const now = new Date();
+  await getDb().additional.update({
+    where: { id },
+    data: {
+      contactId: sent.contactId || null,
+      sentToEmail: sent.sentToEmail || null,
+      sentToName: sent.sentToName || null,
+      // Stamped only on a send that actually succeeded. A failed send must
+      // leave this null so the request still reads as "not yet with the
+      // insurer" rather than silently looking delivered.
+      ...(sent.insurerSent ? { sentAt: now } : {}),
+      clientEmail: sent.clientEmail || null,
+      ...(sent.clientSent ? { clientSentAt: now } : {}),
+    },
+  });
+}
+
+/** Record the insurer's answer. Only the owning workshop may. */
+export async function setAdditionalStatus(
+  id: string,
+  panelBeaterId: string,
+  status: AdditionalStatus,
+  responseNote?: string
+): Promise<Additional | null> {
+  const existing = await getDb().additional.findUnique({ where: { id } });
+  if (!existing || existing.panelBeaterId !== panelBeaterId) return null;
+
+  await getDb().additional.update({
+    where: { id },
+    data: {
+      status,
+      responseNote: responseNote?.trim() || null,
+      // Back to pending clears the answer, so a mistaken click doesn't leave a
+      // decision date sitting under a request that is open again.
+      respondedAt: status === "pending" ? null : new Date(),
+    },
+  });
+  return getAdditional(id);
+}
+
+/** Delete a draft. A sent request is kept — it is a record of what was asked. */
+export async function deleteAdditional(
+  id: string,
+  panelBeaterId: string
+): Promise<{ ok: true } | { error: "not_found" | "already_sent" }> {
+  const existing = await getDb().additional.findUnique({ where: { id } });
+  if (!existing || existing.panelBeaterId !== panelBeaterId) return { error: "not_found" };
+  if (existing.sentAt) return { error: "already_sent" };
+  await getDb().additional.delete({ where: { id } });
+  return { ok: true };
+}
+
+// ---- Insurer contacts -----------------------------------------------------
+
+const toInsurerContact = (r: {
+  id: string;
+  insurerId: string;
+  panelBeaterId: string | null;
+  name: string | null;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  createdAt: Date;
+}): InsurerContact => ({
+  id: r.id,
+  insurerId: r.insurerId,
+  panelBeaterId: r.panelBeaterId ?? undefined,
+  name: r.name ?? undefined,
+  role: r.role ?? undefined,
+  email: r.email ?? undefined,
+  phone: r.phone ?? undefined,
+  notes: r.notes ?? undefined,
+  createdAt: iso(r.createdAt),
+});
+
+/**
+ * Contacts a given workshop may see at an insurer: the generic ones PMP
+ * maintains, plus that workshop's OWN private ones.
+ *
+ * `panelBeaterId` undefined means "PMP staff view" and returns the generic set
+ * only — never another workshop's private contacts, which are their own
+ * commercial relationship and not ours to publish.
+ */
+export async function getInsurerContacts(
+  insurerId: string,
+  panelBeaterId?: string
+): Promise<InsurerContact[]> {
+  const rows = await getDb().insurerContact.findMany({
+    where: {
+      insurerId,
+      OR: [{ panelBeaterId: null }, ...(panelBeaterId ? [{ panelBeaterId }] : [])],
+    },
+    orderBy: [{ panelBeaterId: "asc" }, { createdAt: "asc" }],
+  });
+  return rows.map(toInsurerContact);
+}
+
+/** Every insurer with the contacts this workshop can see, for a picker. */
+export async function getInsurersWithContacts(
+  panelBeaterId?: string
+): Promise<InsuranceCompany[]> {
+  const rows = await getDb().insurer.findMany({
+    where: { active: true },
+    orderBy: { name: "asc" },
+    include: {
+      contacts: {
+        where: {
+          OR: [{ panelBeaterId: null }, ...(panelBeaterId ? [{ panelBeaterId }] : [])],
+        },
+        orderBy: [{ panelBeaterId: "asc" }, { createdAt: "asc" }],
+      },
+    },
+  });
+  return rows.map((r) => ({ ...toInsurer(r), contacts: r.contacts.map(toInsurerContact) }));
+}
+
+export async function createInsurerContact(
+  contact: Omit<InsurerContact, "id" | "createdAt">
+): Promise<InsurerContact> {
+  const row = await getDb().insurerContact.create({
+    data: {
+      insurerId: contact.insurerId,
+      panelBeaterId: contact.panelBeaterId ?? null,
+      name: contact.name?.trim() || null,
+      role: contact.role?.trim() || null,
+      email: contact.email?.trim().toLowerCase() || null,
+      phone: contact.phone?.trim() || null,
+      notes: contact.notes?.trim() || null,
+    },
+  });
+  return toInsurerContact(row);
+}
+
+export async function updateInsurerContact(
+  id: string,
+  patch: Partial<Pick<InsurerContact, "name" | "role" | "email" | "phone" | "notes">>
+): Promise<InsurerContact> {
+  const row = await getDb().insurerContact.update({
+    where: { id },
+    data: {
+      ...(patch.name !== undefined ? { name: patch.name.trim() || null } : {}),
+      ...(patch.role !== undefined ? { role: patch.role.trim() || null } : {}),
+      ...(patch.email !== undefined
+        ? { email: patch.email.trim().toLowerCase() || null }
+        : {}),
+      ...(patch.phone !== undefined ? { phone: patch.phone.trim() || null } : {}),
+      ...(patch.notes !== undefined ? { notes: patch.notes.trim() || null } : {}),
+    },
+  });
+  return toInsurerContact(row);
+}
+
+/** The raw row, so a caller can check who owns it before acting. */
+export async function findInsurerContact(id: string): Promise<InsurerContact | null> {
+  const row = await getDb().insurerContact.findUnique({ where: { id } });
+  return row ? toInsurerContact(row) : null;
+}
+
+export async function deleteInsurerContact(id: string): Promise<void> {
+  await getDb().insurerContact.delete({ where: { id } });
 }
 
 export async function saveInsurers(insurers: InsuranceCompany[]): Promise<void> {
@@ -1043,6 +1460,21 @@ const REQUEST_INCLUDE = {
 /** A request with everything the app's QuoteRequest type needs. */
 type RequestRow = Prisma.QuoteRequestGetPayload<{ include: typeof REQUEST_INCLUDE }>;
 type QuoteRow = Prisma.QuoteGetPayload<{ include: { lines: true } }>;
+
+/**
+ * The internal id behind a reference.
+ *
+ * QuoteRequest deliberately doesn't expose its uuid to the app, but rows that
+ * point AT a request need one. Kept as its own lookup rather than widening the
+ * type, so the id stays out of anything user-facing.
+ */
+export async function findRequestIdByReference(ref: string): Promise<string | null> {
+  const row = await getDb().quoteRequest.findUnique({
+    where: { reference: ref },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
 
 export async function getRequest(ref: string): Promise<QuoteRequest | null> {
   const row = await getDb().quoteRequest.findUnique({

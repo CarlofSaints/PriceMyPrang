@@ -97,6 +97,13 @@ export default async function PortalLayout({
   // "Suppliers" sitting above the Control Centre one that is actually theirs.
   if (user.panelBeaterId && (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers")))
     items.push({ href: "/portal/suppliers", label: "Suppliers" });
+  // Extra work found after stripping a car. Needs a real workshop, not just
+  // the permission — a Site Admin holds it via ALL_PERMISSIONS but has no
+  // jobs of their own to raise additionals against.
+  if (user.panelBeaterId && can(user, "manage_additionals")) {
+    items.push({ href: "/portal/additionals", label: "Additionals" });
+    items.push({ href: "/portal/insurer-contacts", label: "Insurer contacts" });
+  }
   // Complaints against THIS workshop, with their rating on top.
   if (user.panelBeaterId && can(user, "manage_own_complaints"))
     items.push({ href: "/portal/complaints", label: "Complaints" });

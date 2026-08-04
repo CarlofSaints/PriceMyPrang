@@ -13,6 +13,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_parts: "Manage suppliers",
   manage_dev_tickets: "Manage the dev planner",
   manage_integrations: "Manage integration keys",
+  manage_additionals:
+    "Raise extra work found after stripping a vehicle, price it off the job's rate card, and send it to the insurer and client for approval.",
   manage_own_suppliers: "Manage own suppliers",
   view_own_suppliers: "View own suppliers",
   manage_own_complaints: "See and answer complaints against us",
@@ -60,7 +62,7 @@ export const DEFAULT_ROLES: Role[] = [
     id: "assessor",
     name: "Assessor",
     scope: "platform",
-    permissions: ["view_dashboard", "build_quotes", "manage_parts", "manage_panel_beaters", "manage_complaints"],
+    permissions: ["view_dashboard", "build_quotes", "manage_parts", "manage_panel_beaters", "manage_complaints", "manage_additionals"],
   },
 
   // ---- A panel beater's own team ----
@@ -71,7 +73,7 @@ export const DEFAULT_ROLES: Role[] = [
     id: "pb_admin",
     name: "Panel Beater Admin",
     scope: "panel_beater",
-    permissions: ["onboard_self", "manage_users", "manage_own_suppliers", "manage_own_complaints"],
+    permissions: ["onboard_self", "manage_users", "manage_own_suppliers", "manage_own_complaints", "manage_additionals"],
   },
   // The first real difference between these two. Sourcing parts is the buyer's
   // job, so the buyer keeps the supplier book and the estimator reads it while
@@ -80,7 +82,7 @@ export const DEFAULT_ROLES: Role[] = [
     id: "pb_estimator",
     name: "Estimator",
     scope: "panel_beater",
-    permissions: ["onboard_self", "view_own_suppliers"],
+    permissions: ["onboard_self", "view_own_suppliers", "manage_additionals"],
   },
   {
     id: "pb_buyer",

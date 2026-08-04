@@ -19,7 +19,10 @@ export type Permission =
   | "view_own_suppliers"
   // Complaints. A workshop sees only its own; PMP staff see every one.
   | "manage_own_complaints"
-  | "manage_complaints";
+  | "manage_complaints"
+  // Extra work found after stripping a vehicle: raise it, price it, send it to
+  // the insurer. Held by the workshop team who actually strip the car.
+  | "manage_additionals";
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
@@ -100,6 +103,78 @@ export interface InsuranceCompany {
   name: string;
   active: boolean;
   createdAt: string;
+  /** Loaded on demand — the generic contacts, plus this workshop's private ones. */
+  contacts?: InsurerContact[];
+}
+
+/**
+ * Someone to talk to at an insurer.
+ *
+ * `panelBeaterId` is what separates the two kinds: unset means a GENERIC
+ * contact PMP maintains and every workshop can use; set means PRIVATE to that
+ * workshop — the handler they actually deal with, which no other workshop sees.
+ */
+export interface InsurerContact {
+  id: string;
+  insurerId: string;
+  panelBeaterId?: string;
+  name?: string;
+  /** Job title or desk, e.g. "Claims handler". */
+  role?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+/** Where an additionals request stands with the insurer. */
+export type AdditionalStatus = "pending" | "approved" | "declined";
+
+/**
+ * Extra work found after stripping a vehicle, priced and sent to the insurer
+ * for approval. A separate document from the accepted quote — the customer
+ * agreed to a number, and this asks for more on top of it.
+ */
+export interface Additional {
+  id: string;
+  requestId: string;
+  /** The job's reference, carried for display. */
+  reference?: string;
+  panelBeaterId: string;
+  /** "Additionals #1", "#2" — stripping can reveal more than once. */
+  seq: number;
+  status: AdditionalStatus;
+  reason?: string;
+
+  lines: QuoteLineItem[];
+
+  partsTotal: number;
+  outWorkTotal: number;
+  panelTotal: number;
+  paintTotal: number;
+  stripTotal: number;
+  labourTotal: number;
+  totalHours: number;
+  subtotal: number;
+  vat: number;
+  total: number;
+
+  /** The claim number AS SENT — a copy, so a later edit can't rewrite history. */
+  claimNumber?: string;
+
+  contactId?: string;
+  sentToEmail?: string;
+  sentToName?: string;
+  /** Null until the emails actually went. Unsent means it is still a draft. */
+  sentAt?: string;
+  clientEmail?: string;
+  clientSentAt?: string;
+
+  respondedAt?: string;
+  responseNote?: string;
+
+  createdAt: string;
+  createdByName?: string;
 }
 
 // ---------------------------------------------------------------------------

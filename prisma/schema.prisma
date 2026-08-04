@@ -50,10 +50,10 @@ enum RoleScope {
 /// is active; superseded ones are kept because signatures point at the version
 /// that was actually agreed to.
 model AgreementDocument {
-  id        String  @id @default(uuid())
-  title     String
+  id             String  @id @default(uuid())
+  title          String
   /// HTML converted from the uploaded .docx, rendered on the signing page.
-  html      String
+  html           String
   /// The original file, kept so the source of truth can be downloaded.
   sourceUrl      String
   sourcePathname String
@@ -175,7 +175,7 @@ model Role {
 model User {
   id String @id @default(uuid())
 
-  name String
+  name         String
   /// Stored lower-cased so uniqueness is genuinely case-insensitive.
   email        String  @unique
   passwordHash String
@@ -205,7 +205,7 @@ model User {
   panelBeaterId String?
   panelBeater   PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: SetNull)
 
-  verifications  EmailVerification[]
+  verifications   EmailVerification[]
   loginChallenges LoginChallenge[]
 
   createdAt DateTime @default(now())
@@ -275,8 +275,47 @@ model Insurer {
   updatedAt DateTime @updatedAt
 
   requests QuoteRequest[]
+  contacts InsurerContact[]
 
   @@map("insurers")
+}
+
+/// Someone to talk to at an insurer.
+///
+/// Two kinds, told apart by panelBeaterId:
+///  - NULL  = a GENERIC contact, added by PMP staff, visible to every workshop.
+///            The claims inbox everyone starts with.
+///  - set   = PRIVATE to that workshop — the handler they actually deal with.
+///            Never visible to any other workshop, because a repairer's
+///            relationship at an insurer is their own commercial asset.
+///
+/// Every field but the insurer is optional: a contact may be a bare inbox with
+/// no name, or a person with a phone and no email. Only contacts WITH an email
+/// can be sent additionals, which the UI filters for rather than forbidding
+/// phone-only entries.
+model InsurerContact {
+  id            String  @id @default(uuid())
+  insurerId     String
+  panelBeaterId String?
+
+  name  String?
+  /// Job title or desk, e.g. "Claims handler", "Motor assessor".
+  role  String?
+  email String?
+  phone String?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  insurer     Insurer      @relation(fields: [insurerId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+
+  additionals Additional[]
+
+  @@index([insurerId])
+  @@index([panelBeaterId])
+  @@map("insurer_contacts")
 }
 
 /// One set of rates a workshop quotes on: their cash rates, or the rates they
@@ -309,6 +348,122 @@ model RateCard {
 
 /// A single rate on a card. Normalised rather than JSON because Power BI is a
 /// first-class consumer of this database.
+/// Where an additionals request stands with the insurer. The repairer records
+/// the answer — insurers have no login here, so nothing else can move it.
+enum AdditionalStatus {
+  pending
+  approved
+  declined
+}
+
+/// Extra work found after the vehicle was stripped.
+///
+/// A quote is built on visible damage; pulling the car apart reveals the rest.
+/// This is that second conversation: priced like a quote, sent to the insurer
+/// for approval, with the client told what was asked for. Work waits on the
+/// answer, so `status` is the thing the repairer is actually chasing.
+///
+/// Deliberately NOT extra lines on the accepted Quote. The customer accepted a
+/// number, and silently growing it would rewrite what they agreed to — an
+/// additionals request is a separate document with its own approval.
+model Additional {
+  id            String @id @default(uuid())
+  requestId     String
+  panelBeaterId String
+
+  /// Sequential per job: "Additionals #1", "#2" — stripping often reveals more
+  /// than once, and the insurer needs to tell two requests apart.
+  seq Int @default(1)
+
+  status AdditionalStatus @default(pending)
+
+  /// Why the work is needed — the covering note the insurer reads first.
+  reason String?
+
+  partsTotal   Decimal @default(0) @db.Decimal(12, 2)
+  outWorkTotal Decimal @default(0) @db.Decimal(12, 2)
+  panelTotal   Decimal @default(0) @db.Decimal(12, 2)
+  paintTotal   Decimal @default(0) @db.Decimal(12, 2)
+  stripTotal   Decimal @default(0) @db.Decimal(12, 2)
+  labourTotal  Decimal @default(0) @db.Decimal(12, 2)
+  totalHours   Decimal @default(0) @db.Decimal(10, 2)
+  subtotal     Decimal @default(0) @db.Decimal(12, 2)
+  vat          Decimal @default(0) @db.Decimal(12, 2)
+  total        Decimal @default(0) @db.Decimal(12, 2)
+
+  /// The claim number AS SENT. Copied, not joined: the insurer approved a
+  /// specific claim reference and that must not change under the record if the
+  /// request is later edited.
+  claimNumber String?
+
+  /// Who the insurer's copy went to. Address and name are COPIES for the same
+  /// reason — the contact may later be edited or deleted.
+  contactId    String?
+  sentToEmail  String?
+  sentToName   String?
+  /// Null until the emails actually went. A saved-but-unsent request is a
+  /// draft, and must never look like the insurer has been told.
+  sentAt       DateTime?
+  clientEmail  String?
+  clientSentAt DateTime?
+
+  /// When the repairer recorded the insurer's answer, and what they said.
+  respondedAt  DateTime?
+  responseNote String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdByName String?
+
+  request     QuoteRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater      @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  contact     InsurerContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lines       AdditionalLine[]
+
+  @@unique([requestId, panelBeaterId, seq])
+  @@index([panelBeaterId, status])
+  @@index([requestId])
+  @@map("additionals")
+}
+
+/// One line of extra work. Same shape as a quote line so the estimator prices
+/// it exactly as they price everything else, off the job's own rate card.
+model AdditionalLine {
+  id           String @id @default(uuid())
+  additionalId String
+  sortOrder    Int    @default(0)
+
+  code        String?
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  partsCost   Decimal? @db.Decimal(12, 2)
+  partsAmount Decimal  @default(0) @db.Decimal(12, 2)
+
+  /// Back office only, exactly as on a quote line — never printed for the
+  /// customer or the insurer.
+  supplierId String?
+  supplier   String?
+
+  panelCode   String?
+  panelAmount Decimal @default(0) @db.Decimal(12, 2)
+  panelHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  paintCode   String?
+  paintAmount Decimal @default(0) @db.Decimal(12, 2)
+  paintHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  stripCode   String?
+  stripAmount Decimal @default(0) @db.Decimal(12, 2)
+  stripHours  Decimal @default(0) @db.Decimal(10, 2)
+
+  additional  Additional @relation(fields: [additionalId], references: [id], onDelete: Cascade)
+  supplierRef Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([additionalId, sortOrder])
+  @@index([supplierId])
+  @@map("additional_lines")
+}
+
 /// A rate a workshop invented for itself, on top of the fixed catalogue in
 /// lib/rateCard.ts. Defined ONCE per workshop and priced per card, because a
 /// custom rate is still a rate — an insurer may pay a different number for it
@@ -385,16 +540,18 @@ model PanelBeater {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rateCards   RateCard[]
-  customRates CustomRateType[]
-  agreements  RepairerAgreement[]
-  suppliers   Supplier[]
-  warranties  Warranty[]
-  users       User[]
-  ratings     Rating[]
-  complaints  Complaint[]
-  quotes      Quote[]
-  selectedFor RequestPanelBeater[]
+  rateCards       RateCard[]
+  customRates     CustomRateType[]
+  agreements      RepairerAgreement[]
+  suppliers       Supplier[]
+  warranties      Warranty[]
+  users           User[]
+  ratings         Rating[]
+  complaints      Complaint[]
+  quotes          Quote[]
+  selectedFor     RequestPanelBeater[]
+  insurerContacts InsurerContact[]
+  additionals     Additional[]
 
   @@index([active, status])
   @@index([companyName])
@@ -415,7 +572,7 @@ model Warranty {
   certificatePathname    String?
   certificateContentType String?
 
-  remind Boolean @default(false)
+  remind        Boolean  @default(false)
   /// Reminder milestones already emailed: "3m","2m","1m","2w","1d".
   remindersSent String[]
 
@@ -468,8 +625,9 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  quoteLines  QuoteLineItem[]
-  panelBeater PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  quoteLines      QuoteLineItem[]
+  panelBeater     PanelBeater?     @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  additionalLines AdditionalLine[]
 
   @@index([active])
   @@index([panelBeaterId])
@@ -526,8 +684,8 @@ model QuoteRequest {
   repairerInitiated Boolean @default(false)
 
   // Where the consumer was when they submitted.
-  lat Float?
-  lng Float?
+  lat         Float?
+  lng         Float?
   /// True when the client asked us to pick the workshops for them.
   letUsChoose Boolean @default(false)
 
@@ -542,6 +700,7 @@ model QuoteRequest {
   media                RequestMedia[]
   selectedPanelBeaters RequestPanelBeater[]
   quotes               Quote[]
+  additionals          Additional[]
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
@@ -599,16 +758,16 @@ model Quote {
   sundriesPercent Decimal? @db.Decimal(6, 2)
   consumables     Decimal  @default(0) @db.Decimal(12, 2)
 
-  partsTotal  Decimal @default(0) @db.Decimal(12, 2)
+  partsTotal   Decimal @default(0) @db.Decimal(12, 2)
   /// Work sent out to a third party. Priced in the same money box on the line
   /// as a part, but deliberately totalled apart: it is not stock the repairer
   /// bought, and bundling it into parts hid it from them.
   outWorkTotal Decimal @default(0) @db.Decimal(12, 2)
-  panelTotal  Decimal @default(0) @db.Decimal(12, 2)
-  paintTotal  Decimal @default(0) @db.Decimal(12, 2)
-  stripTotal  Decimal @default(0) @db.Decimal(12, 2)
-  labourTotal Decimal @default(0) @db.Decimal(12, 2)
-  totalHours  Decimal @default(0) @db.Decimal(10, 2)
+  panelTotal   Decimal @default(0) @db.Decimal(12, 2)
+  paintTotal   Decimal @default(0) @db.Decimal(12, 2)
+  stripTotal   Decimal @default(0) @db.Decimal(12, 2)
+  labourTotal  Decimal @default(0) @db.Decimal(12, 2)
+  totalHours   Decimal @default(0) @db.Decimal(10, 2)
 
   subtotal Decimal @default(0) @db.Decimal(12, 2)
   vat      Decimal @default(0) @db.Decimal(12, 2)
@@ -741,7 +900,7 @@ model ConsumerAccessLink {
 
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   request QuoteRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
@@ -792,11 +951,11 @@ model Complaint {
   /// The consumer's account, capped at 500 words by the API.
   description String
 
-  vehicleSafety     VehicleSafety?
-  collectedOn       DateTime?      @db.Date
-  problemNoticedOn  DateTime?      @db.Date
-  stillWithRepairer Boolean?
-  desiredOutcome    ComplaintOutcome?
+  vehicleSafety      VehicleSafety?
+  collectedOn        DateTime?         @db.Date
+  problemNoticedOn   DateTime?         @db.Date
+  stillWithRepairer  Boolean?
+  desiredOutcome     ComplaintOutcome?
   raisedWithRepairer Boolean?
 
   status     ComplaintStatus @default(new)
@@ -810,8 +969,8 @@ model Complaint {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  request     QuoteRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  panelBeater PanelBeater     @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
+  request     QuoteRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  panelBeater PanelBeater      @relation(fields: [panelBeaterId], references: [id], onDelete: Cascade)
   media       ComplaintMedia[]
   notes       ComplaintNote[]
 
@@ -894,10 +1053,10 @@ enum DevTicketStatus {
 /// SESSION, never the request body, so "who asked for this" survives the person
 /// later being deleted (createdByName is a copy, not a join).
 model DevTicket {
-  id       String @id @default(uuid())
-  title    String
+  id     String  @id @default(uuid())
+  title  String
   /// Freeform. What's wanted and why — the "why" is the part that rots.
-  detail   String?
+  detail String?
 
   priority DevPriority     @default(must_do)
   status   DevTicketStatus @default(backlog)
@@ -909,8 +1068,8 @@ model DevTicket {
 
   /// Who loaded it. The id may dangle if the user is deleted; the name is kept
   /// verbatim so the ticket still tells you who wanted it.
-  createdById   String?
-  createdByName String
+  createdById    String?
+  createdByName  String
   createdByEmail String?
 
   createdAt   DateTime  @default(now())
