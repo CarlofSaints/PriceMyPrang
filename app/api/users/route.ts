@@ -214,12 +214,13 @@ export async function PATCH(request: Request) {
   // account: that would let anyone at a signed-in admin's unlocked screen
   // strip the admin's own second factor without knowing their password,
   // which is exactly what /api/auth/two-factor demands a password to stop.
+  // Your own toggle lives on /portal/change-password, which asks for it.
   if (typeof b.twoFactorEnabled === "boolean") {
     if (u.id === admin.id)
       return NextResponse.json(
         {
           error:
-            "Change your own two-step sign-in on the Security page — it needs your password.",
+            "Change your own two-step sign-in under “Change password” — it needs your password.",
         },
         { status: 403 }
       );
