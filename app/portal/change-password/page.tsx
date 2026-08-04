@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import TwoFactorToggle from "@/components/TwoFactorToggle";
 
@@ -22,7 +23,12 @@ export default async function ChangePasswordPage() {
       </div>
 
       <div className="pmp-card">
-        <TwoFactorToggle initialEnabled={!!user.twoFactorEnabled} />
+        {/* Anyone may turn two-step on; only an admin may turn it back off,
+            mirrored server-side in /api/auth/two-factor. */}
+        <TwoFactorToggle
+          initialEnabled={!!user.twoFactorEnabled}
+          canDisable={can(user, "manage_users")}
+        />
       </div>
     </div>
   );

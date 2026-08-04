@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser, verifyPassword } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { setTwoFactorEnabled } from "@/lib/store";
 
 /**
@@ -8,6 +9,17 @@ import { setTwoFactorEnabled } from "@/lib/store";
  * Requires your password either way. Turning it ON from a borrowed unlocked
  * screen would lock the real owner out of their own account; turning it OFF
  * would quietly strip a protection they chose. Both need proof it's them.
+ *
+ * Switching it OFF additionally needs admin rights. Two-step is a control the
+ * business sets, not a personal preference: once an admin has turned it on for
+ * someone, that person opting themselves back out would undo it silently. So
+ * anyone may raise their own protection, and only an admin may lower it —
+ * which is also the answer for a phished user whose attacker would otherwise
+ * disable the factor as their first move.
+ *
+ * Admins keep the self-service OFF path deliberately. It is the only way one
+ * can lower their own, since /api/users refuses a self-toggle without a
+ * password, and losing it would leave an admin permanently unable to.
  */
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
@@ -21,6 +33,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "enabled is required" }, { status: 400 });
   if (!password)
     return NextResponse.json({ error: "Enter your password to confirm" }, { status: 400 });
+
+  if (!enabled && !can(user, "manage_users"))
+    return NextResponse.json(
+      {
+        error:
+          "Only an administrator can switch two-step sign-in off. Ask yours if you can't receive the codes.",
+      },
+      { status: 403 }
+    );
 
   if (!(await verifyPassword(password, user.passwordHash)))
     return NextResponse.json({ error: "That isn't your password" }, { status: 403 });

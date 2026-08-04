@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { Button, Field, inputClass } from "./ui";
 
-export default function TwoFactorToggle({ initialEnabled }: { initialEnabled: boolean }) {
+export default function TwoFactorToggle({
+  initialEnabled,
+  canDisable = false,
+}: {
+  initialEnabled: boolean;
+  /**
+   * Whether this person may switch their own two-step off — admins only.
+   * Cosmetic: /api/auth/two-factor refuses it regardless of what's rendered.
+   */
+  canDisable?: boolean;
+}) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
@@ -68,6 +78,12 @@ export default function TwoFactorToggle({ initialEnabled }: { initialEnabled: bo
             <p className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-sm text-ink">
               Make sure you can receive email at your account address before turning this on — it
               becomes part of how you sign in.
+              {!canDisable && (
+                <span className="mt-1 block font-semibold">
+                  You won&apos;t be able to switch it back off yourself — only an administrator
+                  can.
+                </span>
+              )}
             </p>
           )}
           <Field label="Your password">
@@ -97,6 +113,13 @@ export default function TwoFactorToggle({ initialEnabled }: { initialEnabled: bo
             </Button>
           </div>
         </div>
+      ) : enabled && !canDisable ? (
+        // Nothing to click: switching it off is an admin's call. Say so plainly
+        // rather than show a button that only ever returns an error.
+        <p className="rounded-xl bg-ink/[0.04] p-3 text-sm text-ink/70">
+          Only an administrator can switch this off. If you can&apos;t receive the codes at your
+          account address, ask yours to turn it off for you.
+        </p>
       ) : (
         <Button type="button" variant="outline" onClick={() => setConfirming(true)}>
           {enabled ? "Turn off two-step sign-in" : "Turn on two-step sign-in"}
