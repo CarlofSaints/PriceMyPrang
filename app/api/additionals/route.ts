@@ -10,6 +10,7 @@ import {
 } from "@/lib/store";
 import { computeQuoteTotals } from "@/lib/quoteTotals";
 import { actingWorkshop } from "@/lib/additionalsAccess";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AdditionalStatus, QuoteLineItem } from "@/lib/types";
 
 /**
@@ -117,6 +118,28 @@ export async function POST(request: Request) {
     return NOT_FOUND;
   }
 
+  await logActivity({
+    action: b.id ? "additional.update" : "additional.create",
+    summary: `${user.name} ${b.id ? "reworked" : "raised"} additionals #${saved.seq} on ${b.reference} — R${t.total.toFixed(2)}`,
+    entityType: "additional",
+    entityId: saved.id,
+    entityLabel: `${b.reference} #${saved.seq}`,
+    ...actorFromUser(user),
+    panelBeaterId: workshop,
+    detail: {
+      reference: b.reference,
+      seq: saved.seq,
+      claimNumber: b.claimNumber,
+      reason: b.reason,
+      lines: lines.length,
+      totalHours: t.totalHours,
+      subtotal: t.subtotal,
+      vat: t.vat,
+      total: t.total,
+    },
+    request,
+  });
+
   return NextResponse.json(saved);
 }
 
@@ -141,6 +164,19 @@ export async function PATCH(request: Request) {
 
   const updated = await setAdditionalStatus(b.id, workshop, b.status, b.responseNote);
   if (!updated) return NOT_FOUND;
+
+  await logActivity({
+    action: "additional.status",
+    summary: `${user.name} recorded the insurer's answer on additionals #${updated.seq}: ${b.status}`,
+    entityType: "additional",
+    entityId: updated.id,
+    entityLabel: `${updated.reference ?? ""} #${updated.seq}`.trim(),
+    ...actorFromUser(user),
+    panelBeaterId: workshop,
+    detail: { status: b.status, responseNote: b.responseNote, total: updated.total },
+    request,
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -168,6 +204,17 @@ export async function DELETE(request: Request) {
       );
     return NOT_FOUND;
   }
+
+  await logActivity({
+    action: "additional.delete",
+    summary: `${user.name} deleted an unsent additionals request`,
+    entityType: "additional",
+    entityId: id,
+    ...actorFromUser(user),
+    panelBeaterId: workshop,
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }
 

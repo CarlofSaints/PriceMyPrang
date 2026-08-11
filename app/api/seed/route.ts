@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUsers, saveUsers, getRoles } from "@/lib/store";
 import { hashPassword } from "@/lib/auth";
+import { logActivity } from "@/lib/activityLog";
 import type { User } from "@/lib/types";
 
 // One-time bootstrap: create the first admin user.
@@ -17,6 +18,17 @@ export async function POST(request: Request) {
   };
 
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
+    // This endpoint mints a full Site Admin. Anyone knocking on it is worth
+    // knowing about, and the secret itself is of course never recorded.
+    await logActivity({
+      action: "admin.seed",
+      summary: "The seed endpoint was called with a wrong or missing secret",
+      outcome: "denied",
+      status: 403,
+      actorKind: "consumer",
+      detail: { configured: !!process.env.SEED_SECRET, emailOffered: email },
+      request,
+    });
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!name || !email || !password) {
@@ -47,6 +59,19 @@ export async function POST(request: Request) {
     };
     users.push(user);
     await saveUsers(users);
+
+    await logActivity({
+      action: "admin.seed",
+      summary: `A Site Admin login was created through the seed endpoint: ${user.name} (${user.email})`,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      actorKind: "system",
+      actorName: "Seed endpoint",
+      actorEmail: user.email,
+      detail: { email: user.email, forced: !!force },
+      request,
+    });
 
     return NextResponse.json({ ok: true, id: user.id, email: user.email });
   } catch (err) {

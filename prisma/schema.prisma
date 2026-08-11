@@ -1186,3 +1186,95 @@ model DevTicketAttachment {
   @@index([ticketId])
   @@map("dev_ticket_attachments")
 }
+
+// ---- Activity log ----------------------------------------------------------
+
+/// Whether the thing the actor tried actually happened. Refusals are recorded
+/// deliberately: "who kept trying to reach the users page" is exactly the
+/// question an activity log exists to answer, and a log of successes only
+/// cannot answer it.
+enum ActivityOutcome {
+  success
+  /// Refused by a permission, a scope check or a bad password.
+  denied
+  /// Reached the handler and failed — validation, a 404, an email that bounced.
+  failed
+}
+
+/// Who was acting. Most of the log is `user`, but the public side of the site
+/// generates real activity too and it would be a strange record that left the
+/// consumer submitting the job out of it.
+enum ActorKind {
+  /// A signed-in portal login.
+  user
+  /// A member of the public — quote request, rating, complaint, accepting a quote.
+  consumer
+  /// A workshop registering, before any login exists.
+  applicant
+  /// A cron job.
+  system
+}
+
+/// One thing somebody did.
+///
+/// APPEND-ONLY BY DESIGN. Nothing in the app updates or deletes a row here, and
+/// there is no API that can — a record you can quietly rewrite is not a record
+/// of anything. Retention is a housekeeping decision, not an app feature.
+///
+/// The dimensions anyone would want to count by (action, actor, workshop,
+/// outcome, time) are REAL COLUMNS, not JSON, because Power BI reads this
+/// database directly and this table is meant to be charted. `detail` is the
+/// tail: which fields changed, how many rows, what the OCR cost.
+///
+/// NEVER put a credential in here — see REDACT_KEYS in lib/activityLog.ts.
+model ActivityLog {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+
+  /// Dotted verb: "user.create", "quote.build", "auth.login". The prefix is
+  /// the area, so grouping by it gives a usable breakdown with no extra column.
+  action String
+
+  /// What was acted on. entityLabel is a verbatim COPY, like DevTicket's
+  /// createdByName, so the line still reads after the thing is deleted.
+  entityType  String?
+  entityId    String?
+  entityLabel String?
+
+  outcome ActivityOutcome @default(success)
+
+  /// One line a person can read without expanding anything.
+  summary String
+
+  actorKind  ActorKind @default(user)
+  /// May dangle if the user is later deleted; the name and email are copies.
+  actorId    String?
+  actorName  String?
+  actorEmail String?
+  actorRole  String?
+
+  /// Which workshop the actor was acting for. Null for PMP staff and the
+  /// public. Kept as an id only — the name is resolved when the log is read,
+  /// so a workshop renaming itself doesn't leave the log reading two ways.
+  panelBeaterId String?
+
+  /// Where the request landed. Enough to tell two similar actions apart, and
+  /// enough to reconstruct a session without keeping the bodies.
+  method String?
+  path   String?
+  status Int?
+
+  ip        String?
+  userAgent String?
+
+  detail Json?
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([outcome, createdAt])
+  @@index([panelBeaterId, createdAt])
+  @@index([entityType, entityId])
+  @@map("activity_log")
+}

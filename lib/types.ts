@@ -22,7 +22,10 @@ export type Permission =
   | "manage_complaints"
   // Extra work found after stripping a vehicle: raise it, price it, send it to
   // the insurer. Held by the workshop team who actually strip the car.
-  | "manage_additionals";
+  | "manage_additionals"
+  // Super Admin: the site-wide activity log. Deliberately NOT given to any
+  // other seeded role — it shows every workshop's activity to whoever holds it.
+  | "view_activity_log";
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;
@@ -742,4 +745,89 @@ export interface DevTicketStats {
   niceToHave: number;
   done: number;
   overdue: number;
+}
+
+// ---- Activity log ----------------------------------------------------------
+
+export type ActivityOutcome = "success" | "denied" | "failed";
+export type ActorKind = "user" | "consumer" | "applicant" | "system";
+
+/** One row of the activity log, as the admin page reads it. */
+export interface ActivityEntry {
+  id: string;
+  createdAt: string;
+
+  action: string;
+  entityType?: string;
+  entityId?: string;
+  entityLabel?: string;
+
+  outcome: ActivityOutcome;
+  summary: string;
+
+  actorKind: ActorKind;
+  actorId?: string;
+  actorName?: string;
+  actorEmail?: string;
+  actorRole?: string;
+
+  panelBeaterId?: string;
+  /**
+   * Resolved when the log is READ, not stored — a workshop renaming itself
+   * would otherwise leave the log reading two different ways for the same
+   * workshop. The id is the durable fact.
+   */
+  panelBeaterName?: string;
+
+  method?: string;
+  path?: string;
+  status?: number;
+
+  ip?: string;
+  userAgent?: string;
+
+  detail?: unknown;
+}
+
+export interface ActivityFilters {
+  /** Matches the summary, the actor's name/email and the entity label. */
+  search?: string;
+  /** The bit before the first dot, e.g. "auth", "quote". */
+  area?: string;
+  action?: string;
+  actorId?: string;
+  actorKind?: ActorKind;
+  outcome?: ActivityOutcome;
+  panelBeaterId?: string;
+  entityType?: string;
+  entityId?: string;
+  /** "yyyy-mm-dd", inclusive. */
+  from?: string;
+  to?: string;
+}
+
+export interface ActivityPage {
+  entries: ActivityEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** The cards across the top of the activity page. */
+export interface ActivityStats {
+  today: number;
+  last7Days: number;
+  total: number;
+  /** Distinct signed-in people who did something today. */
+  activeUsersToday: number;
+  signInsToday: number;
+  /** Refusals + failures today — the number worth looking at twice. */
+  problemsToday: number;
+}
+
+/** For the filter dropdowns: who and what actually appears in the log. */
+export interface ActivityFacets {
+  actors: { id: string; name: string; kind: ActorKind }[];
+  actions: { action: string; count: number }[];
+  areas: { area: string; count: number }[];
 }

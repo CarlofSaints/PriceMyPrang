@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createEmailVerification, redeemEmailVerification } from "@/lib/store";
 import { sendEmailVerification } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 /**
  * POST — redeem a token, or ask for a fresh link.
@@ -28,17 +29,49 @@ export async function POST(request: Request) {
 
     const fresh = await createEmailVerification(user.id, user.email);
     await sendEmailVerification(user.email, user.name, fresh);
+    await logActivity({
+      action: "auth.email_verification.resend",
+      summary: `${user.name} asked for a fresh confirmation link`,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      ...actorFromUser(user),
+      request,
+    });
     return NextResponse.json({ ok: true });
   }
 
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
   const result = await redeemEmailVerification(token);
-  if (!result)
+  if (!result) {
+    // The token is the credential, so it is never written to the log.
+    await logActivity({
+      action: "auth.email_verification",
+      summary: "A confirmation link was opened after expiring or being used",
+      outcome: "failed",
+      status: 400,
+      actorKind: "consumer",
+      request,
+    });
     return NextResponse.json(
       { error: "That link has expired or has already been used. Ask for a new one." },
       { status: 400 }
     );
+  }
+
+  await logActivity({
+    action: "auth.email_verification",
+    summary: `${result.name} confirmed their email address`,
+    entityType: "user",
+    entityId: result.userId,
+    entityLabel: result.name,
+    actorKind: "user",
+    actorId: result.userId,
+    actorName: result.name,
+    actorEmail: result.email,
+    request,
+  });
 
   return NextResponse.json({ ok: true, email: result.email });
 }

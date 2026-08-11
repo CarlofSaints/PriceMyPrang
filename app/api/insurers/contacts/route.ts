@@ -8,6 +8,7 @@ import {
   findInsurerContact,
   deleteInsurerContact,
 } from "@/lib/store";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser } from "@/lib/types";
 
 /**
@@ -68,16 +69,27 @@ export async function POST(request: Request) {
   if (b.generic) {
     // A generic contact is published to every workshop on the platform.
     if (!can(user, "manage_insurers")) return FORBIDDEN;
-    return NextResponse.json(
-      await createInsurerContact({
-        insurerId: b.insurerId,
-        name: b.name,
-        role: b.role,
-        email: b.email,
-        phone: b.phone,
-        notes: b.notes,
-      })
-    );
+    const created = await createInsurerContact({
+      insurerId: b.insurerId,
+      name: b.name,
+      role: b.role,
+      email: b.email,
+      phone: b.phone,
+      notes: b.notes,
+    });
+
+    await logActivity({
+      action: "insurer_contact.create",
+      summary: `${user.name} added the shared insurer contact ${b.name || b.email || b.phone}`,
+      entityType: "insurer_contact",
+      entityId: created.id,
+      entityLabel: b.name || b.email || b.phone,
+      ...actorFromUser(user),
+      detail: { insurerId: b.insurerId, shared: true, role: b.role, email: b.email, phone: b.phone },
+      request,
+    });
+
+    return NextResponse.json(created);
   }
 
   // A private contact belongs to the caller's own workshop. The id comes from
@@ -90,17 +102,29 @@ export async function POST(request: Request) {
     );
   if (!can(user, "manage_additionals")) return FORBIDDEN;
 
-  return NextResponse.json(
-    await createInsurerContact({
-      insurerId: b.insurerId,
-      panelBeaterId: workshop,
-      name: b.name,
-      role: b.role,
-      email: b.email,
-      phone: b.phone,
-      notes: b.notes,
-    })
-  );
+  const created = await createInsurerContact({
+    insurerId: b.insurerId,
+    panelBeaterId: workshop,
+    name: b.name,
+    role: b.role,
+    email: b.email,
+    phone: b.phone,
+    notes: b.notes,
+  });
+
+  await logActivity({
+    action: "insurer_contact.create",
+    summary: `${user.name} added their workshop's own insurer contact ${b.name || b.email || b.phone}`,
+    entityType: "insurer_contact",
+    entityId: created.id,
+    entityLabel: b.name || b.email || b.phone,
+    ...actorFromUser(user),
+    panelBeaterId: workshop,
+    detail: { insurerId: b.insurerId, shared: false, role: b.role, email: b.email, phone: b.phone },
+    request,
+  });
+
+  return NextResponse.json(created);
 }
 
 /** May this caller change this particular contact? */
@@ -133,15 +157,31 @@ export async function PATCH(request: Request) {
   if (!existing || !mayWrite(user, existing))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(
-    await updateInsurerContact(b.id, {
-      name: b.name,
-      role: b.role,
-      email: b.email,
-      phone: b.phone,
-      notes: b.notes,
-    })
-  );
+  const patch = {
+    name: b.name,
+    role: b.role,
+    email: b.email,
+    phone: b.phone,
+    notes: b.notes,
+  };
+  const updated = await updateInsurerContact(b.id, patch);
+
+  await logActivity({
+    action: "insurer_contact.update",
+    summary: `${user.name} updated the ${existing.panelBeaterId ? "workshop's own" : "shared"} insurer contact ${existing.name || existing.email || b.id}`,
+    entityType: "insurer_contact",
+    entityId: b.id,
+    entityLabel: existing.name || existing.email,
+    ...actorFromUser(user),
+    panelBeaterId: existing.panelBeaterId,
+    detail: {
+      shared: !existing.panelBeaterId,
+      changes: diff(existing as unknown as Record<string, unknown>, patch),
+    },
+    request,
+  });
+
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(request: Request) {
@@ -156,5 +196,18 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await deleteInsurerContact(id);
+
+  await logActivity({
+    action: "insurer_contact.delete",
+    summary: `${user.name} deleted the ${existing.panelBeaterId ? "workshop's own" : "shared"} insurer contact ${existing.name || existing.email || id}`,
+    entityType: "insurer_contact",
+    entityId: id,
+    entityLabel: existing.name || existing.email,
+    ...actorFromUser(user),
+    panelBeaterId: existing.panelBeaterId,
+    detail: { shared: !existing.panelBeaterId, insurerId: existing.insurerId, email: existing.email },
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

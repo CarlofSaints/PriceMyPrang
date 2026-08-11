@@ -7,7 +7,8 @@ import {
   updateComplaintStatus,
   addComplaintNote,
 } from "@/lib/store";
-import { COMPLAINT_STATUSES, type ComplaintStatus, type Complaint } from "@/lib/types";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { COMPLAINT_STATUSES, type AuthUser, type ComplaintStatus, type Complaint } from "@/lib/types";
 
 // One route, two audiences. A workshop sees complaints against ITSELF; PMP
 // staff see every one. The scope is decided here from the permission, never
@@ -18,7 +19,9 @@ type Scope =
   | { all: true; panelBeaterId?: undefined }
   | { all: false; panelBeaterId: string };
 
-async function scope(): Promise<Scope & { user?: { name: string } }> {
+// The full user is carried through, not just their name, so the activity log
+// records the role and workshop the action was taken under.
+async function scope(): Promise<Scope & { user?: AuthUser }> {
   const { user, response } = await requireUser();
   if (response) return { error: response };
 
@@ -76,6 +79,22 @@ export async function PATCH(request: Request) {
 
   const updated = await updateComplaintStatus(b.id, b.status as ComplaintStatus);
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (s.user)
+    await logActivity({
+      action: "complaint.status",
+      summary: `${s.user.name} moved a complaint to ${String(b.status).replace("_", " ")}`,
+      entityType: "complaint",
+      entityId: updated.id,
+      entityLabel: updated.reference,
+      ...actorFromUser(s.user),
+      // The workshop the complaint is AGAINST, so a report groups by the right
+      // one even when PMP staff are the ones acting.
+      panelBeaterId: updated.panelBeaterId,
+      detail: { from: existing.status, to: b.status },
+      request,
+    });
+
   return NextResponse.json(forAudience(updated, s.all));
 }
 
@@ -107,5 +126,22 @@ export async function POST(request: Request) {
     internal,
   });
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (s.user)
+    await logActivity({
+      action: "complaint.note",
+      summary: `${s.user.name} added ${internal ? "an internal note" : "a response"} to a complaint`,
+      entityType: "complaint",
+      entityId: updated.id,
+      entityLabel: updated.reference,
+      ...actorFromUser(s.user),
+      panelBeaterId: updated.panelBeaterId,
+      // WHETHER a note was internal, and how long it was — never the text. The
+      // note itself is on the complaint, and a grievance does not need copying
+      // into a second table.
+      detail: { internal, chars: text.length },
+      request,
+    });
+
   return NextResponse.json(forAudience(updated, s.all));
 }

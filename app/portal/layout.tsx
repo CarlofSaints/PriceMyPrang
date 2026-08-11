@@ -135,6 +135,10 @@ export default async function PortalLayout({
     adminItems.push({ href: "/portal/admin/complaints", label: "Complaints" });
   if (can(user, "manage_integrations"))
     adminItems.push({ href: "/portal/admin/integrations", label: "Integrations" });
+  // Everything everyone has done. Staff-only by design — it shows every
+  // workshop's activity side by side.
+  if (can(user, "view_activity_log"))
+    adminItems.push({ href: "/portal/admin/activity", label: "Activity log" });
   // PMP's own backlog. Last in the list — it's internal housekeeping, not a
   // part of running the network.
   if (can(user, "manage_dev_tickets"))

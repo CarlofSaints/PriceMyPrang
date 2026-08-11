@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getInsurers, saveInsurers } from "@/lib/store";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { InsuranceCompany } from "@/lib/types";
 
 function slugId(name: string): string {
@@ -42,6 +43,17 @@ export async function POST(request: Request) {
   };
   list.push(insurer);
   await saveInsurers(list);
+
+  await logActivity({
+    action: "insurer.create",
+    summary: `${gate.user.name} added the insurer ${insurer.name}`,
+    entityType: "insurer",
+    entityId: insurer.id,
+    entityLabel: insurer.name,
+    ...actorFromUser(gate.user),
+    request,
+  });
+
   return NextResponse.json(insurer);
 }
 
@@ -60,6 +72,10 @@ export async function PATCH(request: Request) {
   const insurer = list.find((i) => i.id === b.id);
   if (!insurer) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Captured before the in-place edits below, or the diff compares the record
+  // with itself and reports nothing changed.
+  const before = { name: insurer.name, active: insurer.active };
+
   if (b.name?.trim()) {
     if (
       list.some(
@@ -72,6 +88,18 @@ export async function PATCH(request: Request) {
   if (typeof b.active === "boolean") insurer.active = b.active;
 
   await saveInsurers(list);
+
+  await logActivity({
+    action: "insurer.update",
+    summary: `${gate.user.name} updated the insurer ${insurer.name}`,
+    entityType: "insurer",
+    entityId: insurer.id,
+    entityLabel: insurer.name,
+    ...actorFromUser(gate.user),
+    detail: { changes: diff(before, { name: insurer.name, active: insurer.active }) },
+    request,
+  });
+
   return NextResponse.json(insurer);
 }
 
@@ -83,9 +111,20 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getInsurers();
-  if (!list.some((i) => i.id === id))
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const doomed = list.find((i) => i.id === id);
+  if (!doomed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await saveInsurers(list.filter((i) => i.id !== id));
+
+  await logActivity({
+    action: "insurer.delete",
+    summary: `${gate.user.name} deleted the insurer ${doomed.name}`,
+    entityType: "insurer",
+    entityId: doomed.id,
+    entityLabel: doomed.name,
+    ...actorFromUser(gate.user),
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

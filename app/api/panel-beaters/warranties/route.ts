@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeater, upsertPanelBeater } from "@/lib/store";
 import { mergeWarranties } from "@/lib/warrantyReminders";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { WarrantyApproval } from "@/lib/types";
 
 /**
@@ -49,9 +50,30 @@ export async function POST(request: Request) {
   if (!pb) return NextResponse.json({ error: "Workshop not found" }, { status: 404 });
 
   const others = (pb.warranties ?? []).filter((x) => x.manufacturer !== w.manufacturer);
+  const replaced = (pb.warranties ?? []).length !== others.length;
   pb.warranties = mergeWarranties([...others, w], pb.warranties);
 
   await upsertPanelBeater(pb);
+
+  const label = pb.tradingAs || pb.companyName;
+  await logActivity({
+    action: "warranty.upsert",
+    summary: `${user.name} ${replaced ? "replaced" : "added"} the ${w.manufacturer} warranty for ${label}`,
+    entityType: "panel_beater",
+    entityId: pb.id,
+    entityLabel: label,
+    ...actorFromUser(user),
+    // The workshop the warranty belongs to, which is not always the actor's.
+    panelBeaterId: pb.id,
+    detail: {
+      manufacturer: w.manufacturer,
+      startDate: w.startDate,
+      expiryDate: w.expiryDate,
+      certificate: w.certificate?.url,
+      replacedExisting: replaced,
+    },
+    request,
+  });
 
   return NextResponse.json({ ok: true, warranties: pb.warranties });
 }

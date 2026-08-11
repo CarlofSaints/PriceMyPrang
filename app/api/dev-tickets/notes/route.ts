@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { addDevTicketNote, deleteDevTicketNote } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 // The running conversation on a ticket. Same Super-Admin-only gate as the
 // ticket itself — notes are internal and must never widen who can read a
@@ -37,6 +38,18 @@ export async function POST(request: Request) {
   });
 
   if (!ticket) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+
+  await logActivity({
+    action: "dev_ticket.note",
+    summary: `${gate.user.name} added a note to “${ticket.title}”`,
+    entityType: "dev_ticket",
+    entityId: ticket.id,
+    entityLabel: ticket.title,
+    ...actorFromUser(gate.user),
+    detail: { chars: body.length },
+    request,
+  });
+
   return NextResponse.json(ticket);
 }
 
@@ -49,5 +62,16 @@ export async function DELETE(request: Request) {
 
   const ticket = await deleteDevTicketNote(noteId);
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await logActivity({
+    action: "dev_ticket.note_delete",
+    summary: `${gate.user.name} deleted a note from “${ticket.title}”`,
+    entityType: "dev_ticket",
+    entityId: ticket.id,
+    entityLabel: ticket.title,
+    ...actorFromUser(gate.user),
+    request,
+  });
+
   return NextResponse.json(ticket);
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPanelBeaters, upsertPanelBeater } from "@/lib/store";
 import { sendWarrantyExpiryReminder } from "@/lib/email";
 import { daysUntil, windowForDays } from "@/lib/warrantyReminders";
+import { logActivity, systemActor } from "@/lib/activityLog";
 
 export const maxDuration = 60;
 
@@ -56,6 +57,16 @@ export async function GET(request: Request) {
 
     if (changed) await upsertPanelBeater(pb);
   }
+
+  await logActivity({
+    action: "cron.warranty_reminders",
+    summary: `Warranty reminders ran: ${checked} checked, ${sent} sent`,
+    // Every line beginning FAILED is a reminder that did not reach a workshop.
+    outcome: log.some((l) => l.startsWith("FAILED")) ? "failed" : "success",
+    ...systemActor("warranty-reminders"),
+    detail: { checked, sent, log },
+    request,
+  });
 
   return NextResponse.json({ ok: true, checked, sent, log });
 }

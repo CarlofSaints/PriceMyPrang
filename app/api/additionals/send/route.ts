@@ -10,6 +10,7 @@ import {
 } from "@/lib/store";
 import { actingWorkshop } from "@/lib/additionalsAccess";
 import { sendAdditionalsToInsurer, sendAdditionalsToClient } from "@/lib/email";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 /**
  * Send an additionals request to the insurer, and tell the client.
@@ -114,6 +115,38 @@ export async function POST(request: Request) {
     insurerSent: insurerResult.sent,
     clientEmail: req.email,
     clientSent: clientResult.sent,
+  });
+
+  // This is the irreversible step on this job — the insurer now holds a set of
+  // numbers — so it is logged either way round, success or failure. A send that
+  // silently failed is worse than one that plainly did.
+  await logActivity({
+    action: "additional.send",
+    summary: insurerResult.sent
+      ? `${user.name} sent additionals #${additional.seq} on ${additional.reference} to ${to} (R${additional.total.toFixed(2)})`
+      : `${user.name}'s additionals #${additional.seq} on ${additional.reference} FAILED to reach ${to}`,
+    outcome: insurerResult.sent ? "success" : "failed",
+    status: insurerResult.sent ? 200 : 502,
+    entityType: "additional",
+    entityId: additional.id,
+    entityLabel: `${additional.reference ?? ""} #${additional.seq}`.trim(),
+    ...actorFromUser(user),
+    panelBeaterId: workshop,
+    detail: {
+      reference: additional.reference,
+      seq: additional.seq,
+      claimNumber: additional.claimNumber,
+      total: additional.total,
+      sentTo: to,
+      contactName,
+      usedSavedContact: !!contactId,
+      insurerSent: insurerResult.sent,
+      insurerError: insurerResult.error,
+      clientNotified: clientResult.sent,
+      clientEmail: req.email,
+      clientError: clientResult.error,
+    },
+    request,
   });
 
   if (!insurerResult.sent)

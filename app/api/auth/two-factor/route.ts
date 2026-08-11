@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, verifyPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { setTwoFactorEnabled } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 /**
  * Turn the emailed second factor on or off for your own account.
@@ -34,7 +35,18 @@ export async function POST(request: Request) {
   if (!password)
     return NextResponse.json({ error: "Enter your password to confirm" }, { status: 400 });
 
-  if (!enabled && !can(user, "manage_users"))
+  if (!enabled && !can(user, "manage_users")) {
+    await logActivity({
+      action: "auth.two_factor.change",
+      summary: `${user.name} tried to switch their own two-step sign-in off without the rights to`,
+      outcome: "denied",
+      status: 403,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      ...actorFromUser(user),
+      request,
+    });
     return NextResponse.json(
       {
         error:
@@ -42,10 +54,33 @@ export async function POST(request: Request) {
       },
       { status: 403 }
     );
+  }
 
-  if (!(await verifyPassword(password, user.passwordHash)))
+  if (!(await verifyPassword(password, user.passwordHash))) {
+    await logActivity({
+      action: "auth.two_factor.change",
+      summary: `${user.name} gave the wrong password when changing their two-step sign-in`,
+      outcome: "denied",
+      status: 403,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      ...actorFromUser(user),
+      request,
+    });
     return NextResponse.json({ error: "That isn't your password" }, { status: 403 });
+  }
 
   await setTwoFactorEnabled(user.id, enabled);
+  await logActivity({
+    action: "auth.two_factor.change",
+    summary: `${user.name} switched their own two-step sign-in ${enabled ? "on" : "off"}`,
+    entityType: "user",
+    entityId: user.id,
+    entityLabel: user.name,
+    ...actorFromUser(user),
+    detail: { enabled, self: true },
+    request,
+  });
   return NextResponse.json({ ok: true, enabled });
 }

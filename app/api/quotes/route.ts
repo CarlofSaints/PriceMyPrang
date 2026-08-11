@@ -10,6 +10,7 @@ import {
 import { uploadMedia } from "@/lib/blob";
 import { buildQuotePdf } from "@/lib/quotePdf";
 import { sendConsumerQuoteReady } from "@/lib/email";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 
@@ -51,7 +52,23 @@ export async function POST(request: Request) {
       !!user.panelBeaterId &&
       p.panelBeaterId === user.panelBeaterId &&
       req.selectedPanelBeaterIds.includes(user.panelBeaterId);
-    if (!ownsBoth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!ownsBoth) {
+      // A workshop reaching for a job that isn't theirs is exactly the kind of
+      // thing this log exists to surface.
+      await logActivity({
+        action: "quote.build",
+        summary: `${user.name} was refused a quote on ${req.reference} for a workshop that isn't theirs`,
+        outcome: "denied",
+        status: 403,
+        entityType: "request",
+        entityId: req.reference,
+        entityLabel: req.reference,
+        ...actorFromUser(user),
+        detail: { requestedPanelBeaterId: p.panelBeaterId },
+        request,
+      });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   // Keep lines that carry a description or any value.
@@ -162,6 +179,21 @@ export async function POST(request: Request) {
     quote.pdfUrl = url;
   } catch (err) {
     console.error("PDF generation failed", err);
+    // A failed build leaves nothing behind anywhere else, so without this line
+    // the estimator's "it wouldn't save" has no evidence at all.
+    await logActivity({
+      action: "quote.build",
+      summary: `${user.name}'s quote on ${req.reference} failed to render as a PDF`,
+      outcome: "failed",
+      status: 500,
+      entityType: "request",
+      entityId: req.reference,
+      entityLabel: req.reference,
+      ...actorFromUser(user),
+      panelBeaterId: pb.id,
+      detail: { error: err instanceof Error ? err.message : String(err), lines: lines.length },
+      request,
+    });
     return NextResponse.json({ error: "Failed to generate PDF" }, { status: 500 });
   }
 
@@ -172,13 +204,45 @@ export async function POST(request: Request) {
   // Let the consumer know there's something to look at. Best-effort — the quote
   // is saved either way, and they can still reach it from an earlier link.
   // Skipped for repairer-initiated jobs, where the workshop handles the client.
+  let quoteReadyEmail: "sent" | "failed" | "skipped" = "skipped";
   if (!req.repairerInitiated) {
     try {
       await sendConsumerQuoteReady(req, pb, quote.total);
+      quoteReadyEmail = "sent";
     } catch (err) {
       console.error("quote-ready email failed", err);
+      quoteReadyEmail = "failed";
     }
   }
+
+  const label = pb.tradingAs || pb.companyName;
+  await logActivity({
+    action: "quote.build",
+    summary: `${user.name} priced ${req.reference} for ${label} at R${quote.total.toFixed(2)}`,
+    entityType: "request",
+    entityId: req.reference,
+    entityLabel: req.reference,
+    ...actorFromUser(user),
+    // The workshop the quote is FOR — staff quoting on someone's behalf have no
+    // panelBeaterId of their own, and this is the number a report groups by.
+    panelBeaterId: pb.id,
+    detail: {
+      panelBeater: label,
+      lines: lines.length,
+      totalHours,
+      partsTotal,
+      outWorkTotal,
+      labourTotal,
+      sundries,
+      sundriesMode,
+      consumables,
+      subtotal,
+      vat,
+      total,
+      quoteReadyEmail,
+    },
+    request,
+  });
 
   return NextResponse.json(quote);
 }

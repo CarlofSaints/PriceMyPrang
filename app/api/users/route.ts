@@ -3,6 +3,7 @@ import { requireUser, hashPassword } from "@/lib/auth";
 import { can, permissionsForRole } from "@/lib/permissions";
 import { getUsers, saveUsers, getRoles, deleteUser, setTwoFactorEnabled } from "@/lib/store";
 import { sendUserCredentials } from "@/lib/email";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser, User } from "@/lib/types";
 
 function scrub(u: User) {
@@ -118,6 +119,25 @@ export async function POST(request: Request) {
       })
     : { sent: false, skipped: true as const };
 
+  await logActivity({
+    action: "user.create",
+    summary: `${admin.name} created the login ${user.name} (${user.email}) as ${role.name}`,
+    entityType: "user",
+    entityId: user.id,
+    entityLabel: user.name,
+    ...actorFromUser(admin),
+    detail: {
+      email: user.email,
+      role: role.name,
+      panelBeaterId: user.panelBeaterId ?? null,
+      mustChangePassword,
+      // WHETHER a password was emailed, never the password itself.
+      credentialsEmailed: mail.sent,
+      emailSkipped: "skipped" in mail,
+    },
+    request,
+  });
+
   return NextResponse.json({
     ...scrub(user),
     emailSent: mail.sent,
@@ -164,6 +184,24 @@ export async function DELETE(request: Request) {
     );
 
   await deleteUser(id);
+
+  // The deleted person's details are COPIED into the line, because after this
+  // there is no record left to join back to.
+  await logActivity({
+    action: "user.delete",
+    summary: `${admin.name} deleted the login ${target.name} (${target.email})`,
+    entityType: "user",
+    entityId: target.id,
+    entityLabel: target.name,
+    ...actorFromUser(admin),
+    detail: {
+      email: target.email,
+      role: target.role,
+      panelBeaterId: target.panelBeaterId ?? null,
+    },
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -195,6 +233,10 @@ export async function PATCH(request: Request) {
   if (!scope.platform && u.panelBeaterId !== scope.panelBeaterId)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Snapshot BEFORE the in-place mutation below, or the diff compares the
+  // record with itself and reports nothing changed.
+  const before = { role: u.role, active: u.active, twoFactorEnabled: u.twoFactorEnabled };
+
   if (b.role) {
     const roles = await getRoles();
     const role = roles.find((r) => r.id === b.role);
@@ -216,7 +258,18 @@ export async function PATCH(request: Request) {
   // which is exactly what /api/auth/two-factor demands a password to stop.
   // Your own toggle lives on /portal/change-password, which asks for it.
   if (typeof b.twoFactorEnabled === "boolean") {
-    if (u.id === admin.id)
+    if (u.id === admin.id) {
+      await logActivity({
+        action: "user.update",
+        summary: `${admin.name} tried to change their own two-step sign-in from the Users page`,
+        outcome: "denied",
+        status: 403,
+        entityType: "user",
+        entityId: u.id,
+        entityLabel: u.name,
+        ...actorFromUser(admin),
+        request,
+      });
       return NextResponse.json(
         {
           error:
@@ -224,6 +277,7 @@ export async function PATCH(request: Request) {
         },
         { status: 403 }
       );
+    }
     u.twoFactorEnabled = b.twoFactorEnabled;
   }
 
@@ -255,6 +309,41 @@ export async function PATCH(request: Request) {
   // would look like it saved and quietly change nothing.
   if (typeof b.twoFactorEnabled === "boolean")
     await setTwoFactorEnabled(u.id, b.twoFactorEnabled);
+
+  const changes = diff(before, {
+    role: u.role,
+    active: u.active,
+    twoFactorEnabled: u.twoFactorEnabled,
+  });
+  // A password reset changes no visible field, so it would leave no trace at
+  // all if the log only recorded the diff.
+  const changed = [
+    ...Object.keys(changes).map((k) =>
+      k === "twoFactorEnabled" ? "two-step sign-in" : k === "active" ? "active" : k
+    ),
+    ...(b.password ? ["password (reset)"] : []),
+  ];
+
+  await logActivity({
+    action: b.password && changed.length === 1 ? "user.password.reset" : "user.update",
+    summary: changed.length
+      ? `${admin.name} changed ${changed.join(", ")} for ${u.name}`
+      : `${admin.name} saved ${u.name} with no changes`,
+    entityType: "user",
+    entityId: u.id,
+    entityLabel: u.name,
+    ...actorFromUser(admin),
+    detail: {
+      email: u.email,
+      changes,
+      // Again: whether a password was issued and emailed, never its value.
+      passwordReset: !!b.password,
+      mustChangePassword: b.password ? u.mustChangePassword : undefined,
+      credentialsEmailed: b.password ? !!mail?.sent : undefined,
+      emailSkipped: skipped || undefined,
+    },
+    request,
+  });
 
   return NextResponse.json({
     ...scrub(u),

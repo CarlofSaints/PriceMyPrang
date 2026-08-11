@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listDueDevReminders, markDevReminderSent } from "@/lib/store";
 import { sendDevTicketReminder } from "@/lib/email";
+import { logActivity, systemActor } from "@/lib/activityLog";
 
 export const maxDuration = 60;
 
@@ -19,7 +20,12 @@ export async function GET(request: Request) {
     console.error("CRON_SECRET is not set — refusing to run the cron.");
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
-  if (request.headers.get("authorization") !== `Bearer `) {
+  // The secret was missing from this comparison — it read `Bearer ` with no
+  // interpolation, so the real cron call (which sends `Bearer <secret>`) was
+  // rejected 401 and this reminder has never run, while anyone sending the
+  // literal header `Authorization: Bearer ` would have been let straight in.
+  // The warranty cron next door has always had it right.
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -39,6 +45,18 @@ export async function GET(request: Request) {
       log.push(`FAILED ${ticket.title}: ${res.error}`);
     }
   }
+
+  // A cron that stops running is invisible until somebody notices the emails
+  // stopped — which is exactly what the bug above caused. A row per run means
+  // "when did this last work" is a question the log can answer.
+  await logActivity({
+    action: "cron.dev_reminders",
+    summary: `Dev reminders ran: ${due.length} due, ${sent} sent`,
+    outcome: sent === due.length ? "success" : "failed",
+    ...systemActor("dev-reminders"),
+    detail: { due: due.length, sent, log },
+    request,
+  });
 
   return NextResponse.json({ ok: true, due: due.length, sent, log });
 }

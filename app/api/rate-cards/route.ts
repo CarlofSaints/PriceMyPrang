@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getRateCards, getRateCard, upsertRateCard, deleteRateCard } from "@/lib/store";
 import { resolveRateTarget as resolveTarget } from "@/lib/rateAccess";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { RateCard, RateValues } from "@/lib/types";
 
 export async function GET(request: Request) {
@@ -78,7 +79,31 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
   };
 
+  const previous = b.id ? await getRateCard(b.id) : null;
   await upsertRateCard(card);
+
+  const cardName = card.kind === "cash" ? "cash" : (card.insurerName ?? "insurance");
+  // The VALUES are what a repairer argues about months later, so the whole set
+  // is kept on a create and the changed ones on an edit. Rates are numbers, not
+  // credentials — there is nothing here to redact.
+  await logActivity({
+    action: previous ? "rate.card.update" : "rate.card.create",
+    summary: `${user.name} ${previous ? "updated" : "created"} the ${cardName} rate card`,
+    entityType: "rate_card",
+    entityId: card.id,
+    entityLabel: cardName,
+    ...actorFromUser(user),
+    panelBeaterId: target.id,
+    detail: {
+      kind: card.kind,
+      insurerName: card.insurerName,
+      aluminium: card.aluminium,
+      changes: previous ? diff(previous.values ?? {}, card.values ?? {}) : undefined,
+      values: previous ? undefined : card.values,
+    },
+    request,
+  });
+
   return NextResponse.json({ ok: true, card: await getRateCard(card.id) });
 }
 
@@ -98,5 +123,21 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   await deleteRateCard(id);
+
+  const cardName = card.kind === "cash" ? "cash" : (card.insurerName ?? "insurance");
+  await logActivity({
+    action: "rate.card.delete",
+    summary: `${user.name} deleted the ${cardName} rate card`,
+    entityType: "rate_card",
+    entityId: card.id,
+    entityLabel: cardName,
+    ...actorFromUser(user),
+    panelBeaterId: card.panelBeaterId,
+    // The values go with it, so they are copied here — after this the log is
+    // the only place they still exist.
+    detail: { kind: card.kind, insurerName: card.insurerName, values: card.values },
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

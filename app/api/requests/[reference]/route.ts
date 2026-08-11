@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getRequest, updateRequestStatus } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { RequestStatus } from "@/lib/types";
 
 export async function GET(
@@ -48,5 +49,17 @@ export async function PATCH(
   if (!req) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await updateRequestStatus(reference, status);
+
+  await logActivity({
+    action: "request.status",
+    summary: `${user.name} moved ${reference} to ${status.replace("_", " ")}`,
+    entityType: "request",
+    entityId: req.reference,
+    entityLabel: reference,
+    ...actorFromUser(user),
+    detail: { from: req.status, to: status },
+    request,
+  });
+
   return NextResponse.json({ ok: true, status });
 }

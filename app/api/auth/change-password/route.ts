@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword, verifyPassword } from "@/lib/auth";
 import { setUserPassword } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 const MIN_LENGTH = 10;
 
@@ -35,7 +36,22 @@ export async function POST(request: Request) {
 
   // Name the likely cause. Bare "incorrect" reads as being locked out, when it
   // usually means the temporary password has already been replaced.
-  if (!(await verifyPassword(supplied, user.passwordHash)))
+  if (!(await verifyPassword(supplied, user.passwordHash))) {
+    // Neither password is logged, only that the check failed and which of the
+    // two situations it was — that distinction is what turned a support
+    // question into a two-minute answer last time.
+    await logActivity({
+      action: "auth.password.change",
+      summary: `${user.name} gave the wrong current password`,
+      outcome: "denied",
+      status: 403,
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      ...actorFromUser(user),
+      detail: { onTemporaryPassword: !!user.mustChangePassword },
+      request,
+    });
     return NextResponse.json(
       {
         error: user.mustChangePassword
@@ -44,6 +60,7 @@ export async function POST(request: Request) {
       },
       { status: 403 }
     );
+  }
 
   if (newPassword.length < MIN_LENGTH)
     return NextResponse.json(
@@ -59,6 +76,17 @@ export async function POST(request: Request) {
   // Clears mustChangePassword, which is what releases them from the forced
   // change screen.
   await setUserPassword(user.id, await hashPassword(newPassword), false);
+
+  await logActivity({
+    action: "auth.password.change",
+    summary: `${user.name} changed their password`,
+    entityType: "user",
+    entityId: user.id,
+    entityLabel: user.name,
+    ...actorFromUser(user),
+    detail: { wasTemporary: !!user.mustChangePassword },
+    request,
+  });
 
   return NextResponse.json({ ok: true });
 }

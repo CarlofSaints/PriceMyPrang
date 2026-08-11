@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can, ALL_PERMISSIONS } from "@/lib/permissions";
 import { getRoles, saveRoles, getUsers } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { Permission, Role } from "@/lib/types";
 
 function cleanPermissions(input: unknown): Permission[] {
@@ -54,6 +55,18 @@ export async function POST(request: Request) {
   };
   roles.push(role);
   await saveRoles(roles);
+
+  await logActivity({
+    action: "role.create",
+    summary: `${user.name} created the ${scope === "panel_beater" ? "workshop" : "platform"} role ${role.name}`,
+    entityType: "role",
+    entityId: role.id,
+    entityLabel: role.name,
+    ...actorFromUser(user),
+    detail: { scope, permissions: role.permissions },
+    request,
+  });
+
   return NextResponse.json(role);
 }
 
@@ -79,9 +92,35 @@ export async function PATCH(request: Request) {
       { status: 400 }
     );
 
+  // Which capabilities were granted and revoked, not merely that "permissions"
+  // changed — this endpoint is how someone's reach is widened, so the log has
+  // to name what was widened.
+  const before = { name: role.name, permissions: [...role.permissions] };
   if (b.name?.trim()) role.name = b.name.trim();
   if (b.permissions) role.permissions = cleanPermissions(b.permissions);
   await saveRoles(roles);
+
+  const granted = role.permissions.filter((p) => !before.permissions.includes(p));
+  const revoked = before.permissions.filter((p) => !role.permissions.includes(p));
+  await logActivity({
+    action: "role.update",
+    summary:
+      granted.length || revoked.length
+        ? `${user.name} changed ${role.name}: ${[
+            granted.length ? `granted ${granted.join(", ")}` : "",
+            revoked.length ? `revoked ${revoked.join(", ")}` : "",
+          ]
+            .filter(Boolean)
+            .join("; ")}`
+        : `${user.name} saved the role ${role.name}`,
+    entityType: "role",
+    entityId: role.id,
+    entityLabel: role.name,
+    ...actorFromUser(user),
+    detail: { granted, revoked, renamedFrom: before.name === role.name ? undefined : before.name },
+    request,
+  });
+
   return NextResponse.json(role);
 }
 
@@ -109,5 +148,17 @@ export async function DELETE(request: Request) {
     );
 
   await saveRoles(roles.filter((r) => r.id !== id));
+
+  await logActivity({
+    action: "role.delete",
+    summary: `${user.name} deleted the role ${role.name}`,
+    entityType: "role",
+    entityId: role.id,
+    entityLabel: role.name,
+    ...actorFromUser(user),
+    detail: { scope: role.scope, permissions: role.permissions },
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

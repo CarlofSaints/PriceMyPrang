@@ -12,6 +12,7 @@ import { geocodeAddress } from "@/lib/geocode";
 import { generateTempPassword, hashPassword } from "@/lib/auth";
 import { PANEL_BEATER_ADMIN_ROLE } from "@/lib/permissions";
 import { mergeWarranties } from "@/lib/warrantyReminders";
+import { logActivity } from "@/lib/activityLog";
 import {
   sendPanelBeaterRegistrationNotification,
   sendPanelBeaterWelcome,
@@ -217,6 +218,33 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("registration email failed", err);
   }
+
+  await logActivity({
+    action: "panel_beater.register",
+    summary: `${pb.tradingAs || pb.companyName} applied to join the panel`,
+    entityType: "panel_beater",
+    entityId: pb.id,
+    entityLabel: pb.tradingAs || pb.companyName,
+    // No login exists yet — this is the form that creates the first ones.
+    actorKind: "applicant",
+    actorName: pb.completedByName || pb.ownerName,
+    actorEmail: pb.completedByEmail || pb.ownerEmail,
+    panelBeaterId: pb.id,
+    detail: {
+      companyName: pb.companyName,
+      tradingAs: pb.tradingAs,
+      companyRegNumber: pb.companyRegNumber,
+      physicalAddress: pb.physicalAddress,
+      geocoded: pb.lat != null && pb.lng != null,
+      warranties: pb.warranties?.length ?? 0,
+      // WHICH addresses got a login, never the temporary passwords that went
+      // with them.
+      loginsCreated: logins.created,
+      loginsSkipped: logins.skipped,
+      agreementEmailed: agreementSent,
+    },
+    request,
+  });
 
   return NextResponse.json({
     ok: true,

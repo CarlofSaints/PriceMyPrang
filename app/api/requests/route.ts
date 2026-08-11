@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getPanelBeaters, createRequest } from "@/lib/store";
 import {
@@ -7,6 +7,7 @@ import {
   sendAdminNotification,
   sendUnknownInsurerNotification,
 } from "@/lib/email";
+import { logActivity, actorFromUser, consumerActor } from "@/lib/activityLog";
 import type { MediaRef, QuoteRequest, RequiredPhotos, VehicleDetails } from "@/lib/types";
 
 interface Payload {
@@ -126,6 +127,44 @@ export async function POST(request: Request) {
   };
 
   const req = await createRequest(draft);
+
+  // A repairer-initiated job is somebody at a workshop filling the form in; a
+  // consumer submission has no login behind it at all. Both are real activity
+  // and both belong in the log, so the actor is whichever one applies.
+  const actingUser = repairerQuote ? await getCurrentUser() : null;
+  await logActivity({
+    action: repairerQuote ? "request.repairer_create" : "request.create",
+    summary: repairerQuote
+      ? `${actingUser?.name ?? "A repairer"} opened job ${req.reference} for ${req.firstName} ${req.lastName}`
+      : `${req.firstName} ${req.lastName} submitted quote request ${req.reference}`,
+    entityType: "request",
+    entityId: req.reference,
+    entityLabel: req.reference,
+    ...(actingUser
+      ? actorFromUser(actingUser)
+      : consumerActor(`${req.firstName} ${req.lastName}`, req.email)),
+    panelBeaterId: repairerQuote ? selectedPanelBeaterIds[0] : undefined,
+    detail: {
+      reference: req.reference,
+      quotesRequested,
+      letUsChoose,
+      workshopsChosen: selectedPanelBeaterIds.length,
+      vehicle: [req.vehicle?.make, req.vehicle?.model, req.vehicle?.year]
+        .filter(Boolean)
+        .join(" "),
+      hasInsurance: req.hasInsurance,
+      insurer: req.insurerName,
+      insurerListed: !!req.insurerId,
+      isInsuranceClaim: req.isInsuranceClaim,
+      underWarranty: req.underWarranty,
+      mileageKm: req.mileageKm,
+      damagePhotos: req.damagePhotos?.length ?? 0,
+      hasVideo: !!req.video,
+      hasDisc: !!req.discImage,
+      hasOdometer: !!req.odometerImage,
+    },
+    request,
+  });
 
   // Consumer/admin notification emails only apply to consumer-submitted requests.
   // A repairer self-quote is handled by the repairer, so we don't email anyone.

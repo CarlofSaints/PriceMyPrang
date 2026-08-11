@@ -2,6 +2,7 @@ import { streamMedia } from "@/lib/blob";
 import { isMediaPathname } from "@/lib/mediaPath";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { logActivity, actorFromUser, consumerActor } from "@/lib/activityLog";
 
 // Streams a PRIVATE media blob (damage photos, licence disc, video, logos,
 // quote PDFs). URLs contain an unguessable random suffix. Only media prefixes
@@ -11,8 +12,12 @@ import { can } from "@/lib/permissions";
 // PDFs and certificates have to work for people with no login. Dev-ticket
 // attachments are the exception: they are internal documents, nothing outside
 // the portal ever links to them, so they get a real permission check.
+//
+// Successful reads are deliberately NOT logged: a single quote PDF or gallery
+// page pulls a dozen files and would bury every real action under image
+// requests. REFUSALS are logged, because those are the ones worth knowing about.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
@@ -27,6 +32,17 @@ export async function GET(
   if (pathname.startsWith("dev-tickets/")) {
     const user = await getCurrentUser();
     if (!can(user, "manage_dev_tickets")) {
+      await logActivity({
+        action: "media.denied",
+        summary: `An internal dev-planner file was requested by someone without access`,
+        outcome: "denied",
+        status: 404,
+        entityType: "media",
+        entityLabel: pathname,
+        ...(user ? actorFromUser(user) : consumerActor()),
+        detail: { pathname, prefix: "dev-tickets/" },
+        request,
+      });
       return new Response("Not found", { status: 404 });
     }
   }
@@ -38,6 +54,17 @@ export async function GET(
   if (pathname.startsWith("complaints/")) {
     const user = await getCurrentUser();
     if (!can(user, "manage_complaints") && !can(user, "manage_own_complaints")) {
+      await logActivity({
+        action: "media.denied",
+        summary: `Complaint evidence was requested by someone without access`,
+        outcome: "denied",
+        status: 404,
+        entityType: "media",
+        entityLabel: pathname,
+        ...(user ? actorFromUser(user) : consumerActor()),
+        detail: { pathname, prefix: "complaints/" },
+        request,
+      });
       return new Response("Not found", { status: 404 });
     }
   }

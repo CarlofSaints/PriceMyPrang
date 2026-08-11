@@ -7,6 +7,7 @@ import {
 } from "@/lib/store";
 import { verifyPassword, createSession } from "@/lib/auth";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { logActivity } from "@/lib/activityLog";
 
 // Second half of a two-factor sign-in. The password was already checked; this
 // is where the session is finally issued.
@@ -34,6 +35,19 @@ export async function POST(request: Request) {
   if (!(await verifyPassword(code.trim(), challenge.codeHash))) {
     const attempts = await recordChallengeAttempt(challengeId);
     const left = Math.max(0, 5 - attempts);
+    // The code itself is never logged — only that one was wrong, and how many
+    // tries are left.
+    await logActivity({
+      action: "auth.two_factor",
+      summary: `Wrong sign-in code (${left} attempt${left === 1 ? "" : "s"} left)`,
+      outcome: "denied",
+      status: 401,
+      entityType: "user",
+      entityId: challenge.userId,
+      actorId: challenge.userId,
+      detail: { attempts, attemptsLeft: left },
+      request,
+    });
     return NextResponse.json(
       {
         error: left
@@ -52,5 +66,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
 
   await createSession(user.id);
+  await logActivity({
+    action: "auth.login",
+    summary: `${user.name} signed in (two-step)`,
+    entityType: "user",
+    entityId: user.id,
+    entityLabel: user.name,
+    actorId: user.id,
+    actorName: user.name,
+    actorEmail: user.email,
+    actorRole: user.role,
+    panelBeaterId: user.panelBeaterId,
+    detail: { twoFactor: true },
+    request,
+  });
   return NextResponse.json({ ok: true, role: user.role });
 }

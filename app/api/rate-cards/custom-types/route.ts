@@ -6,6 +6,7 @@ import {
   deleteCustomRateType,
 } from "@/lib/store";
 import { resolveRateTarget } from "@/lib/rateAccess";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { RateUnit } from "@/lib/types";
 
 /**
@@ -67,6 +68,18 @@ export async function POST(request: Request) {
       { status: 409 }
     );
 
+  await logActivity({
+    action: "rate.custom_type.create",
+    summary: `${user.name} added the custom rate “${label}”`,
+    entityType: "custom_rate_type",
+    entityId: created.id,
+    entityLabel: label,
+    ...actorFromUser(user),
+    panelBeaterId: target.id,
+    detail: { unit: b.unit },
+    request,
+  });
+
   return NextResponse.json(created);
 }
 
@@ -84,8 +97,23 @@ export async function DELETE(request: Request) {
   // Removes the values set against it on every one of this workshop's cards.
   // Another workshop's rate is a 404, not a 403 — same as everywhere else here,
   // so an id can't be used to discover what exists.
+  // Read the label BEFORE deleting, so the log names the rate rather than an
+  // opaque uuid nobody can look up afterwards.
+  const existing = (await getCustomRateTypes(target.id)).find((c) => c.id === id);
   const ok = await deleteCustomRateType(target.id, id);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await logActivity({
+    action: "rate.custom_type.delete",
+    summary: `${user.name} deleted the custom rate “${existing?.label ?? id}” and its values on every card`,
+    entityType: "custom_rate_type",
+    entityId: id,
+    entityLabel: existing?.label,
+    ...actorFromUser(user),
+    panelBeaterId: target.id,
+    detail: { unit: existing?.unit },
+    request,
+  });
 
   return NextResponse.json({ ok: true });
 }

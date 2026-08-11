@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requestKeyByReference, createConsumerAccessLink, getRequest } from "@/lib/store";
 import { sendConsumerFeedbackLink } from "@/lib/email";
+import { logActivity, consumerActor } from "@/lib/activityLog";
 
 // ---------------------------------------------------------------------------
 // "I want to rate or complain about my repair."
@@ -49,8 +50,10 @@ export async function POST(request: Request) {
   const ref = typeof reference === "string" ? reference.trim() : "";
   if (!ref) return NextResponse.json({ error: "Enter your reference number" }, { status: 400 });
 
+  let matched = false;
   try {
     const key = await requestKeyByReference(ref);
+    matched = !!key;
     // No email on the job means nowhere to send the credential. Still the same
     // answer outwardly.
     if (key?.email) {
@@ -61,6 +64,24 @@ export async function POST(request: Request) {
   } catch {
     // A lookup or send failure must not change the shape of the reply either.
   }
+
+  // The RESPONSE stays identical for a real and a made-up reference; the LOG
+  // may tell them apart, and has to — a run of misses from one address is
+  // somebody walking the reference space, which is the attack this endpoint was
+  // designed against. Only a Super Admin ever reads this.
+  await logActivity({
+    action: "feedback.link_request",
+    summary: matched
+      ? `A feedback link was requested for ${ref}`
+      : `A feedback link was requested for ${ref}, which matched no job`,
+    outcome: matched ? "success" : "failed",
+    entityType: "request",
+    entityId: matched ? ref : undefined,
+    entityLabel: ref,
+    ...consumerActor(),
+    detail: { reference: ref, matched },
+    request,
+  });
 
   return NextResponse.json(SAME_ANSWER);
 }

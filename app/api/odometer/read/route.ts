@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readMediaBytes } from "@/lib/blob";
 import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { logActivity, consumerActor } from "@/lib/activityLog";
 
 export const maxDuration = 60;
 
@@ -26,8 +27,18 @@ export async function POST(request: Request) {
   if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
 
   // Without this, a caller could name any blob and have its text read back.
-  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref)))
+  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref))) {
+    await logActivity({
+      action: "ocr.odometer",
+      summary: "An odometer read was refused for a file outside the consumer uploads",
+      outcome: "denied",
+      status: 404,
+      ...consumerActor(),
+      detail: { pathname: pathnameFromMediaUrl(ref) },
+      request,
+    });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({} satisfies OdometerReading);
@@ -85,9 +96,27 @@ export async function POST(request: Request) {
       km: Number.isFinite(km) && km > 0 ? Math.round(km) : undefined,
       rawText: typeof parsed.rawText === "string" && parsed.rawText.trim() ? parsed.rawText.trim() : undefined,
     };
+    // A paid model call, same as the disc read.
+    await logActivity({
+      action: "ocr.odometer",
+      summary: result.km ? `An odometer was read — ${result.km} km` : "An odometer photo could not be read",
+      outcome: result.km ? "success" : "failed",
+      ...consumerActor(),
+      detail: { model, km: result.km, rawText: result.rawText },
+      request,
+    });
+
     return NextResponse.json(result);
   } catch (err) {
     console.error("odometer read failed", err);
+    await logActivity({
+      action: "ocr.odometer",
+      summary: "An odometer read failed",
+      outcome: "failed",
+      ...consumerActor(),
+      detail: { error: err instanceof Error ? err.message : String(err) },
+      request,
+    });
     return NextResponse.json({} satisfies OdometerReading);
   }
 }

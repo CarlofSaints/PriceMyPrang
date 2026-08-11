@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById, getPanelBeater } from "@/lib/store";
 import { geocodeAddress } from "@/lib/geocode";
 import { mergeWarranties } from "@/lib/warrantyReminders";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { PanelBeater } from "@/lib/types";
 
 export async function GET() {
@@ -119,6 +120,44 @@ export async function POST(request: Request) {
     }
   }
 
+  const label = pb.tradingAs || pb.companyName;
+  // Only the fields a person would ask about. A whole-record dump would bury
+  // the one thing that changed, and the record is still in the database.
+  const tracked = (p: Partial<PanelBeater>) => ({
+    companyName: p.companyName,
+    tradingAs: p.tradingAs,
+    physicalAddress: p.physicalAddress,
+    email: p.email,
+    phone: p.phone,
+    active: p.active,
+    status: p.status,
+    vatNumber: p.vatNumber,
+    companyRegNumber: p.companyRegNumber,
+    rmiNumber: p.rmiNumber,
+    mibcoNumber: p.mibcoNumber,
+    sambraNumber: p.sambraNumber,
+    miwaNumber: p.miwaNumber,
+    lat: p.lat,
+    lng: p.lng,
+    warrantyCount: p.warranties?.length ?? 0,
+  });
+  const changes = existing ? diff(tracked(existing), tracked(pb)) : {};
+
+  await logActivity({
+    action: existing ? "panel_beater.update" : "panel_beater.create",
+    summary: existing
+      ? `${user.name} edited the listing for ${label}${
+          Object.keys(changes).length ? ` (${Object.keys(changes).join(", ")})` : " with no changes"
+        }`
+      : `${user.name} added the panel beater ${label}`,
+    entityType: "panel_beater",
+    entityId: pb.id,
+    entityLabel: label,
+    ...actorFromUser(user),
+    detail: existing ? { changes } : tracked(pb),
+    request,
+  });
+
   return NextResponse.json(pb);
 }
 
@@ -139,6 +178,8 @@ export async function PATCH(request: Request) {
   const pb = await getPanelBeater(id);
   if (!pb) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const before = { status: pb.status, active: pb.active };
+
   if (status) {
     pb.status = status;
     // Approving makes it live on the map; declining hides it.
@@ -148,5 +189,22 @@ export async function PATCH(request: Request) {
   if (typeof active === "boolean") pb.active = active;
 
   await upsertPanelBeater(pb);
+
+  const label = pb.tradingAs || pb.companyName;
+  // Vetting is the decision the whole network hangs on — who approved which
+  // workshop, and when, is the single most useful line in this log.
+  await logActivity({
+    action: status ? "panel_beater.vetting" : "panel_beater.update",
+    summary: status
+      ? `${user.name} marked ${label} as ${status}`
+      : `${user.name} switched ${label} ${pb.active ? "on" : "off"}`,
+    entityType: "panel_beater",
+    entityId: pb.id,
+    entityLabel: label,
+    ...actorFromUser(user),
+    detail: { changes: diff(before, { status: pb.status, active: pb.active }) },
+    request,
+  });
+
   return NextResponse.json(pb);
 }

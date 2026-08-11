@@ -45,6 +45,11 @@ import type {
   ComplaintStatus,
   ComplaintOutcome,
   VehicleSafety,
+  ActivityEntry,
+  ActivityFilters,
+  ActivityPage,
+  ActivityStats,
+  ActivityFacets,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -3036,7 +3041,9 @@ export async function createEmailVerification(
  * so an old link can't complete a verification for an address the account no
  * longer uses.
  */
-export async function redeemEmailVerification(token: string): Promise<{ email: string } | null> {
+export async function redeemEmailVerification(
+  token: string
+): Promise<{ email: string; userId: string; name: string } | null> {
   const db = getDb();
   const row = await db.emailVerification.findUnique({ where: { token }, include: { user: true } });
   if (!row || row.usedAt || row.expiresAt < new Date()) return null;
@@ -3046,7 +3053,9 @@ export async function redeemEmailVerification(token: string): Promise<{ email: s
     db.emailVerification.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
     db.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } }),
   ]);
-  return { email: row.user.email };
+  // userId and name are returned so the activity log can attribute the
+  // confirmation to a person; the caller must never be handed the token back.
+  return { email: row.user.email, userId: row.userId, name: row.user.name };
 }
 
 export async function setTwoFactorEnabled(userId: string, enabled: boolean): Promise<void> {
@@ -3095,4 +3104,237 @@ export async function consumeLoginChallenge(id: string): Promise<void> {
     where: { id, consumedAt: null },
     data: { consumedAt: new Date() },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Activity log â€” READ SIDE ONLY.
+//
+// Writes go through logActivity() in lib/activityLog.ts. There is deliberately
+// no update or delete here: the log is append-only, and a record the app can
+// quietly rewrite is not a record of anything.
+// ---------------------------------------------------------------------------
+
+/**
+ * South Africa is UTC+2 all year (no DST), and the people reading this log are
+ * all in it. Using the UTC day would file everything between midnight and 02:00
+ * under "yesterday", which is exactly when someone checking the overnight
+ * activity would be looking.
+ */
+const SAST_OFFSET_MIN = 120;
+
+function sastDayStart(daysAgo = 0): Date {
+  const sastNow = new Date(Date.now() + SAST_OFFSET_MIN * 60_000);
+  return new Date(
+    Date.UTC(sastNow.getUTCFullYear(), sastNow.getUTCMonth(), sastNow.getUTCDate() - daysAgo) -
+      SAST_OFFSET_MIN * 60_000
+  );
+}
+
+/** "yyyy-mm-dd" read as a South African calendar day. */
+function sastDate(day: string, endOfDay = false): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.trim());
+  if (!m) return undefined;
+  const base = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + (endOfDay ? 1 : 0));
+  return new Date(base - SAST_OFFSET_MIN * 60_000);
+}
+
+function activityWhere(f: ActivityFilters): Prisma.ActivityLogWhereInput {
+  const where: Prisma.ActivityLogWhereInput = {};
+
+  if (f.action) where.action = f.action;
+  // The area is the bit before the first dot, so it filters with a prefix
+  // rather than needing a column of its own.
+  else if (f.area) where.action = { startsWith: `${f.area}.` };
+
+  if (f.actorId) where.actorId = f.actorId;
+  if (f.actorKind) where.actorKind = f.actorKind;
+  if (f.outcome) where.outcome = f.outcome;
+  if (f.panelBeaterId) where.panelBeaterId = f.panelBeaterId;
+  if (f.entityType) where.entityType = f.entityType;
+  if (f.entityId) where.entityId = f.entityId;
+
+  const gte = f.from ? sastDate(f.from) : undefined;
+  const lt = f.to ? sastDate(f.to, true) : undefined;
+  if (gte || lt) where.createdAt = { ...(gte ? { gte } : {}), ...(lt ? { lt } : {}) };
+
+  if (f.search?.trim()) {
+    const q = f.search.trim();
+    where.OR = [
+      { summary: { contains: q, mode: "insensitive" } },
+      { actorName: { contains: q, mode: "insensitive" } },
+      { actorEmail: { contains: q, mode: "insensitive" } },
+      { entityLabel: { contains: q, mode: "insensitive" } },
+      { action: { contains: q, mode: "insensitive" } },
+      { ip: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
+  return where;
+}
+
+type ActivityRow = Prisma.ActivityLogGetPayload<Record<string, never>>;
+
+function toActivityEntry(row: ActivityRow, workshopNames: Map<string, string>): ActivityEntry {
+  return {
+    id: row.id,
+    createdAt: row.createdAt.toISOString(),
+    action: row.action,
+    entityType: row.entityType ?? undefined,
+    entityId: row.entityId ?? undefined,
+    entityLabel: row.entityLabel ?? undefined,
+    outcome: row.outcome,
+    summary: row.summary,
+    actorKind: row.actorKind,
+    actorId: row.actorId ?? undefined,
+    actorName: row.actorName ?? undefined,
+    actorEmail: row.actorEmail ?? undefined,
+    actorRole: row.actorRole ?? undefined,
+    panelBeaterId: row.panelBeaterId ?? undefined,
+    panelBeaterName: row.panelBeaterId
+      ? // A workshop deleted since the event still leaves a readable line: the
+        // id is kept, and the name says plainly that it can no longer be resolved.
+        (workshopNames.get(row.panelBeaterId) ?? "Unknown workshop")
+      : undefined,
+    method: row.method ?? undefined,
+    path: row.path ?? undefined,
+    status: row.status ?? undefined,
+    ip: row.ip ?? undefined,
+    userAgent: row.userAgent ?? undefined,
+    detail: row.detail ?? undefined,
+  };
+}
+
+/** One lookup for a whole page of rows, rather than a join per row. */
+async function workshopNamesFor(ids: (string | null)[]): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((id): id is string => !!id))];
+  if (!unique.length) return new Map();
+  const rows = await getDb().panelBeater.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, companyName: true, tradingAs: true },
+  });
+  return new Map(rows.map((r) => [r.id, r.tradingAs || r.companyName]));
+}
+
+export async function listActivity(
+  filters: ActivityFilters = {},
+  page = 1,
+  pageSize = 50
+): Promise<ActivityPage> {
+  const db = getDb();
+  const where = activityWhere(filters);
+  const take = Math.min(Math.max(pageSize, 1), 200);
+  const skip = (Math.max(page, 1) - 1) * take;
+
+  const [rows, total] = await Promise.all([
+    db.activityLog.findMany({ where, orderBy: { createdAt: "desc" }, skip, take }),
+    db.activityLog.count({ where }),
+  ]);
+
+  const names = await workshopNamesFor(rows.map((r) => r.panelBeaterId));
+  return {
+    entries: rows.map((r) => toActivityEntry(r, names)),
+    total,
+    page: Math.max(page, 1),
+    pageSize: take,
+  };
+}
+
+/**
+ * Every matching row, for the CSV export. Capped: an unbounded export is one
+ * query away from pulling the whole table into a serverless function's memory,
+ * and an OOM inside a workbook build is a failure mode already seen elsewhere.
+ */
+export const ACTIVITY_EXPORT_LIMIT = 10_000;
+
+export async function exportActivity(filters: ActivityFilters = {}): Promise<ActivityEntry[]> {
+  const rows = await getDb().activityLog.findMany({
+    where: activityWhere(filters),
+    orderBy: { createdAt: "desc" },
+    take: ACTIVITY_EXPORT_LIMIT,
+  });
+  const names = await workshopNamesFor(rows.map((r) => r.panelBeaterId));
+  return rows.map((r) => toActivityEntry(r, names));
+}
+
+export async function getActivityStats(): Promise<ActivityStats> {
+  const db = getDb();
+  const todayStart = sastDayStart();
+  const weekStart = sastDayStart(6);
+  const today: Prisma.ActivityLogWhereInput = { createdAt: { gte: todayStart } };
+
+  const [todayCount, weekCount, total, signIns, problems, actors] = await Promise.all([
+    db.activityLog.count({ where: today }),
+    db.activityLog.count({ where: { createdAt: { gte: weekStart } } }),
+    db.activityLog.count(),
+    db.activityLog.count({ where: { ...today, action: "auth.login", outcome: "success" } }),
+    db.activityLog.count({ where: { ...today, outcome: { in: ["denied", "failed"] } } }),
+    // Distinct signed-in people, so the consumer side and the crons don't
+    // inflate what is meant to read as "how many of our people were working".
+    db.activityLog.findMany({
+      where: { ...today, actorKind: "user", actorId: { not: null } },
+      distinct: ["actorId"],
+      select: { actorId: true },
+    }),
+  ]);
+
+  return {
+    today: todayCount,
+    last7Days: weekCount,
+    total,
+    activeUsersToday: actors.length,
+    signInsToday: signIns,
+    problemsToday: problems,
+  };
+}
+
+/**
+ * What the filter dropdowns should offer â€” built from what is actually IN the
+ * log, so an area with no events never appears as an empty choice.
+ */
+export async function getActivityFacets(): Promise<ActivityFacets> {
+  const db = getDb();
+  const [actionRows, actorRows] = await Promise.all([
+    db.activityLog.groupBy({ by: ["action"], _count: { _all: true } }),
+    db.activityLog.findMany({
+      where: { actorId: { not: null } },
+      distinct: ["actorId"],
+      select: { actorId: true, actorName: true, actorKind: true },
+      orderBy: { actorName: "asc" },
+    }),
+  ]);
+
+  const areas = new Map<string, number>();
+  for (const r of actionRows) {
+    const area = r.action.split(".")[0] ?? "other";
+    areas.set(area, (areas.get(area) ?? 0) + r._count._all);
+  }
+
+  return {
+    actors: actorRows.map((a) => ({
+      id: a.actorId as string,
+      name: a.actorName ?? "(unnamed)",
+      kind: a.actorKind,
+    })),
+    actions: actionRows
+      .map((r) => ({ action: r.action, count: r._count._all }))
+      .sort((a, b) => a.action.localeCompare(b.action)),
+    areas: [...areas.entries()]
+      .map(([area, count]) => ({ area, count }))
+      .sort((a, b) => a.area.localeCompare(b.area)),
+  };
+}
+
+/** Everything recorded about one thing, for a future "history" view on a record. */
+export async function listActivityForEntity(
+  entityType: string,
+  entityId: string,
+  limit = 100
+): Promise<ActivityEntry[]> {
+  const rows = await getDb().activityLog.findMany({
+    where: { entityType, entityId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  const names = await workshopNamesFor(rows.map((r) => r.panelBeaterId));
+  return rows.map((r) => toActivityEntry(r, names));
 }

@@ -7,7 +7,8 @@ import {
   updatePanelBeaterSupplier,
   deletePanelBeaterSupplier,
 } from "@/lib/store";
-import type { Supplier } from "@/lib/types";
+import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
+import type { AuthUser, Supplier } from "@/lib/types";
 
 // A workshop's OWN supplier book. Separate from /api/suppliers, which is Price
 // my Prang's platform-wide list under manage_parts.
@@ -22,7 +23,8 @@ import type { Supplier } from "@/lib/types";
 
 type Gate =
   | { error: NextResponse }
-  | { panelBeaterId: string; canEdit: boolean };
+  // The user is carried through so the activity log can attribute the change.
+  | { panelBeaterId: string; canEdit: boolean; user: AuthUser };
 
 /**
  * @param target a workshop id from the caller. HONOURED ONLY for PMP staff
@@ -35,7 +37,7 @@ async function gate(target?: string | null): Promise<Gate> {
   if (response) return { error: response };
 
   const isStaff = can(user, "build_quotes") || can(user, "manage_panel_beaters");
-  if (target && isStaff) return { panelBeaterId: target, canEdit: true };
+  if (target && isStaff) return { panelBeaterId: target, canEdit: true, user };
 
   const canEdit = can(user, "manage_own_suppliers");
   if (!canEdit && !can(user, "view_own_suppliers"))
@@ -49,7 +51,7 @@ async function gate(target?: string | null): Promise<Gate> {
       ),
     };
 
-  return { panelBeaterId: user.panelBeaterId, canEdit };
+  return { panelBeaterId: user.panelBeaterId, canEdit, user };
 }
 
 /** Everything the form may set. `name` is the only one the API insists on. */
@@ -93,7 +95,23 @@ export async function POST(request: Request) {
   // stopped by a VAT number they'd have to go and find.
   if (!f.name) return NextResponse.json({ error: "Supplier company name is required" }, { status: 400 });
 
-  return NextResponse.json(await createPanelBeaterSupplier(g.panelBeaterId, { ...f, name: f.name }));
+  const created = await createPanelBeaterSupplier(g.panelBeaterId, { ...f, name: f.name });
+
+  await logActivity({
+    action: "supplier.own.create",
+    summary: `${g.user.name} added ${created.name} to the workshop's supplier book`,
+    entityType: "supplier",
+    entityId: created.id,
+    entityLabel: created.name,
+    ...actorFromUser(g.user),
+    // The workshop the BOOK belongs to, which is not the actor's own when PMP
+    // staff are adding one mid-quote on a workshop's behalf.
+    panelBeaterId: g.panelBeaterId,
+    detail: f,
+    request,
+  });
+
+  return NextResponse.json(created);
 }
 
 export async function PATCH(request: Request) {
@@ -109,10 +127,24 @@ export async function PATCH(request: Request) {
   if (b.name !== undefined && !f.name)
     return NextResponse.json({ error: "Supplier company name is required" }, { status: 400 });
 
+  const existing = (await listSuppliersForPanelBeater(g.panelBeaterId)).find((s) => s.id === id);
   const updated = await updatePanelBeaterSupplier(id, g.panelBeaterId, f);
   // 404 rather than 403: another workshop's supplier must not be discoverable
   // by probing ids.
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await logActivity({
+    action: "supplier.own.update",
+    summary: `${g.user.name} updated the supplier ${updated.name}`,
+    entityType: "supplier",
+    entityId: updated.id,
+    entityLabel: updated.name,
+    ...actorFromUser(g.user),
+    panelBeaterId: g.panelBeaterId,
+    detail: { changes: diff(existing as unknown as Record<string, unknown>, f) },
+    request,
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -124,7 +156,20 @@ export async function DELETE(request: Request) {
   const { id } = (await request.json()) as { id?: string };
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
+  const existing = (await listSuppliersForPanelBeater(g.panelBeaterId)).find((s) => s.id === id);
   const ok = await deletePanelBeaterSupplier(id, g.panelBeaterId);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await logActivity({
+    action: "supplier.own.delete",
+    summary: `${g.user.name} removed ${existing?.name ?? "a supplier"} from the workshop's supplier book`,
+    entityType: "supplier",
+    entityId: id,
+    entityLabel: existing?.name,
+    ...actorFromUser(g.user),
+    panelBeaterId: g.panelBeaterId,
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

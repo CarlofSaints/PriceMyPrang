@@ -8,6 +8,7 @@ import {
 import { buildAgreementPdf } from "@/lib/agreementPdf";
 import { uploadMedia } from "@/lib/blob";
 import { sendSignedAgreementCopy } from "@/lib/email";
+import { logActivity } from "@/lib/activityLog";
 
 export const maxDuration = 60;
 
@@ -52,6 +53,27 @@ export async function POST(request: Request) {
       { error: result.reason === "already_signed" ? "Already signed" : "Agreement not found" },
       { status: result.reason === "already_signed" ? 409 : 404 }
     );
+
+  // Someone signing a contract is worth a line of its own, even though the
+  // signature itself is already recorded on the agreement — this is what puts
+  // it on the same timeline as everything else that happened that day.
+  await logActivity({
+    action: "agreement.sign",
+    summary: `${signerName} signed the repairer agreement for ${found.agreement.sentToName}`,
+    entityType: "repairer_agreement",
+    entityId: found.agreement.id,
+    entityLabel: found.agreement.sentToName,
+    // No login exists at this point — the token in their email is the credential.
+    actorKind: "applicant",
+    actorName: signerName,
+    actorEmail: found.agreement.sentToEmail,
+    panelBeaterId: found.agreement.panelBeaterId,
+    detail: {
+      signerTitle: body.signerTitle?.trim(),
+      documentTitle: found.document.title,
+    },
+    request,
+  });
 
   // The countersigned record. Best-effort: the signature is already recorded in
   // the database, so a PDF failure must not tell them it didn't work.

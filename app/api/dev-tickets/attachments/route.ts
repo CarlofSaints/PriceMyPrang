@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { addDevTicketAttachments, removeDevTicketAttachment } from "@/lib/store";
 import { deleteBlob } from "@/lib/blob";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 // Attaching to a ticket that already exists. Files uploaded while COMPOSING a
 // new ticket are sent with the POST in ../route.ts instead.
@@ -43,6 +44,18 @@ export async function POST(request: Request) {
 
   const ticket = await addDevTicketAttachments(b.ticketId, files);
   if (!ticket) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+
+  await logActivity({
+    action: "dev_ticket.attach",
+    summary: `${gate.user.name} attached ${files.length} file${files.length === 1 ? "" : "s"} to “${ticket.title}”`,
+    entityType: "dev_ticket",
+    entityId: ticket.id,
+    entityLabel: ticket.title,
+    ...actorFromUser(gate.user),
+    detail: { files: files.map((f) => ({ fileName: f.fileName, size: f.size, contentType: f.contentType })) },
+    request,
+  });
+
   return NextResponse.json(ticket);
 }
 
@@ -58,5 +71,16 @@ export async function DELETE(request: Request) {
   if (!removed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await deleteBlob(removed.pathname);
+
+  await logActivity({
+    action: "dev_ticket.attachment_delete",
+    summary: `${gate.user.name} removed the attachment ${removed.fileName}`,
+    entityType: "dev_ticket_attachment",
+    entityId: removed.id,
+    entityLabel: removed.fileName,
+    ...actorFromUser(gate.user),
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

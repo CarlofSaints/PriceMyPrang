@@ -4,6 +4,7 @@ import type { VehicleDetails } from "@/lib/types";
 import { readMediaBytes } from "@/lib/blob";
 import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { logActivity, consumerActor } from "@/lib/activityLog";
 
 export const maxDuration = 60;
 
@@ -32,8 +33,21 @@ export async function POST(request: Request) {
   // including a dev-ticket document that /api/media refuses to serve them — and
   // get its text back through Claude. Normalise first: a proxy URL and a raw
   // pathname must be judged as the same thing.
-  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref)))
+  if (!isAnonReadableMedia(pathnameFromMediaUrl(ref))) {
+    // This is the guard that closed a real authz bypass: an anonymous caller
+    // naming an internal document and getting it read back as prose. Anything
+    // it turns away is worth a line.
+    await logActivity({
+      action: "ocr.disc",
+      summary: "A licence-disc read was refused for a file outside the consumer uploads",
+      outcome: "denied",
+      status: 404,
+      ...consumerActor(),
+      detail: { pathname: pathnameFromMediaUrl(ref) },
+      request,
+    });
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -102,9 +116,37 @@ export async function POST(request: Request) {
       registration: clean(parsed.registration),
       discRawText: clean(parsed.discRawText),
     };
+
+    // Every one of these is a paid model call. Logging them is how "why is the
+    // Anthropic bill what it is" becomes answerable.
+    await logActivity({
+      action: "ocr.disc",
+      summary: result.registration
+        ? `A licence disc was read — ${result.registration}`
+        : "A licence disc was read",
+      ...consumerActor(),
+      detail: {
+        model,
+        registration: result.registration,
+        vin: result.vin,
+        make: result.make,
+        model_name: result.model,
+        year: result.year,
+      },
+      request,
+    });
+
     return NextResponse.json(result);
   } catch (err) {
     console.error("disc read failed", err);
+    await logActivity({
+      action: "ocr.disc",
+      summary: "A licence-disc read failed",
+      outcome: "failed",
+      ...consumerActor(),
+      detail: { error: err instanceof Error ? err.message : String(err) },
+      request,
+    });
     return NextResponse.json({} satisfies VehicleDetails);
   }
 }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/store";
 import { sendComplaintLodged, sendComplaintConfirmation } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { logActivity, consumerActor } from "@/lib/activityLog";
 import {
   COMPLAINT_CATEGORIES,
   COMPLAINT_OUTCOMES,
@@ -109,6 +110,23 @@ export async function POST(
       score,
       comment: comment || undefined,
     });
+
+    await logActivity({
+      action: "rating.submit",
+      summary: `${ctx.request.firstName} ${ctx.request.lastName} rated ${workshop.name} ${score}/5 on ${ctx.reference}`,
+      entityType: "request",
+      entityId: ctx.reference,
+      entityLabel: ctx.reference,
+      ...consumerActor(
+        `${ctx.request.firstName} ${ctx.request.lastName}`,
+        ctx.request.email
+      ),
+      panelBeaterId: workshop.id,
+      // Ratings are public anyway, so the comment is safe to keep here.
+      detail: { score, workshop: workshop.name, comment: comment || undefined },
+      request,
+    });
+
     return NextResponse.json({ ok: true, kind: "rating" });
   }
 
@@ -154,6 +172,28 @@ export async function POST(
     submittedIp: ip,
     submittedUserAgent: request.headers.get("user-agent") ?? undefined,
     media,
+  });
+
+  await logActivity({
+    action: "complaint.submit",
+    summary: `${ctx.request.firstName} ${ctx.request.lastName} lodged a complaint against ${workshop.name} on ${ctx.reference}`,
+    entityType: "complaint",
+    entityId: complaint.id,
+    entityLabel: ctx.reference,
+    ...consumerActor(`${ctx.request.firstName} ${ctx.request.lastName}`, ctx.request.email),
+    panelBeaterId: workshop.id,
+    // Deliberately NOT the description. A complaint is private to the parties
+    // and the repairer's own page; copying the grievance into a second table
+    // widens who can read it for no benefit — the complaint id is right here.
+    detail: {
+      workshop: workshop.name,
+      category: complaint.category,
+      vehicleSafety: complaint.vehicleSafety,
+      desiredOutcome: complaint.desiredOutcome,
+      words: wordCount(description),
+      media: media.length,
+    },
+    request,
   });
 
   // Emails are best-effort: a send failure must not lose a complaint that has

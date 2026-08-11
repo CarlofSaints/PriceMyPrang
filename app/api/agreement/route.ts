@@ -8,6 +8,7 @@ import {
   deleteAgreementDocument,
 } from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AgreementDocument } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -86,6 +87,19 @@ export async function POST(request: Request) {
   // Makes this the active one and stands the previous version down.
   await addAgreementDocument(doc);
 
+  // This changes what every future repairer is asked to sign, so it belongs in
+  // the log even though it happens perhaps twice a year.
+  await logActivity({
+    action: "agreement.upload",
+    summary: `${gate.user.name} uploaded a new repairer agreement — “${doc.title}” is now the active version`,
+    entityType: "agreement_document",
+    entityId: doc.id,
+    entityLabel: doc.title,
+    ...actorFromUser(gate.user),
+    detail: { fileName: file.name, bytes: buffer.length, htmlChars: html.length },
+    request,
+  });
+
   return NextResponse.json({ ok: true, document: doc });
 }
 
@@ -105,6 +119,15 @@ export async function DELETE(request: Request) {
       },
       { status: 409 }
     );
+
+  await logActivity({
+    action: "agreement.delete",
+    summary: `${gate.user.name} deleted an unsigned repairer agreement version`,
+    entityType: "agreement_document",
+    entityId: id,
+    ...actorFromUser(gate.user),
+    request,
+  });
 
   return NextResponse.json({ ok: true });
 }

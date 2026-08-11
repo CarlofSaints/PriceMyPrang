@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getSuppliers, saveSuppliers } from "@/lib/store";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { PartType, Supplier } from "@/lib/types";
 
 const PART_TYPE_VALUES: PartType[] = ["new", "used", "alternate"];
@@ -68,6 +69,18 @@ export async function POST(request: Request) {
   };
   list.push(supplier);
   await saveSuppliers(list);
+
+  await logActivity({
+    action: "supplier.create",
+    summary: `${gate.user.name} added ${supplier.name} to Price my Prang's supplier list`,
+    entityType: "supplier",
+    entityId: supplier.id,
+    entityLabel: supplier.name,
+    ...actorFromUser(gate.user),
+    detail: { partTypes: supplier.partTypes, makes: supplier.makes, supplies: supplier.supplies },
+    request,
+  });
+
   return NextResponse.json(supplier);
 }
 
@@ -99,6 +112,18 @@ export async function PATCH(request: Request) {
   if (typeof b.active === "boolean") supplier.active = b.active;
 
   await saveSuppliers(list);
+
+  await logActivity({
+    action: "supplier.update",
+    summary: `${gate.user.name} updated the supplier ${supplier.name}`,
+    entityType: "supplier",
+    entityId: supplier.id,
+    entityLabel: supplier.name,
+    ...actorFromUser(gate.user),
+    detail: { active: supplier.active, partTypes: supplier.partTypes, makes: supplier.makes },
+    request,
+  });
+
   return NextResponse.json(supplier);
 }
 
@@ -110,9 +135,20 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getSuppliers();
-  if (!list.some((s) => s.id === id))
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const doomed = list.find((s) => s.id === id);
+  if (!doomed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await saveSuppliers(list.filter((s) => s.id !== id));
+
+  await logActivity({
+    action: "supplier.delete",
+    summary: `${gate.user.name} deleted the supplier ${doomed.name}`,
+    entityType: "supplier",
+    entityId: doomed.id,
+    entityLabel: doomed.name,
+    ...actorFromUser(gate.user),
+    request,
+  });
+
   return NextResponse.json({ ok: true });
 }

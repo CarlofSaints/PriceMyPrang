@@ -9,6 +9,7 @@ import {
   deleteDevTicket,
 } from "@/lib/store";
 import { deleteBlob } from "@/lib/blob";
+import { logActivity, actorFromUser } from "@/lib/activityLog";
 import {
   DEV_PRIORITIES,
   DEV_TICKET_STATUSES,
@@ -99,6 +100,22 @@ export async function POST(request: Request) {
     attachments: cleanFiles(b.attachments),
   });
 
+  await logActivity({
+    action: "dev_ticket.create",
+    summary: `${gate.user.name} logged the ticket “${ticket.title}” (${ticket.priority})`,
+    entityType: "dev_ticket",
+    entityId: ticket.id,
+    entityLabel: ticket.title,
+    ...actorFromUser(gate.user),
+    detail: {
+      priority: ticket.priority,
+      status: ticket.status,
+      remindOn: ticket.remindOn,
+      attachments: ticket.attachments.length,
+    },
+    request,
+  });
+
   return NextResponse.json(ticket);
 }
 
@@ -123,6 +140,24 @@ export async function PATCH(request: Request) {
   });
 
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Status is the field people actually watch move, so it leads the summary.
+  await logActivity({
+    action: "dev_ticket.update",
+    summary: `${gate.user.name} updated the ticket “${ticket.title}” — now ${ticket.priority}, ${ticket.status.replace("_", " ")}`,
+    entityType: "dev_ticket",
+    entityId: ticket.id,
+    entityLabel: ticket.title,
+    ...actorFromUser(gate.user),
+    detail: {
+      priority: ticket.priority,
+      status: ticket.status,
+      remindOn: ticket.remindOn ?? null,
+      fieldsPosted: Object.keys(b).filter((k) => k !== "id"),
+    },
+    request,
+  });
+
   return NextResponse.json(ticket);
 }
 
@@ -137,6 +172,16 @@ export async function DELETE(request: Request) {
   // which is harmless, whereas the reverse leaves rows pointing at nothing.
   const removed = await deleteDevTicket(id);
   await Promise.all(removed.map((a) => deleteBlob(a.pathname)));
+
+  await logActivity({
+    action: "dev_ticket.delete",
+    summary: `${gate.user.name} deleted a dev ticket and its ${removed.length} attachment${removed.length === 1 ? "" : "s"}`,
+    entityType: "dev_ticket",
+    entityId: id,
+    ...actorFromUser(gate.user),
+    detail: { attachmentsRemoved: removed.map((a) => a.fileName) },
+    request,
+  });
 
   return NextResponse.json({ ok: true });
 }
