@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
-import { uploadErrorMessage } from "@/lib/uploadError";
+import { CERTIFICATE_ACCEPT, uploadErrorMessage } from "@/lib/uploadError";
 import type { MediaRef } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 
@@ -212,7 +212,7 @@ export default function AddWarrantyPanel({
         <input
           className={inputClass}
           type="file"
-          accept="image/*,application/pdf"
+          accept={CERTIFICATE_ACCEPT}
           onChange={(e) => e.target.files?.[0] && uploadCertificate(e.target.files[0])}
         />
         {certificate ? (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { PanelBeater, WarrantyApproval } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
-import { uploadErrorMessage } from "@/lib/uploadError";
+import { CERTIFICATE_ACCEPT, uploadErrorMessage } from "@/lib/uploadError";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { Button, Field, inputClass } from "./ui";
 
@@ -364,7 +364,7 @@ export default function PanelBeaterForm({
                   <input
                     className={inputClass}
                     type="file"
-                    accept="image/*,application/pdf"
+                    accept={CERTIFICATE_ACCEPT}
                     onChange={(e) => e.target.files?.[0] && uploadCertificate(i, e.target.files[0])}
                   />
                   {w.certificate ? (
