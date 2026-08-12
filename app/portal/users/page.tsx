@@ -35,7 +35,10 @@ export default async function UsersPage() {
   const workshop = workshopId ? await getPanelBeater(workshopId) : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    // Full width of the portal shell, not the max-w-4xl a reading column wants:
+    // this page is a data grid, and squeezing seven columns into 896px is what
+    // pushed Reset password off the right-hand edge.
+    <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">
           {isPlatform ? "Users & roles" : "Your team"}

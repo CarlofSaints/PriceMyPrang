@@ -3,9 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { PanelBeater, Role, User } from "@/lib/types";
-import { Button, Field, inputClass } from "./ui";
+import { Button, Field, inputClass, Modal } from "./ui";
 
 type SafeUser = Omit<User, "passwordHash">;
+
+/**
+ * A readable temporary password, offered as a starting point in the reset
+ * dialog. Ambiguous characters are left out — this gets read down a phone
+ * line when the email doesn't arrive, which is the whole reason it exists.
+ */
+function suggestPassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = new Uint32Array(14);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (n) => alphabet[n % alphabet.length]).join("");
+}
 
 export default function UsersManager({
   initialUsers,
@@ -40,6 +52,23 @@ export default function UsersManager({
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  type Dialog =
+    | { kind: "reset"; user: SafeUser }
+    | { kind: "welcome"; user: SafeUser }
+    | { kind: "delete"; user: SafeUser }
+    | { kind: "twoFactor"; user: SafeUser; enable: boolean }
+    | null;
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [pw, setPw] = useState("");
+  const [pwEmail, setPwEmail] = useState(true);
+
+  function closeDialog() {
+    setDialog(null);
+    setDialogError(null);
+    setPw("");
+  }
+
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name || id;
   const workshopName = (id: string) => {
     const pb = panelBeaters.find((p) => p.id === id);
@@ -56,6 +85,8 @@ export default function UsersManager({
     emailSent?: boolean;
     emailError?: string;
     emailSkipped?: boolean;
+    /** Only ever returned by a welcome resend, so it can be read out if mail fails. */
+    issuedPassword?: string;
   };
 
   /** What to tell the admin about a password they just issued. */
@@ -113,13 +144,6 @@ export default function UsersManager({
    * table lying about who still exists.
    */
   async function remove(u: SafeUser) {
-    if (
-      !confirm(
-        `Delete ${u.name} (${u.email})?\n\nThis removes their login permanently. It does not delete the panel beater listing.`
-      )
-    )
-      return;
-
     setError(null);
     setNotice(null);
     const res = await fetch(`/api/users?id=${encodeURIComponent(u.id)}`, { method: "DELETE" });
@@ -151,44 +175,96 @@ export default function UsersManager({
   }
 
   /**
-   * Turn the emailed second factor on or off for someone else.
-   *
-   * Confirmed both ways, because both directions can bite. ON sends every
-   * future sign-in through their inbox — if mail doesn't reach that address
-   * they can't get in at all, and an address we've never verified is exactly
-   * the case to say out loud. OFF drops a protection the user may have chosen
-   * for themselves on their own Security page.
+   * Turning the emailed second factor on or off for someone else is confirmed
+   * both ways, because both directions can bite: ON sends every future sign-in
+   * through their inbox — if mail doesn't reach that address they can't get in
+   * at all — and OFF drops a protection the user may have chosen for
+   * themselves. The wording lives in the twoFactor dialog below.
    */
-  async function setTwoFactor(u: SafeUser, enabled: boolean) {
-    const warning = enabled
-      ? `Turn on two-step sign-in for ${u.name}?\n\nEvery sign-in will then need a 6-digit code emailed to ${u.email}.${
-          u.emailVerifiedAt
-            ? ""
-            : "\n\n⚠ That address has never been verified — if mail doesn't reach it, they won't be able to sign in."
-        }`
-      : `Turn off two-step sign-in for ${u.name}?\n\nTheir password alone will get them in again.`;
-    if (!confirm(warning)) return;
 
-    const res = await patch(u.id, { twoFactorEnabled: enabled });
+  // ── The dialogs ─────────────────────────────────────────────────────────
+  //
+  // Everything here used to be a browser prompt()/confirm(): unstyleable, and
+  // a password typed into one gets offered to the browser's own autofill.
+  //
+  // The dialog bodies are written INLINE in the JSX below rather than as inner
+  // components. A component declared inside a component is a new type on every
+  // render, so React unmounts and remounts it — which would drop focus and the
+  // caret on every keystroke in the password box. See
+  // [[react-nested-component-remounts]].
+
+  function openReset(u: SafeUser) {
+    setError(null);
+    setNotice(null);
+    setPw(suggestPassword());
+    setPwEmail(true);
+    setDialog({ kind: "reset", user: u });
+  }
+
+  async function confirmReset() {
+    if (dialog?.kind !== "reset") return;
+    if (pw.trim().length < 10) {
+      setDialogError("Use at least 10 characters.");
+      return;
+    }
+    setBusy(true);
+    const u = await patch(dialog.user.id, {
+      password: pw.trim(),
+      sendEmail: pwEmail,
+      // A reset always forces them to choose their own afterwards.
+      mustChangePassword: true,
+    });
+    setBusy(false);
+    if (u) setNotice(passwordNotice(u, pw.trim(), "reset"));
+    closeDialog();
+  }
+
+  async function confirmWelcome() {
+    if (dialog?.kind !== "welcome") return;
+    const target = dialog.user;
+    setBusy(true);
+    const u = (await patch(target.id, { welcome: true })) as UserResponse | null;
+    setBusy(false);
+    if (u)
+      setNotice(
+        u.emailSent
+          ? {
+              ok: true,
+              text: `Welcome email sent to ${target.email} with a new temporary password. They'll be asked to choose their own when they sign in.`,
+            }
+          : {
+              ok: false,
+              text:
+                `The welcome email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. ` +
+                `Their new temporary password is ${u.issuedPassword ?? "—"} — pass it on yourself.`,
+            }
+      );
+    closeDialog();
+  }
+
+  async function confirmDelete() {
+    if (dialog?.kind !== "delete") return;
+    const target = dialog.user;
+    setBusy(true);
+    await remove(target);
+    setBusy(false);
+    closeDialog();
+  }
+
+  async function confirmTwoFactor() {
+    if (dialog?.kind !== "twoFactor") return;
+    const { user: target, enable } = dialog;
+    setBusy(true);
+    const res = await patch(target.id, { twoFactorEnabled: enable });
+    setBusy(false);
     if (res)
       setNotice({
         ok: true,
-        text: enabled
-          ? `Two-step sign-in is on for ${u.email} — it applies from their next sign-in.`
-          : `Two-step sign-in is off for ${u.email}.`,
+        text: enable
+          ? `Two-step sign-in is on for ${target.email} — it applies from their next sign-in.`
+          : `Two-step sign-in is off for ${target.email}.`,
       });
-  }
-
-  async function resetPw(id: string) {
-    const pw = prompt("New temporary password for this user:");
-    if (!pw) return;
-    // A reset always forces them to pick their own afterwards; the only choice
-    // is whether we email it or the admin hands it over.
-    const sendEmail = confirm(
-      `Email this password to the user?\n\nOK — email it to them.\nCancel — don't email; it'll be shown here for you to pass on.`
-    );
-    const u = await patch(id, { password: pw, sendEmail, mustChangePassword: true });
-    if (u) setNotice(passwordNotice(u, pw, "reset"));
+    closeDialog();
   }
 
   return (
@@ -330,7 +406,7 @@ export default function UsersManager({
           password at all. Every other table in the app already does this. */}
       <div className="pmp-card p-0 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-left text-sm">
+        <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/60">
             <tr>
               <th className="px-4 py-3">Name</th>
@@ -421,16 +497,35 @@ export default function UsersManager({
                         ? `${u.name} needs an emailed code to sign in.`
                         : `${u.name} signs in with a password only.`
                     }
-                    onChange={(e) => setTwoFactor(u, e.target.checked)}
+                    onChange={(e) => {
+                      setError(null);
+                      setNotice(null);
+                      setDialog({ kind: "twoFactor", user: u, enable: e.target.checked });
+                    }}
                   />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
-                    <button onClick={() => resetPw(u.id)} className="text-teal hover:underline">
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        setNotice(null);
+                        setDialog({ kind: "welcome", user: u });
+                      }}
+                      className="text-teal hover:underline"
+                      title="Re-sends the welcome letter with a new temporary password."
+                    >
+                      Welcome email
+                    </button>
+                    <button onClick={() => openReset(u)} className="text-teal hover:underline">
                       Reset password
                     </button>
                     <button
-                      onClick={() => remove(u)}
+                      onClick={() => {
+                        setError(null);
+                        setNotice(null);
+                        setDialog({ kind: "delete", user: u });
+                      }}
                       className="font-semibold text-coral hover:underline"
                     >
                       Delete
@@ -443,6 +538,167 @@ export default function UsersManager({
         </table>
         </div>
       </div>
+
+      {dialog?.kind === "welcome" && (
+        <Modal
+          title="Send the welcome email"
+          description={`${dialog.user.name} · ${dialog.user.email}`}
+          onClose={closeDialog}
+          footer={
+            <>
+              <Button variant="outline" onClick={closeDialog} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={confirmWelcome} disabled={busy}>
+                {busy ? "Sending…" : "Send welcome email"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-ink/80">
+            <p>
+              Sends the same welcome letter they should have received when their login was
+              created — an introduction, their sign-in address, and a password.
+            </p>
+            {/* Said plainly because it surprises people: the original password
+                cannot be re-sent, it only ever existed as a hash. */}
+            <p className="rounded-xl bg-amber/20 p-3 text-ink">
+              <strong className="font-semibold">This issues a NEW temporary password.</strong> The
+              original can&apos;t be re-sent — we only ever store a scrambled copy of it, so nobody
+              here can read it. Any password they already have will stop working, and they&apos;ll
+              be asked to choose their own when they sign in.
+            </p>
+            {!dialog.user.emailVerifiedAt && (
+              <p className="text-ink/60">
+                Note: that address has never been verified. If the last email didn&apos;t reach
+                them, this one may not either — check their spam folder before assuming it sent.
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {dialog?.kind === "reset" && (
+        <Modal
+          title="Reset password"
+          description={`${dialog.user.name} · ${dialog.user.email}`}
+          onClose={closeDialog}
+          footer={
+            <>
+              <Button variant="outline" onClick={closeDialog} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={confirmReset} disabled={busy}>
+                {busy ? "Saving…" : "Reset password"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <Field label="New temporary password" hint="At least 10 characters.">
+              <div className="flex gap-2">
+                <input
+                  className={inputClass}
+                  value={pw}
+                  autoFocus
+                  onChange={(e) => {
+                    setPw(e.target.value);
+                    setDialogError(null);
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={() => setPw(suggestPassword())}>
+                  Suggest
+                </Button>
+              </div>
+            </Field>
+
+            <label className="flex items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={pwEmail}
+                onChange={(e) => setPwEmail(e.target.checked)}
+              />
+              <span>
+                Email the new password to them
+                <span className="block text-xs text-ink/60">
+                  Untick to hand it over yourself — it&apos;ll be shown here once instead.
+                </span>
+              </span>
+            </label>
+
+            <p className="text-xs text-ink/60">
+              They&apos;ll have to choose their own password the next time they sign in.
+            </p>
+
+            {dialogError && (
+              <p className="rounded-xl border border-coral/30 bg-coral/10 p-3 text-sm text-coral">
+                {dialogError}
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {dialog?.kind === "delete" && (
+        <Modal
+          title="Delete this login?"
+          description={`${dialog.user.name} · ${dialog.user.email}`}
+          onClose={closeDialog}
+          footer={
+            <>
+              <Button variant="outline" onClick={closeDialog} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="coral" onClick={confirmDelete} disabled={busy}>
+                {busy ? "Deleting…" : "Delete login"}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-ink/80">
+            This removes their login permanently. It does <strong>not</strong> delete the panel
+            beater listing or any of their quotes.
+          </p>
+        </Modal>
+      )}
+
+      {dialog?.kind === "twoFactor" && (
+        <Modal
+          title={dialog.enable ? "Turn on two-step sign-in?" : "Turn off two-step sign-in?"}
+          description={`${dialog.user.name} · ${dialog.user.email}`}
+          onClose={closeDialog}
+          footer={
+            <>
+              <Button variant="outline" onClick={closeDialog} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={confirmTwoFactor} disabled={busy}>
+                {busy ? "Saving…" : dialog.enable ? "Turn it on" : "Turn it off"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-ink/80">
+            {dialog.enable ? (
+              <>
+                <p>
+                  Every sign-in will then need a 6-digit code emailed to{" "}
+                  <strong className="font-semibold text-ink">{dialog.user.email}</strong>.
+                </p>
+                {!dialog.user.emailVerifiedAt && (
+                  <p className="rounded-xl bg-amber/20 p-3 text-ink">
+                    ⚠ That address has never been verified. If mail doesn&apos;t reach it, they
+                    won&apos;t be able to sign in at all.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>Their password alone will get them in again.</p>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

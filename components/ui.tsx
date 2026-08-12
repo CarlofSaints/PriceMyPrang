@@ -50,6 +50,89 @@ export function Field({
 export const inputClass =
   "w-full rounded-xl border border-teal/20 bg-white px-4 py-3 text-ink placeholder:text-ink/40 focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/20";
 
+/**
+ * A dialog in our own chrome, for anything that used to be a browser
+ * prompt()/confirm().
+ *
+ * Those are unstyleable, look like a phishing box, and a password typed into
+ * one is offered to the browser's autofill as though it were a login. This is
+ * also the only place a dialog can carry an explanation of what the button is
+ * about to do.
+ *
+ * Closes on Escape and on a click outside the panel — a dialog with no visible
+ * way out is the complaint in [[dismissable-dropdowns]]. `onClose` is held in a
+ * ref so the listeners are bound once and are not torn down and rebuilt on
+ * every keystroke in the form inside.
+ */
+export function Modal({
+  title,
+  description,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  onClose: () => void;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const closeRef = React.useRef(onClose);
+  React.useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-ink/40 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        // mousedown, not click: releasing the button outside after selecting
+        // text inside the panel would otherwise close the dialog.
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="flex min-h-full items-start justify-center p-3 sm:p-6">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className="my-8 w-full max-w-lg rounded-2xl bg-offwhite p-5 shadow-2xl sm:p-6"
+        >
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display text-xl font-bold text-ink">{title}</h2>
+              {description && <div className="mt-1 text-sm text-ink/60">{description}</div>}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-ink/40 hover:text-ink"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          {children}
+          {footer && <div className="mt-5 flex flex-wrap justify-end gap-3">{footer}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Card({
   className = "",
   children,
