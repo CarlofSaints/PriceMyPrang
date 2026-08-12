@@ -9,6 +9,7 @@ import {
   CERTIFICATE_ACCEPT,
   CERTIFICATE_FORMATS_HINT,
   LOGO_FORMATS_HINT,
+  reportUploadFailure,
   uploadErrorMessage,
 } from "@/lib/uploadError";
 import { MANUFACTURERS } from "@/lib/manufacturers";
@@ -122,6 +123,15 @@ export default function PanelBeaterForm({
       });
     } catch (err) {
       setError(uploadErrorMessage(err, file));
+      reportUploadFailure({
+        context: mode === "public" ? "the Join the panel form" : "a panel beater listing",
+        label: `${warranties[i]?.manufacturer ?? "a"} warranty certificate`,
+        file,
+        reason: err,
+        name: form.completedByName,
+        email: form.completedByEmail,
+        company: form.tradingAs || form.companyName,
+      });
     }
   }
 
@@ -139,6 +149,15 @@ export default function PanelBeaterForm({
       setLogoUrl(mediaPath(blob.pathname));
     } catch (err) {
       setError(uploadErrorMessage(err, file));
+      reportUploadFailure({
+        context: mode === "public" ? "the Join the panel form" : "a panel beater listing",
+        label: "workshop logo",
+        file,
+        reason: err,
+        name: form.completedByName,
+        email: form.completedByEmail,
+        company: form.tradingAs || form.companyName,
+      });
     }
   }
 

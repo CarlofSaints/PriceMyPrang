@@ -32,6 +32,52 @@ export const CERTIFICATE_FORMATS_HINT =
 export const LOGO_FORMATS_HINT =
   "JPG, PNG, WebP or GIF. SVG files can't be accepted.";
 
+export interface UploadFailureReport {
+  /** Which screen, in words a reader of the activity log will recognise. */
+  context: string;
+  /** Which field — e.g. the manufacturer whose certificate this was. */
+  label?: string;
+  file?: File;
+  reason: unknown;
+  /** Whatever the form already knows, for someone with no login yet. */
+  name?: string;
+  email?: string;
+  company?: string;
+}
+
+/**
+ * Tell the server an upload was refused.
+ *
+ * Client uploads go straight to Vercel Blob, so a rejection is invisible to the
+ * app unless the browser reports it. Deliberately fire-and-forget and wrapped
+ * twice over: someone already looking at a failed upload must never see a
+ * second error because the reporting of the first one failed.
+ */
+export function reportUploadFailure(r: UploadFailureReport): void {
+  try {
+    void fetch("/api/media/upload-failed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Survives the person closing the tab in disgust, which is exactly when
+      // we most want to know.
+      keepalive: true,
+      body: JSON.stringify({
+        context: r.context,
+        label: r.label,
+        fileName: r.file?.name,
+        contentType: r.file?.type,
+        sizeBytes: r.file?.size,
+        reason: r.reason instanceof Error ? r.reason.message : String(r.reason ?? ""),
+        name: r.name,
+        email: r.email,
+        company: r.company,
+      }),
+    }).catch(() => {});
+  } catch {
+    // Nothing to do — this is the error path already.
+  }
+}
+
 export function uploadErrorMessage(err: unknown, file?: File): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
 

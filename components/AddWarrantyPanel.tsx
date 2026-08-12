@@ -8,6 +8,7 @@ import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import {
   CERTIFICATE_ACCEPT,
   CERTIFICATE_FORMATS_HINT,
+  reportUploadFailure,
   uploadErrorMessage,
 } from "@/lib/uploadError";
 import type { MediaRef } from "@/lib/types";
@@ -66,6 +67,14 @@ export default function AddWarrantyPanel({
       });
     } catch (err) {
       setError(uploadErrorMessage(err, file));
+      // Signed in, so the server takes the name from the session rather than
+      // anything sent from here.
+      reportUploadFailure({
+        context: "the Add a warranty panel",
+        label: `${manufacturer || "a"} warranty certificate`,
+        file,
+        reason: err,
+      });
     }
   }
 
