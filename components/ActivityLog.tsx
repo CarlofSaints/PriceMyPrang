@@ -12,7 +12,7 @@ import type {
   ActivityStats,
   ActorKind,
 } from "@/lib/types";
-import { Button, inputClass } from "./ui";
+import { Button, Field, inputClass } from "./ui";
 
 // ---------------------------------------------------------------------------
 // The activity log viewer. Price my Prang staff only — see the permission gate
@@ -220,104 +220,118 @@ export default function ActivityLog({
         ))}
       </div>
 
-      {/* ---- Filters ---- */}
+      {/* ---- Filters ----
+           Every control carries its own label. Stacked dropdowns whose only
+           explanation is their default option ("Anyone", "Any outcome") don't
+           read as separate filters — the same thing happened on the Dev
+           Planner card, where the fix was a label rather than any logic. */}
       <div className="pmp-card space-y-3 p-4">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <input
-            className={inputClass}
-            placeholder="Search — name, email, what happened, IP…"
-            value={filters.q}
-            onChange={(e) => set("q", e.target.value)}
-          />
+          <Field label="Search">
+            <input
+              className={inputClass}
+              placeholder="Name, email, what happened, IP…"
+              value={filters.q}
+              onChange={(e) => set("q", e.target.value)}
+            />
+          </Field>
 
-          <select
-            className={inputClass}
-            value={filters.area}
-            onChange={(e) => {
-              // Area and action are two views of the same column, so picking an
-              // area clears a stale action rather than silently contradicting it.
-              setFilters((f) => ({ ...f, area: e.target.value, action: "" }));
-              setPage(1);
-            }}
-          >
-            <option value="">Everything</option>
-            {facets.areas.map((a) => (
-              <option key={a.area} value={a.area}>
-                {ACTIVITY_AREAS[a.area] ?? a.area} ({a.count})
-              </option>
-            ))}
-          </select>
+          <Field label="Area of the site">
+            <select
+              className={inputClass}
+              value={filters.area}
+              onChange={(e) => {
+                // Area and action are two views of the same column, so picking
+                // an area clears a stale action rather than contradicting it.
+                setFilters((f) => ({ ...f, area: e.target.value, action: "" }));
+                setPage(1);
+              }}
+            >
+              <option value="">Everything</option>
+              {facets.areas.map((a) => (
+                <option key={a.area} value={a.area}>
+                  {ACTIVITY_AREAS[a.area] ?? a.area} ({a.count})
+                </option>
+              ))}
+            </select>
+          </Field>
 
-          <select
-            className={inputClass}
-            value={filters.actorId}
-            onChange={(e) => set("actorId", e.target.value)}
-          >
-            <option value="">Anyone</option>
-            {facets.actors.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          <Field label="Who did it">
+            <select
+              className={inputClass}
+              value={filters.actorId}
+              onChange={(e) => set("actorId", e.target.value)}
+            >
+              <option value="">Anyone</option>
+              {facets.actors.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-          <select
-            className={inputClass}
-            value={filters.outcome}
-            onChange={(e) => set("outcome", e.target.value)}
-          >
-            <option value="">Any outcome</option>
-            <option value="success">Done</option>
-            <option value="denied">Refused</option>
-            <option value="failed">Failed</option>
-          </select>
+          <Field label="What happened">
+            <select
+              className={inputClass}
+              value={filters.outcome}
+              onChange={(e) => set("outcome", e.target.value)}
+            >
+              <option value="">Any outcome</option>
+              <option value="success">Done</option>
+              <option value="denied">Refused</option>
+              <option value="failed">Failed</option>
+            </select>
+          </Field>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <select
-            className={inputClass}
-            value={filters.panelBeaterId}
-            onChange={(e) => set("panelBeaterId", e.target.value)}
-          >
-            <option value="">Any workshop</option>
-            {workshops.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <Field label="Workshop">
+            <select
+              className={inputClass}
+              value={filters.panelBeaterId}
+              onChange={(e) => set("panelBeaterId", e.target.value)}
+            >
+              <option value="">Any workshop</option>
+              {workshops.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-          <select
-            className={inputClass}
-            value={filters.actorKind}
-            onChange={(e) => set("actorKind", e.target.value)}
-          >
-            <option value="">Everyone</option>
-            <option value="user">Signed-in people</option>
-            <option value="consumer">Customers</option>
-            <option value="applicant">Applicants</option>
-            <option value="system">Automatic jobs</option>
-          </select>
+          <Field label="Type of user">
+            <select
+              className={inputClass}
+              value={filters.actorKind}
+              onChange={(e) => set("actorKind", e.target.value)}
+            >
+              <option value="">Everyone</option>
+              <option value="user">Signed-in people</option>
+              <option value="consumer">Customers</option>
+              <option value="applicant">Applicants</option>
+              <option value="system">Automatic jobs</option>
+            </select>
+          </Field>
 
-          <label className="flex items-center gap-2 text-sm text-ink/70">
-            <span className="whitespace-nowrap">From</span>
+          <Field label="From date">
             <input
               type="date"
               className={inputClass}
               value={filters.from}
               onChange={(e) => set("from", e.target.value)}
             />
-          </label>
+          </Field>
 
-          <label className="flex items-center gap-2 text-sm text-ink/70">
-            <span className="whitespace-nowrap">To</span>
+          <Field label="To date">
             <input
               type="date"
               className={inputClass}
               value={filters.to}
               onChange={(e) => set("to", e.target.value)}
             />
-          </label>
+          </Field>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
