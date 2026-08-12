@@ -154,7 +154,11 @@ export default function PortalChrome({
 
         {/* Content */}
         <main className="min-w-0 flex-1">
-          <div className="mx-auto max-w-6xl px-5 py-8">{children}</div>
+          {/* 7xl, not 6xl: the users grid needs 1181px and 6xl gave it 1110,
+              so it scrolled sideways on a laptop with room to spare beside it.
+              Cards and forms inside are fluid, so the extra width costs the
+              narrower pages nothing. */}
+          <div className="mx-auto max-w-7xl px-5 py-8">{children}</div>
         </main>
       </div>
     </div>

@@ -563,8 +563,8 @@ export default function UsersManager({
             {/* Said plainly because it surprises people: the original password
                 cannot be re-sent, it only ever existed as a hash. */}
             <p className="rounded-xl bg-amber/20 p-3 text-ink">
-              <strong className="font-semibold">This issues a NEW temporary password.</strong> The
-              original can&apos;t be re-sent — we only ever store a scrambled copy of it, so nobody
+              <strong className="font-semibold">This issues a NEW temporary password.</strong>{" "}
+              The original can&apos;t be re-sent — we only ever store a scrambled copy of it, so nobody
               here can read it. Any password they already have will stop working, and they&apos;ll
               be asked to choose their own when they sign in.
             </p>
