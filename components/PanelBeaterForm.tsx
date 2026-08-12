@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { PanelBeater, WarrantyApproval } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
-import { CERTIFICATE_ACCEPT, uploadErrorMessage } from "@/lib/uploadError";
+import {
+  CERTIFICATE_ACCEPT,
+  CERTIFICATE_FORMATS_HINT,
+  LOGO_FORMATS_HINT,
+  uploadErrorMessage,
+} from "@/lib/uploadError";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { Button, Field, inputClass } from "./ui";
 
@@ -267,7 +272,10 @@ export default function PanelBeaterForm({
           the Rates page, which is the single source of truth for pricing.
           Contact email/phone moved up into "Contact people". */}
 
-      <Field label="Workshop logo" hint="Appears on quotes you're selected for.">
+      <Field
+        label="Workshop logo"
+        hint={`Appears on quotes you're selected for. ${LOGO_FORMATS_HINT}`}
+      >
         <input className={inputClass} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
         {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -360,7 +368,7 @@ export default function PanelBeaterForm({
                     />
                   </Field>
                 </div>
-                <Field label="Certificate" required>
+                <Field label="Certificate" hint={CERTIFICATE_FORMATS_HINT} required>
                   <input
                     className={inputClass}
                     type="file"

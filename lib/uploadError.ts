@@ -17,6 +17,21 @@
 export const CERTIFICATE_ACCEPT =
   "image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx";
 
+/**
+ * Shown ABOVE the file picker, not after a failure.
+ *
+ * Says what will work and names the one thing that won't, because "why was my
+ * file refused" is a question best answered before the file is chosen. SVG is
+ * called out by name rather than left to be discovered: it is the only format
+ * a person could reasonably expect to work here and doesn't.
+ */
+export const CERTIFICATE_FORMATS_HINT =
+  "PDF, Word or Excel, or a photo or scan (JPG, PNG, TIFF, BMP, GIF, HEIC). Max 60MB. SVG files can't be accepted.";
+
+/** Same idea for the workshop logo, which is images only. */
+export const LOGO_FORMATS_HINT =
+  "JPG, PNG, WebP or GIF. SVG files can't be accepted.";
+
 export function uploadErrorMessage(err: unknown, file?: File): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
 

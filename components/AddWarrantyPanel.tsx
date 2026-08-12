@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
-import { CERTIFICATE_ACCEPT, uploadErrorMessage } from "@/lib/uploadError";
+import {
+  CERTIFICATE_ACCEPT,
+  CERTIFICATE_FORMATS_HINT,
+  uploadErrorMessage,
+} from "@/lib/uploadError";
 import type { MediaRef } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 
@@ -208,7 +212,7 @@ export default function AddWarrantyPanel({
         </Field>
       </div>
 
-      <Field label="Certificate" required>
+      <Field label="Certificate" hint={CERTIFICATE_FORMATS_HINT} required>
         <input
           className={inputClass}
           type="file"
