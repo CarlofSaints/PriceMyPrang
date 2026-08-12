@@ -322,8 +322,15 @@ export default function UsersManager({
         </Button>
       </form>
 
+      {/* overflow-x-auto, and a min-width on the table, because seven columns
+          do not fit a laptop with the sidebar open. Without both, the last
+          column — Reset password and Delete — was squeezed to nothing and then
+          CLIPPED by overflow-hidden, with no scrollbar to reach it: on 12 Aug
+          2026 that left a Super Admin unable to reset a locked-out repairer's
+          password at all. Every other table in the app already does this. */}
       <div className="pmp-card p-0 overflow-hidden">
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/60">
             <tr>
               <th className="px-4 py-3">Name</th>
@@ -417,7 +424,7 @@ export default function UsersManager({
                     onChange={(e) => setTwoFactor(u, e.target.checked)}
                   />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="whitespace-nowrap px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
                     <button onClick={() => resetPw(u.id)} className="text-teal hover:underline">
                       Reset password
@@ -434,6 +441,7 @@ export default function UsersManager({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
