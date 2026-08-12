@@ -11,12 +11,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async () => ({
+        // This list must cover every `accept=` on every form that posts here.
+        // Warranty certificates are asked for as "image/*,application/pdf" on
+        // the registration form and on a repairer's own listing, and a
+        // certificate is almost always a PDF — leaving it out of this list
+        // failed the upload at the Blob API with "Content type mismatch",
+        // which the form could only report as "upload failed", so applicants
+        // were told to load the certificate again, forever.
         allowedContentTypes: [
           "image/jpeg",
           "image/png",
           "image/webp",
           "image/heic",
           "image/heif",
+          "application/pdf",
           "video/webm",
           "video/mp4",
           "video/quicktime",

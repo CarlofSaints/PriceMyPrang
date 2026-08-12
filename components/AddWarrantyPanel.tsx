@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { MANUFACTURERS } from "@/lib/manufacturers";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
+import { uploadErrorMessage } from "@/lib/uploadError";
 import type { MediaRef } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 
@@ -59,8 +60,8 @@ export default function AddWarrantyPanel({
         pathname: blob.pathname,
         contentType: file.type,
       });
-    } catch {
-      setError("Certificate upload failed.");
+    } catch (err) {
+      setError(uploadErrorMessage(err, file));
     }
   }
 
