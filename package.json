@@ -14,6 +14,7 @@
     "db:seed-admin": "dotenv -e .env.local -- tsx scripts/seed-admin.ts",
     "db:seed-insurers": "dotenv -e .env.local -- tsx scripts/seed-insurers.ts",
     "blob:list": "dotenv -e .env.local -- tsx scripts/list-blobs.ts",
+    "blob:clean-tests": "dotenv -e .env.local -- tsx scripts/delete-test-blobs.ts",
     "activity:check": "dotenv -e .env.local -- tsx scripts/check-activity-log.ts"
   },
   "dependencies": {
