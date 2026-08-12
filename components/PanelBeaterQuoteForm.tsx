@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import type { MediaRef, PhotoSide, RequiredPhotos, VehicleDetails } from "@/lib/types";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
+import { reportUploadFailure } from "@/lib/uploadError";
 import { Button, Field, inputClass } from "./ui";
 
 const MAX_PHOTOS = 15;
@@ -83,11 +84,26 @@ export default function PanelBeaterQuoteForm({
 
   const needsPbChoice = !lockedPbId && panelBeaters.length > 0;
 
+  /**
+   * uploadFile, plus a report to the activity log when it is refused.
+   *
+   * The uploader here is a signed-in repairer, so the server takes their name
+   * from the session — nothing about who they are is sent from the browser.
+   */
+  async function uploadReported(file: File, prefix: string, label: string): Promise<MediaRef> {
+    try {
+      return await uploadFile(file, prefix);
+    } catch (err) {
+      reportUploadFailure({ context: "the repairer intake form", label, file, reason: err });
+      throw err;
+    }
+  }
+
   async function handleDisc(file: File) {
     setError(null);
     setDiscReading(true);
     try {
-      const ref = await uploadFile(file, "disc");
+      const ref = await uploadReported(file, "disc", "licence disc photo");
       setDisc(ref);
       const res = await fetch("/api/disc/read", {
         method: "POST",
@@ -109,7 +125,7 @@ export default function PanelBeaterQuoteForm({
     setError(null);
     setOdoReading(true);
     try {
-      const ref = await uploadFile(file, "odometer");
+      const ref = await uploadReported(file, "odometer", "odometer photo");
       setOdo(ref);
       const res = await fetch("/api/odometer/read", {
         method: "POST",
@@ -133,7 +149,7 @@ export default function PanelBeaterQuoteForm({
     setError(null);
     setUploadingSide(side);
     try {
-      const ref = await uploadFile(file, `sides/${side}`);
+      const ref = await uploadReported(file, `sides/${side}`, `${side} photo`);
       setRequiredPhotos((p) => ({ ...p, [side]: ref }));
     } catch {
       setError(`Could not upload the ${side} photo. Please try again.`);
@@ -148,7 +164,9 @@ export default function PanelBeaterQuoteForm({
     try {
       const room = MAX_PHOTOS - photos.length;
       const picked = Array.from(files).slice(0, Math.max(0, room));
-      const refs = await Promise.all(picked.map((f) => uploadFile(f, "damage")));
+      const refs = await Promise.all(
+        picked.map((f) => uploadReported(f, "damage", "damage photo"))
+      );
       setPhotos((p) => [...p, ...refs]);
     } catch {
       setError("Could not upload those photos. Please try again.");

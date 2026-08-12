@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
+import { reportUploadFailure } from "@/lib/uploadError";
 import {
   COMPLAINT_CATEGORIES,
   COMPLAINT_CATEGORY_LABEL,
@@ -109,15 +110,29 @@ export default function FeedbackFlow({
           }
         }
 
-        const blob = await upload(
-          `complaints/${ctx.reference}/${Date.now()}-${safeFileName(file.name)}`,
-          file,
-          {
-            access: "private",
-            handleUploadUrl: "/api/media/upload",
-            contentType: file.type || "application/octet-stream",
-          }
-        );
+        let blob;
+        try {
+          blob = await upload(
+            `complaints/${ctx.reference}/${Date.now()}-${safeFileName(file.name)}`,
+            file,
+            {
+              access: "private",
+              handleUploadUrl: "/api/media/upload",
+              contentType: file.type || "application/octet-stream",
+            }
+          );
+        } catch (err) {
+          // Reported here rather than in the catch below, which is outside the
+          // loop and so no longer knows which file failed. Re-thrown untouched.
+          reportUploadFailure({
+            context: "the rate-my-repair form",
+            label: `${isVideo ? "video" : "photo"} of a complaint on ${ctx.reference}`,
+            file,
+            reason: err,
+            name: ctx.firstName,
+          });
+          throw err;
+        }
         setMedia((m) => [
           ...m,
           {

@@ -32,12 +32,24 @@ export const CERTIFICATE_FORMATS_HINT =
 export const LOGO_FORMATS_HINT =
   "JPG, PNG, WebP or GIF. SVG files can't be accepted.";
 
+/**
+ * Just enough of a File to describe it in the log.
+ *
+ * Structural rather than `File` because a recorded video arrives as a plain
+ * Blob, which has a type and a size but no name.
+ */
+export interface UploadedFileInfo {
+  name?: string;
+  type?: string;
+  size?: number;
+}
+
 export interface UploadFailureReport {
   /** Which screen, in words a reader of the activity log will recognise. */
   context: string;
   /** Which field — e.g. the manufacturer whose certificate this was. */
   label?: string;
-  file?: File;
+  file?: UploadedFileInfo;
   reason: unknown;
   /** Whatever the form already knows, for someone with no login yet. */
   name?: string;
@@ -78,7 +90,7 @@ export function reportUploadFailure(r: UploadFailureReport): void {
   }
 }
 
-export function uploadErrorMessage(err: unknown, file?: File): string {
+export function uploadErrorMessage(err: unknown, file?: UploadedFileInfo): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
 
   if (/content type/i.test(raw)) {

@@ -19,6 +19,7 @@ import {
   type Fingerprint,
   type FingerprintedPhoto,
 } from "@/lib/imageFingerprint";
+import { reportUploadFailure } from "@/lib/uploadError";
 import { Button, Field, inputClass } from "./ui";
 import PanelBeaterMap from "./PanelBeaterMap";
 
@@ -158,11 +159,45 @@ export default function QuoteFlow({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  /**
+   * uploadFile, plus a report to the activity log when it is refused.
+   *
+   * Wrapped here rather than in each of the six catch blocks below: this is the
+   * only place that knows whose form this is, and every caller keeps its own
+   * wording for the person on the screen. The error is re-thrown untouched, so
+   * the existing handling is unaffected — an abandoned quote request is worth
+   * money, and until now one that died at the upload left no trace at all.
+   */
+  async function uploadReported(
+    file: File | Blob,
+    prefix: string,
+    label: string
+  ): Promise<MediaRef> {
+    try {
+      return await uploadFile(file, prefix);
+    } catch (err) {
+      reportUploadFailure({
+        context: repairer ? "the repairer's version of the quote form" : "the consumer quote form",
+        label,
+        file:
+          file instanceof File
+            ? file
+            : // A recorded clip is a nameless Blob; say so rather than log "(unnamed file)".
+              { name: `${prefix} recording`, type: file.type, size: file.size },
+        reason: err,
+        name: `${form.firstName} ${form.lastName}`.trim(),
+        email: form.email,
+        company: form.companyName,
+      });
+      throw err;
+    }
+  }
+
   async function handleDisc(file: File) {
     setError(null);
     setDiscReading(true);
     try {
-      const ref = await uploadFile(file, "disc");
+      const ref = await uploadReported(file, "disc", "licence disc photo");
       setDisc(ref);
       // OCR the licence disc via Claude.
       const res = await fetch("/api/disc/read", {
@@ -186,7 +221,7 @@ export default function QuoteFlow({
     setOdoReading(true);
     setOdoKm(null);
     try {
-      const ref = await uploadFile(file, "odometer");
+      const ref = await uploadReported(file, "odometer", "odometer photo");
       setOdo(ref);
       // OCR the odometer reading via Claude (best-effort).
       const res = await fetch("/api/odometer/read", {
@@ -226,7 +261,7 @@ export default function QuoteFlow({
 
     setUploadingSide(side);
     try {
-      const ref = await uploadFile(file, `side-${side}`);
+      const ref = await uploadReported(file, `side-${side}`, `${label} photo`);
       // Replacing this slot: drop the old print before recording the new one.
       forgetPrint(label);
       photoPrints.current.push({ ...print, label });
@@ -268,7 +303,9 @@ export default function QuoteFlow({
 
     setUploadingPhotos(true);
     try {
-      const uploaded = await Promise.all(accepted.map((a) => uploadFile(a.file, "damage")));
+      const uploaded = await Promise.all(
+        accepted.map((a) => uploadReported(a.file, "damage", a.label))
+      );
       photoPrints.current.push(...accepted.map((a) => ({ ...a.print, label: a.label })));
       setPhotos((p) => [...p, ...uploaded]);
     } catch {
@@ -697,7 +734,7 @@ export default function QuoteFlow({
             <VideoCapture
               onRecorded={async (blob) => {
                 try {
-                  const ref = await uploadFile(blob, "video");
+                  const ref = await uploadReported(blob, "video", "20-second damage video");
                   setVideo(ref);
                 } catch {
                   setError("Video upload failed. You can skip it and continue.");
