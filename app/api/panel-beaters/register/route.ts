@@ -4,7 +4,7 @@ import {
   upsertPanelBeater,
   findUserByEmail,
   upsertUser,
-  createEmailVerification,
+  createPasswordSetToken,
   getActiveAgreementDocument,
   createRepairerAgreement,
 } from "@/lib/store";
@@ -16,7 +16,7 @@ import { logActivity } from "@/lib/activityLog";
 import {
   sendPanelBeaterRegistrationNotification,
   sendPanelBeaterWelcome,
-  sendEmailVerification,
+  passwordSetUrl,
   sendRepairerAgreementInvite,
 } from "@/lib/email";
 import type { PanelBeater, User } from "@/lib/types";
@@ -33,8 +33,30 @@ import type { PanelBeater, User } from "@/lib/types";
  * An address that's already a user is SKIPPED, never overwritten: someone
  * re-registering (or an existing PMP user) must not have their password reset
  * by an unauthenticated endpoint.
+ *
+ * NO PASSWORD IS EVER PUT IN THE EMAIL. Each account is created with a random
+ * one nobody will ever see, and the welcome carries a one-time link to choose
+ * their own. Mac-Rites (12 Aug 2026) registered two people and neither received
+ * anything, because their Microsoft 365 filter treats a message containing a
+ * password as high-confidence spam.
+ *
+ * The separate "confirm your address" email is GONE, deliberately: the link is
+ * now the only way into a new account, and opening one that was emailed to that
+ * inbox proves the address just as well — so redeeming it marks the address
+ * verified (see redeemPasswordSetToken). Sending a second link to prove the
+ * first link arrived is one more message to be quarantined for no gain.
  */
-async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipped: string[] }> {
+interface LoginOutcome {
+  email: string;
+  name: string;
+  sent: boolean;
+  error?: string;
+}
+
+async function createLogins(
+  pb: PanelBeater,
+  request: Request
+): Promise<{ created: string[]; skipped: string[]; mail: LoginOutcome[] }> {
   const candidates = [
     { name: pb.completedByName, email: pb.completedByEmail },
     { name: pb.ownerName, email: pb.ownerEmail },
@@ -42,6 +64,7 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
 
   const created: string[] = [];
   const skipped: string[] = [];
+  const mail: LoginOutcome[] = [];
   const seen = new Set<string>();
 
   for (const c of candidates) {
@@ -54,16 +77,18 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
       continue;
     }
 
-    const password = generateTempPassword();
     const user: User = {
       id: crypto.randomUUID(),
       name: c.name?.trim() || pb.companyName,
       email,
-      passwordHash: await hashPassword(password),
+      // A placeholder nobody knows, including us. The set-password link is the
+      // only way in, and it replaces this.
+      passwordHash: await hashPassword(generateTempPassword(32)),
       role: PANEL_BEATER_ADMIN_ROLE,
       panelBeaterId: pb.id,
       active: true,
-      // They chose nothing — this password was generated for them.
+      // Kept true so that if an admin ever hands them a temporary password
+      // instead, the change-password gate still applies.
       mustChangePassword: true,
       createdAt: new Date().toISOString(),
     };
@@ -72,32 +97,48 @@ async function createLogins(pb: PanelBeater): Promise<{ created: string[]; skipp
 
     // Best-effort: a failed email must not undo a good registration. The
     // account exists either way and an admin can resend from the Users page.
+    //
+    // But it is no longer SILENT. This used to be swallowed to console.error,
+    // so when a whole workshop said "we never got anything" there was no row
+    // anywhere saying whether we had even tried.
+    let outcome: LoginOutcome = { email, name: user.name, sent: false };
     try {
-      await sendPanelBeaterWelcome({
+      const token = await createPasswordSetToken(user.id, email, "welcome");
+      const result = await sendPanelBeaterWelcome({
         name: user.name,
         email,
-        password,
+        setPasswordUrl: passwordSetUrl(token),
         companyName: pb.tradingAs || pb.companyName,
       });
+      outcome = { email, name: user.name, sent: result.sent, error: result.error };
     } catch (err) {
-      console.error("panel beater welcome email failed", email, err);
+      outcome = { email, name: user.name, sent: false, error: (err as Error).message };
     }
+    mail.push(outcome);
 
-    // Confirmation of the address itself, kept SEPARATE from the welcome. The
-    // welcome carries a password, so anyone forwarding it hands over an
-    // account; this one proves the address belongs to whoever typed it, which
-    // is the only thing standing between the sign-up form and a stranger
-    // registering a workshop under someone else's email.
-    try {
-      const token = await createEmailVerification(user.id, email);
-      await sendEmailVerification(email, user.name, token);
-    } catch (err) {
-      // Non-fatal: they can ask for a fresh link from the portal.
-      console.error("verification email failed", email, err);
-    }
+    await logActivity({
+      action: "user.welcome.send",
+      summary: outcome.sent
+        ? `Welcome email sent to ${outcome.name} (${email})`
+        : `Welcome email to ${outcome.name} (${email}) DID NOT SEND${
+            outcome.error ? `: ${outcome.error}` : ""
+          }`,
+      outcome: outcome.sent ? "success" : "failed",
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: user.name,
+      // Nobody is signed in — the workshop is registering itself.
+      actorKind: "applicant",
+      actorName: user.name,
+      actorEmail: email,
+      panelBeaterId: pb.id,
+      // The link is a credential. Whether it went, never where it points.
+      detail: { email, welcomeEmailed: outcome.sent, welcomeEmailError: outcome.error },
+      request,
+    });
   }
 
-  return { created, skipped };
+  return { created, skipped, mail };
 }
 
 /**
@@ -206,7 +247,7 @@ export async function POST(request: Request) {
 
   // Logins first: the applicant is told to expect them, so a failure here is
   // worth surfacing, whereas the internal alert below is fire-and-forget.
-  const logins = await createLogins(pb);
+  const logins = await createLogins(pb, request);
 
   // The agreement goes as its own email, to the person who filled the form in.
   // Skipped silently when no document has been uploaded yet — a registration
@@ -237,10 +278,14 @@ export async function POST(request: Request) {
       physicalAddress: pb.physicalAddress,
       geocoded: pb.lat != null && pb.lng != null,
       warranties: pb.warranties?.length ?? 0,
-      // WHICH addresses got a login, never the temporary passwords that went
-      // with them.
+      // WHICH addresses got a login, never the links that went with them.
       loginsCreated: logins.created,
       loginsSkipped: logins.skipped,
+      // The per-address detail is on the user.welcome.send rows; this is the
+      // headline, so "did anyone actually hear from us" is answerable from the
+      // registration line alone.
+      welcomeEmailsSent: logins.mail.filter((m) => m.sent).length,
+      welcomeEmailsFailed: logins.mail.filter((m) => !m.sent).map((m) => m.email),
       agreementEmailed: agreementSent,
     },
     request,

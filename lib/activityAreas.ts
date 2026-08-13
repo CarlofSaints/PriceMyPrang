@@ -9,6 +9,9 @@
 export const ACTIVITY_AREAS: Record<string, string> = {
   auth: "Sign in & passwords",
   user: "Users",
+  // What became of a message after Resend took it — delivered, bounced,
+  // marked as spam. Fed by the webhook at /api/webhooks/resend.
+  email: "Email delivery",
   role: "Roles",
   panel_beater: "Panel beaters",
   warranty: "Warranties",

@@ -56,6 +56,10 @@ const REDACT_KEYS = [
   "iv",
   "credential",
   "auth",
+  // A set-password link is a credential wearing a URL's clothes: nothing in
+  // the list above matches a field called setPasswordUrl, so it is named here
+  // as well as being kept out of every logged detail by hand.
+  "setpasswordurl",
 ];
 
 const REDACTED = "[redacted]";

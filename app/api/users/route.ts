@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, hashPassword, generateTempPassword } from "@/lib/auth";
+import { requireUser, hashPassword } from "@/lib/auth";
 import { can, permissionsForRole } from "@/lib/permissions";
 import {
   getUsers,
@@ -8,8 +8,9 @@ import {
   deleteUser,
   setTwoFactorEnabled,
   getPanelBeater,
+  createPasswordSetToken,
 } from "@/lib/store";
-import { sendUserCredentials, sendPanelBeaterWelcome } from "@/lib/email";
+import { sendUserCredentials, sendPanelBeaterWelcome, passwordSetUrl } from "@/lib/email";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser, User } from "@/lib/types";
 
@@ -114,13 +115,21 @@ export async function POST(request: Request) {
   users.push(user);
   await saveUsers(users);
 
-  // Email the new user their login details, unless the admin opted out and
-  // intends to hand the password over themselves.
+  // Email the new user a LINK to choose their own password, unless the admin
+  // opted out and intends to hand the typed password over themselves.
+  //
+  // The typed password is still set on the account either way, so it remains a
+  // working fallback the admin can read out if the email doesn't arrive — it is
+  // simply never written into the message. See the PasswordSetToken model for
+  // why a password in an email body is a deliverability problem, not just an
+  // aesthetic one.
   const mail = sendEmail
     ? await sendUserCredentials({
         name: user.name,
         email: user.email,
-        password: b.password,
+        setPasswordUrl: passwordSetUrl(
+          await createPasswordSetToken(user.id, user.email, "welcome")
+        ),
         roleName: role.name,
         mustChangePassword,
       })
@@ -225,8 +234,13 @@ export async function PATCH(request: Request) {
     sendEmail?: boolean;
     mustChangePassword?: boolean;
     twoFactorEnabled?: boolean;
-    /** Re-send the welcome letter, with a freshly issued temporary password. */
+    /** Re-send the welcome letter, carrying a fresh set-password link. */
     welcome?: boolean;
+    /**
+     * Email a "choose a new password" link instead of setting one here. Leaves
+     * their current password working until they actually use it.
+     */
+    resetLink?: boolean;
   };
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -293,38 +307,50 @@ export async function PATCH(request: Request) {
   let mail: { sent: boolean; error?: string } | null = null;
   let skipped = false;
 
-  // ── Resend the welcome letter ───────────────────────────────────────────
+  // ── Resend the welcome letter, or send a set-password link ──────────────
   //
-  // The one an applicant should have received at registration, or a new user
-  // when their login was created. It carries credentials, so it CANNOT be a
-  // literal re-send: the original password was hashed the moment it was set
-  // and nobody — including us — can read it back. A fresh temporary password
-  // is issued and the letter goes out with that instead, which is why this
-  // costs the user their current password and forces a change at next sign-in.
-  // The UI says so before it is clicked.
-  let issuedPassword: string | null = null;
-  if (b.welcome) {
-    issuedPassword = generateTempPassword();
-    u.passwordHash = await hashPassword(issuedPassword);
-    u.mustChangePassword = true;
+  // The welcome is the one an applicant should have received at registration,
+  // or a new user when their login was created.
+  //
+  // IT NO LONGER TOUCHES THEIR PASSWORD. It used to have to: the original was
+  // hashed the moment it was set and nobody, us included, can read it back, so
+  // "re-send" meant minting a new temporary password — which silently killed
+  // whatever the recipient was already using. On 12 Aug 2026 one misplaced
+  // click on this button locked a Super Admin out of his own repairer login.
+  // Now it issues a one-time link instead, and until the recipient uses it,
+  // nothing about their account changes.
+  //
+  // The URL is returned to the admin (see the response) so it can be passed on
+  // by hand when the email doesn't arrive — which is the situation this button
+  // exists for. It is NEVER written to the activity log.
+  let setPasswordLink: string | null = null;
+  if (b.welcome || b.resetLink) {
+    const purpose = b.welcome ? ("welcome" as const) : ("reset" as const);
+    // A reset link is short-lived; a welcome link is the only way into a brand
+    // new account and gets the full fortnight.
+    setPasswordLink = passwordSetUrl(
+      await createPasswordSetToken(u.id, u.email, purpose, purpose === "reset" ? 48 : undefined)
+    );
 
     // A repairer gets the panel-beater welcome — "we have your application,
     // sign in and finish your listing" — not the bare credentials note, which
     // would read as though we had never seen their sign-up.
     const pb = u.panelBeaterId ? await getPanelBeater(u.panelBeaterId) : null;
-    mail = pb
-      ? await sendPanelBeaterWelcome({
-          name: u.name,
-          email: u.email,
-          password: issuedPassword,
-          companyName: pb.tradingAs || pb.companyName,
-        })
-      : await sendUserCredentials({
-          name: u.name,
-          email: u.email,
-          password: issuedPassword,
-          mustChangePassword: true,
-        });
+    mail =
+      b.welcome && pb
+        ? await sendPanelBeaterWelcome({
+            name: u.name,
+            email: u.email,
+            setPasswordUrl: setPasswordLink,
+            companyName: pb.tradingAs || pb.companyName,
+          })
+        : await sendUserCredentials({
+            name: u.name,
+            email: u.email,
+            setPasswordUrl: setPasswordLink,
+            isReset: !b.welcome,
+            mustChangePassword: true,
+          });
   } else if (b.password) {
     // An admin-issued password is temporary by default — the user is made to
     // replace it on their next visit to the portal.
@@ -364,24 +390,30 @@ export async function PATCH(request: Request) {
       k === "twoFactorEnabled" ? "two-step sign-in" : k === "active" ? "active" : k
     ),
     ...(b.password ? ["password (reset)"] : []),
-    ...(b.welcome ? ["welcome email (resent with a new password)"] : []),
+    ...(b.welcome ? ["welcome email (resent with a set-password link)"] : []),
+    ...(b.resetLink ? ["set-password link emailed"] : []),
   ];
 
   await logActivity({
     action: b.welcome
       ? "user.welcome.resend"
+      : b.resetLink
+      ? "user.password.link"
       : b.password && changed.length === 1
       ? "user.password.reset"
       : "user.update",
     summary: b.welcome
       ? `${admin.name} re-sent the welcome email to ${u.name} (${u.email})` +
         (mail?.sent ? "" : ` — but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
+      : b.resetLink
+      ? `${admin.name} emailed ${u.name} (${u.email}) a link to set a new password` +
+        (mail?.sent ? "" : ` — but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
       : changed.length
       ? `${admin.name} changed ${changed.join(", ")} for ${u.name}`
       : `${admin.name} saved ${u.name} with no changes`,
     // A welcome that never left is exactly the failure this whole incident was
     // about, so it must not be filed as a success.
-    outcome: b.welcome && !mail?.sent ? "failed" : "success",
+    outcome: (b.welcome || b.resetLink) && !mail?.sent ? "failed" : "success",
     entityType: "user",
     entityId: u.id,
     entityLabel: u.name,
@@ -389,11 +421,16 @@ export async function PATCH(request: Request) {
     detail: {
       email: u.email,
       changes,
-      // Again: whether a password was issued and emailed, never its value.
-      passwordReset: !!b.password || !!b.welcome,
+      // Whether a link or a password went out — NEVER the link itself. It is a
+      // credential, and unlike a field called "token" it would sail straight
+      // past redact() on its name alone.
+      passwordReset: !!b.password,
+      linkIssued: !!(b.welcome || b.resetLink),
       welcomeResent: b.welcome || undefined,
       welcomeEmailed: b.welcome ? !!mail?.sent : undefined,
       welcomeEmailError: b.welcome ? mail?.error : undefined,
+      resetLinkEmailed: b.resetLink ? !!mail?.sent : undefined,
+      resetLinkError: b.resetLink ? mail?.error : undefined,
       mustChangePassword: b.password ? u.mustChangePassword : undefined,
       credentialsEmailed: b.password ? !!mail?.sent : undefined,
       emailSkipped: skipped || undefined,
@@ -406,9 +443,9 @@ export async function PATCH(request: Request) {
     emailSent: mail?.sent,
     emailError: mail?.error,
     emailSkipped: skipped,
-    // Returned ONLY for a welcome resend, and only so the admin can read the
-    // password out over the phone when the email did not send — which is the
-    // situation that prompted this button existing.
-    issuedPassword: issuedPassword ?? undefined,
+    // Returned ONLY when a link was just minted, so the admin can pass it on by
+    // hand when the email doesn't arrive — the Mac-Rites situation, where the
+    // only remaining option was to invent a password and phone it through.
+    setPasswordUrl: setPasswordLink ?? undefined,
   });
 }

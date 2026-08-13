@@ -57,6 +57,18 @@ function detailRow(label: string, value: string): string {
   </tr>`;
 }
 
+/**
+ * Where a "choose your own password" token is redeemed.
+ *
+ * Lives here because baseUrl() does, and every caller that mints a token is
+ * about to put this in an email. NEXT_PUBLIC_APP_URL is build-time, so a link
+ * built here points at whatever the deploy was built with — the www domain in
+ * production.
+ */
+export function passwordSetUrl(token: string): string {
+  return `${baseUrl()}/set-password/${token}`;
+}
+
 function fromAddress(): string {
   // Override with EMAIL_FROM (e.g. prang@pricemyprang.co.za). Falls back to the
   // Resend sandbox sender for local/testing.
@@ -209,10 +221,69 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
   });
 }
 
+/**
+ * The block that tells somebody how to get in.
+ *
+ * TWO SHAPES, and the link one is the default everywhere it is offered.
+ *
+ *  - setPasswordUrl: a one-time link to choose their own password. Nothing
+ *    secret is written in the message, so a forwarded copy is worth nothing
+ *    once it has been used, and — the reason this was built — the message no
+ *    longer looks like a phishing attempt to a spam filter. Microsoft 365
+ *    quarantined every password-carrying email we sent to one repairer, and
+ *    the app had no way of knowing.
+ *
+ *  - password: the old plaintext credential. STILL SUPPORTED ON PURPOSE, for
+ *    the case where an admin has deliberately chosen a password to hand over
+ *    themselves. Not used by anything that sends automatically.
+ */
+function accessBlock(opts: {
+  email: string;
+  password?: string;
+  setPasswordUrl?: string;
+  ctaLabel: string;
+}): string {
+  if (opts.setPasswordUrl) {
+    return `
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Your sign-in address", opts.email)}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${opts.setPasswordUrl}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        ${opts.ctaLabel}
+      </a>
+    </p>
+    <p style="font-size:13px;color:#6b7f82;">
+      If the button doesn&apos;t work, copy this into your browser:<br />
+      <span style="word-break:break-all;">${opts.setPasswordUrl}</span>
+    </p>`;
+  }
+
+  return `
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Login", opts.email)}
+        ${detailRow("Temporary password", opts.password || "—")}
+      </table>
+    </div>
+    <p style="margin:20px 0;">
+      <a href="${baseUrl()}/login"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Sign in to the portal
+      </a>
+    </p>`;
+}
+
 export async function sendUserCredentials(opts: {
   name: string;
   email: string;
-  password: string;
+  /** A password to hand over. Mutually exclusive with setPasswordUrl. */
+  password?: string;
+  /** A one-time link to choose their own password. Preferred — see accessBlock. */
+  setPasswordUrl?: string;
   roleName?: string;
   isReset?: boolean;
   mustChangePassword?: boolean;
@@ -220,33 +291,31 @@ export async function sendUserCredentials(opts: {
   const resend = client();
   if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
 
-  const loginUrl = `${baseUrl()}/login`;
+  const link = !!opts.setPasswordUrl;
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
     <p style="font-size:15px;line-height:1.5;">
       ${
         opts.isReset
-          ? "Your Price my Prang portal password has been reset."
+          ? link
+            ? "Somebody at Price my Prang asked us to send you a link to set a new portal password."
+            : "Your Price my Prang portal password has been reset."
           : "An account has been created for you on the Price my Prang portal" +
             (opts.roleName ? ` as <strong>${opts.roleName}</strong>` : "") +
             "."
       }
     </p>
-    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
-      <table style="width:100%;border-collapse:collapse;">
-        ${detailRow("Login", opts.email)}
-        ${detailRow("Temporary password", opts.password)}
-      </table>
-    </div>
-    <p style="margin:20px 0;">
-      <a href="${loginUrl}"
-         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
-        Sign in to the portal
-      </a>
-    </p>
+    ${accessBlock({
+      email: opts.email,
+      password: opts.password,
+      setPasswordUrl: opts.setPasswordUrl,
+      ctaLabel: opts.isReset ? "Set a new password" : "Choose your password",
+    })}
     <p style="font-size:13px;color:#6b7f82;">
       ${
-        opts.mustChangePassword
+        link
+          ? "The link works once. Until you use it, nothing about your account changes."
+          : opts.mustChangePassword
           ? "You&apos;ll be asked to choose your own password as soon as you sign in."
           : "Please sign in and change your password."
       }
@@ -259,9 +328,11 @@ export async function sendUserCredentials(opts: {
       from: fromAddress(),
       to: opts.email,
       subject: opts.isReset
-        ? "Your Price my Prang password was reset"
+        ? link
+          ? "Set a new Price my Prang password"
+          : "Your Price my Prang password was reset"
         : "Your Price my Prang portal login",
-      html: shell(opts.isReset ? "Password reset" : "Welcome to Price my Prang", body),
+      html: shell(opts.isReset ? "Set a new password" : "Welcome to Price my Prang", body),
     });
     if (error) return { sent: false, error: (error as { message?: string }).message || "send failed" };
     return { sent: true };
@@ -489,12 +560,16 @@ export async function sendSignedAgreementCopy(opts: {
 export async function sendPanelBeaterWelcome(opts: {
   name: string;
   email: string;
-  password: string;
+  /** A password to hand over. Mutually exclusive with setPasswordUrl. */
+  password?: string;
+  /** A one-time link to choose their own password. Preferred — see accessBlock. */
+  setPasswordUrl?: string;
   companyName: string;
 }): Promise<{ sent: boolean; error?: string }> {
   const resend = client();
   if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
 
+  const link = !!opts.setPasswordUrl;
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
     <p style="font-size:15px;line-height:1.5;">
@@ -502,25 +577,27 @@ export async function sendPanelBeaterWelcome(opts: {
       your application and our team is checking your documents.
     </p>
     <p style="font-size:15px;line-height:1.5;">
-      You can sign in straight away to finish setting up your listing and your rates. Until your
-      documents have been checked your workshop won&apos;t appear to consumers, and you&apos;ll see a
-      reminder in the portal until it does.
+      ${
+        link
+          ? "Choose a password and you can sign in straight away to finish setting up your listing and your rates."
+          : "You can sign in straight away to finish setting up your listing and your rates."
+      }
+      Until your documents have been checked your workshop won&apos;t appear to consumers, and
+      you&apos;ll see a reminder in the portal until it does.
     </p>
-    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
-      <table style="width:100%;border-collapse:collapse;">
-        ${detailRow("Login", opts.email)}
-        ${detailRow("Temporary password", opts.password)}
-      </table>
-    </div>
-    <p style="margin:20px 0;">
-      <a href="${baseUrl()}/login"
-         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
-        Sign in to the portal
-      </a>
-    </p>
+    ${accessBlock({
+      email: opts.email,
+      password: opts.password,
+      setPasswordUrl: opts.setPasswordUrl,
+      ctaLabel: "Choose your password",
+    })}
     <p style="font-size:13px;color:#6b7f82;">
-      You&apos;ll be asked to choose your own password as soon as you sign in. If you weren&apos;t
-      expecting this, you can ignore this email.
+      ${
+        link
+          ? "The link works once, and only you can use it."
+          : "You&apos;ll be asked to choose your own password as soon as you sign in."
+      }
+      If you weren&apos;t expecting this, you can ignore this email.
     </p>
   `;
 

@@ -205,8 +205,9 @@ model User {
   panelBeaterId String?
   panelBeater   PanelBeater? @relation(fields: [panelBeaterId], references: [id], onDelete: SetNull)
 
-  verifications   EmailVerification[]
-  loginChallenges LoginChallenge[]
+  verifications     EmailVerification[]
+  loginChallenges   LoginChallenge[]
+  passwordSetTokens PasswordSetToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -235,6 +236,49 @@ model EmailVerification {
 
   @@index([userId])
   @@map("email_verifications")
+}
+
+/// A "choose your own password" link.
+///
+/// WHY THIS EXISTS. Welcome and reset emails used to carry the password in the
+/// body. Two things were wrong with that: a plaintext credential in an inbox
+/// lives there forever and gets forwarded, and — the reason it was actually
+/// built — Microsoft 365 treats a message containing a password as
+/// high-confidence spam. A repairer's whole team never received a single one,
+/// and nothing in the app could tell us why.
+///
+/// A link also removes the footgun in the old resend: because the original
+/// password can never be read back, re-sending a welcome had to MINT a new one,
+/// silently killing the password the recipient might already have been using.
+/// Issuing a link changes nothing about their current password until they
+/// actually use it.
+model PasswordSetToken {
+  id     String @id @default(uuid())
+  token  String @unique
+  userId String
+
+  /// The address the link was sent to, as it was at the time. Re-checked at
+  /// redemption so a link can't complete against an account that has since
+  /// moved to a different address.
+  email String
+
+  /// "welcome" or "reset" — wording only, so the page and the email read like
+  /// the thing that prompted them.
+  purpose String
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  /// Set when a NEWER link superseded this one. Unlike EmailVerification,
+  /// issuing a fresh link kills the outstanding ones: two live links to set one
+  /// password is one more way in than anybody asked for.
+  supersededAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_set_tokens")
 }
 
 /// A half-finished sign-in: the password was right, the emailed code is still

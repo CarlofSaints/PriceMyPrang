@@ -49,7 +49,15 @@ export default function UsersManager({
   };
   const [form, setForm] = useState(blankForm);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  /**
+   * `link` is shown with a Copy button. It is how an admin gets a locked-out
+   * repairer moving when the email itself never lands — the situation that
+   * previously ended with inventing a password and reading it down the phone.
+   */
+  const [notice, setNotice] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
+  // The link that was copied, not a boolean — a later notice carrying a
+  // different link would otherwise still read "Copied".
+  const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   type Dialog =
@@ -62,6 +70,8 @@ export default function UsersManager({
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [pw, setPw] = useState("");
   const [pwEmail, setPwEmail] = useState(true);
+  /** "link" emails them a one-time link; "password" sets one here and now. */
+  const [resetMode, setResetMode] = useState<"link" | "password">("link");
 
   function closeDialog() {
     setDialog(null);
@@ -85,8 +95,12 @@ export default function UsersManager({
     emailSent?: boolean;
     emailError?: string;
     emailSkipped?: boolean;
-    /** Only ever returned by a welcome resend, so it can be read out if mail fails. */
-    issuedPassword?: string;
+    /**
+     * Returned whenever a set-password link was just minted, so it can be
+     * passed on by hand when the email doesn't arrive — which is the entire
+     * reason these buttons exist.
+     */
+    setPasswordUrl?: string;
   };
 
   /** What to tell the admin about a password they just issued. */
@@ -106,7 +120,7 @@ export default function UsersManager({
         ok: true,
         text:
           what === "created"
-            ? `User created — login details emailed to ${u.email}.`
+            ? `User created — ${u.email} has been emailed a link to choose their own password. The one you typed also works, if you need to hand it over.`
             : `Password reset — new details emailed to ${u.email}.`,
       };
     return {
@@ -198,17 +212,46 @@ export default function UsersManager({
     setNotice(null);
     setPw(suggestPassword());
     setPwEmail(true);
+    // The link is the default. Typing a password here is the exception now —
+    // for handing one over in person or down a phone.
+    setResetMode("link");
     setDialog({ kind: "reset", user: u });
   }
 
   async function confirmReset() {
     if (dialog?.kind !== "reset") return;
+    const target = dialog.user;
+
+    // ── Email them a link, leaving their current password alone ──────────
+    if (resetMode === "link") {
+      setBusy(true);
+      const u = (await patch(target.id, { resetLink: true })) as UserResponse | null;
+      setBusy(false);
+      if (u)
+        setNotice(
+          u.emailSent
+            ? {
+                ok: true,
+                text: `Emailed ${target.email} a link to set a new password. Their current one keeps working until they use it. Same link, if you'd rather send it yourself:`,
+                link: u.setPasswordUrl,
+              }
+            : {
+                ok: false,
+                text: `That email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. Send them this link instead — it still works:`,
+                link: u.setPasswordUrl,
+              }
+        );
+      closeDialog();
+      return;
+    }
+
+    // ── Or set one here and hand it over ─────────────────────────────────
     if (pw.trim().length < 10) {
       setDialogError("Use at least 10 characters.");
       return;
     }
     setBusy(true);
-    const u = await patch(dialog.user.id, {
+    const u = await patch(target.id, {
       password: pw.trim(),
       sendEmail: pwEmail,
       // A reset always forces them to choose their own afterwards.
@@ -230,13 +273,15 @@ export default function UsersManager({
         u.emailSent
           ? {
               ok: true,
-              text: `Welcome email sent to ${target.email} with a new temporary password. They'll be asked to choose their own when they sign in.`,
+              text: `Welcome email sent to ${target.email}, with a link for them to choose their own password. If it doesn't reach them, send them this link yourself — it's the same one:`,
+              link: u.setPasswordUrl,
             }
           : {
               ok: false,
               text:
                 `The welcome email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. ` +
-                `Their new temporary password is ${u.issuedPassword ?? "—"} — pass it on yourself.`,
+                `Send them this link instead — it still works:`,
+              link: u.setPasswordUrl,
             }
       );
     closeDialog();
@@ -270,15 +315,32 @@ export default function UsersManager({
   return (
     <div className="space-y-6">
       {notice && (
-        <p
-          className={`rounded-xl border p-3 text-sm ${
+        <div
+          className={`space-y-2 rounded-xl border p-3 text-sm ${
             notice.ok
               ? "border-teal/30 bg-teal/10 text-teal"
               : "border-amber/50 bg-amber/20 text-ink"
           }`}
         >
-          {notice.text}
-        </p>
+          <p>{notice.text}</p>
+          {notice.link && (
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 break-all rounded-lg bg-white/70 px-2 py-1.5 text-xs text-ink">
+                {notice.link}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(notice.link!);
+                  setCopied(notice.link!);
+                }}
+              >
+                {copied === notice.link ? "Copied" : "Copy link"}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
       <form onSubmit={create} className="pmp-card space-y-4">
         <div className="flex items-center justify-between">
@@ -369,10 +431,11 @@ export default function UsersManager({
               onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })}
             />
             <span>
-              Email the login details to the user
+              Email them a link to choose their own password
               <span className="block text-xs text-ink/60">
-                Uncheck to hand the password over yourself — it&apos;ll be shown here once after
-                you create them.
+                The password you typed above is set either way and stays a working fallback —
+                it is simply never written into the email. Uncheck to send nothing and hand it
+                over yourself; it&apos;ll be shown here once after you create them.
               </span>
             </span>
           </label>
@@ -513,7 +576,7 @@ export default function UsersManager({
                         setDialog({ kind: "welcome", user: u });
                       }}
                       className="text-teal hover:underline"
-                      title="Re-sends the welcome letter with a new temporary password."
+                      title="Re-sends the welcome letter with a link for them to choose a password. Doesn't change the one they have."
                     >
                       Welcome email
                     </button>
@@ -558,20 +621,24 @@ export default function UsersManager({
           <div className="space-y-3 text-sm text-ink/80">
             <p>
               Sends the same welcome letter they should have received when their login was
-              created — an introduction, their sign-in address, and a password.
+              created — an introduction, their sign-in address, and a one-time link to choose
+              their own password.
             </p>
-            {/* Said plainly because it surprises people: the original password
-                cannot be re-sent, it only ever existed as a hash. */}
-            <p className="rounded-xl bg-amber/20 p-3 text-ink">
-              <strong className="font-semibold">This issues a NEW temporary password.</strong>{" "}
-              The original can&apos;t be re-sent — we only ever store a scrambled copy of it, so nobody
-              here can read it. Any password they already have will stop working, and they&apos;ll
-              be asked to choose their own when they sign in.
+            {/* This used to warn that a resend MINTS a new password and kills
+                the old one. It no longer does either, and that is worth saying
+                out loud to anyone who remembers the old behaviour. */}
+            <p className="rounded-xl bg-teal/10 p-3 text-ink">
+              <strong className="font-semibold">Nothing changes until they use it.</strong> Any
+              password they already have keeps working. No password is written in the email —
+              which is also why it stands a better chance of getting past a spam filter.
+            </p>
+            <p className="text-ink/60">
+              You&apos;ll get the same link back here afterwards, so you can send it on yourself
+              if the email doesn&apos;t arrive.
             </p>
             {!dialog.user.emailVerifiedAt && (
               <p className="text-ink/60">
-                Note: that address has never been verified. If the last email didn&apos;t reach
-                them, this one may not either — check their spam folder before assuming it sent.
+                Note: that address has never been confirmed. Opening the link confirms it.
               </p>
             )}
           </div>
@@ -589,47 +656,103 @@ export default function UsersManager({
                 Cancel
               </Button>
               <Button onClick={confirmReset} disabled={busy}>
-                {busy ? "Saving…" : "Reset password"}
+                {busy
+                  ? "Saving…"
+                  : resetMode === "link"
+                  ? "Send the link"
+                  : "Set this password"}
               </Button>
             </>
           }
         >
           <div className="space-y-4">
-            <Field label="New temporary password" hint="At least 10 characters.">
-              <div className="flex gap-2">
+            {/* Two genuinely different actions behind one button, so the choice
+                is made here rather than by remembering which button was which.
+                The link is first and default: it doesn't touch their current
+                password, and it doesn't put a credential in an inbox. */}
+            <div className="space-y-2">
+              <label className="flex items-start gap-2.5 rounded-xl bg-offwhite p-3 text-sm text-ink">
                 <input
-                  className={inputClass}
-                  value={pw}
-                  autoFocus
-                  onChange={(e) => {
-                    setPw(e.target.value);
+                  type="radio"
+                  className="mt-0.5"
+                  checked={resetMode === "link"}
+                  onChange={() => {
+                    setResetMode("link");
                     setDialogError(null);
                   }}
                 />
-                <Button type="button" variant="outline" onClick={() => setPw(suggestPassword())}>
-                  Suggest
-                </Button>
-              </div>
-            </Field>
-
-            <label className="flex items-start gap-2.5 text-sm text-ink">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={pwEmail}
-                onChange={(e) => setPwEmail(e.target.checked)}
-              />
-              <span>
-                Email the new password to them
-                <span className="block text-xs text-ink/60">
-                  Untick to hand it over yourself — it&apos;ll be shown here once instead.
+                <span>
+                  Email them a link to choose their own
+                  <span className="block text-xs text-ink/60">
+                    Their current password keeps working until they use it. You&apos;ll get the
+                    link back here too, to pass on yourself if the email doesn&apos;t arrive.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+              <label className="flex items-start gap-2.5 rounded-xl bg-offwhite p-3 text-sm text-ink">
+                <input
+                  type="radio"
+                  className="mt-0.5"
+                  checked={resetMode === "password"}
+                  onChange={() => {
+                    setResetMode("password");
+                    setDialogError(null);
+                  }}
+                />
+                <span>
+                  Set a password myself
+                  <span className="block text-xs text-ink/60">
+                    Replaces their password immediately — for handing over in person or on the
+                    phone.
+                  </span>
+                </span>
+              </label>
+            </div>
 
-            <p className="text-xs text-ink/60">
-              They&apos;ll have to choose their own password the next time they sign in.
-            </p>
+            {resetMode === "password" && (
+              <>
+                <Field label="New temporary password" hint="At least 10 characters.">
+                  <div className="flex gap-2">
+                    <input
+                      className={inputClass}
+                      value={pw}
+                      autoFocus
+                      onChange={(e) => {
+                        setPw(e.target.value);
+                        setDialogError(null);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPw(suggestPassword())}
+                    >
+                      Suggest
+                    </Button>
+                  </div>
+                </Field>
+
+                <label className="flex items-start gap-2.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={pwEmail}
+                    onChange={(e) => setPwEmail(e.target.checked)}
+                  />
+                  <span>
+                    Email the new password to them
+                    <span className="block text-xs text-ink/60">
+                      Untick to hand it over yourself — it&apos;ll be shown here once instead.
+                      Bear in mind a password in an email is the thing spam filters object to.
+                    </span>
+                  </span>
+                </label>
+
+                <p className="text-xs text-ink/60">
+                  They&apos;ll have to choose their own password the next time they sign in.
+                </p>
+              </>
+            )}
 
             {dialogError && (
               <p className="rounded-xl border border-coral/30 bg-coral/10 p-3 text-sm text-coral">

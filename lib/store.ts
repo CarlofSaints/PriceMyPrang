@@ -3062,6 +3062,105 @@ export async function setTwoFactorEnabled(userId: string, enabled: boolean): Pro
   await getDb().user.update({ where: { id: userId }, data: { twoFactorEnabled: enabled } });
 }
 
+// ---- "Choose your own password" links ------------------------------------
+//
+// See the PasswordSetToken model comment for why these exist at all. The short
+// version: a password in an email body gets the whole message spam-filtered,
+// and a resend that has to mint a new password destroys the old one as a side
+// effect of being helpful.
+
+export type PasswordSetPurpose = "welcome" | "reset";
+
+/**
+ * Issue a link, standing down any outstanding ones for the same user.
+ *
+ * The default 14 days is long on purpose: this is the ONLY way into a new
+ * panel-beater account, and there is no self-service "forgot password" yet — an
+ * expired link means telephoning Price my Prang. A reset asks for a shorter one.
+ */
+export async function createPasswordSetToken(
+  userId: string,
+  email: string,
+  purpose: PasswordSetPurpose,
+  ttlHours = 24 * 14
+): Promise<string> {
+  const token = crypto.randomUUID();
+  const db = getDb();
+  await db.$transaction([
+    db.passwordSetToken.updateMany({
+      where: { userId, usedAt: null, supersededAt: null },
+      data: { supersededAt: new Date() },
+    }),
+    db.passwordSetToken.create({
+      data: {
+        token,
+        userId,
+        email: email.toLowerCase(),
+        purpose,
+        expiresAt: new Date(Date.now() + ttlHours * 3600_000),
+      },
+    }),
+  ]);
+  return token;
+}
+
+export interface PasswordSetTokenView {
+  name: string;
+  email: string;
+  purpose: string;
+}
+
+/**
+ * Look at a link without spending it, so the page can greet the person by name
+ * before they have typed anything. Returns null for anything not usable — used,
+ * superseded, expired, or issued for an address the account no longer holds.
+ */
+export async function peekPasswordSetToken(token: string): Promise<PasswordSetTokenView | null> {
+  const row = await getDb().passwordSetToken.findUnique({
+    where: { token },
+    include: { user: true },
+  });
+  if (!row || row.usedAt || row.supersededAt || row.expiresAt < new Date()) return null;
+  if (row.user.email.toLowerCase() !== row.email.toLowerCase()) return null;
+  return { name: row.user.name, email: row.user.email, purpose: row.purpose };
+}
+
+/**
+ * Spend the link and set the password, in ONE transaction — a token that is
+ * marked used but whose password write failed would lock the account out for
+ * good.
+ *
+ * Three things happen to the user, and all three are the point:
+ *  - the password becomes the one they just chose;
+ *  - mustChangePassword clears, because they have now chosen it themselves;
+ *  - the address is marked VERIFIED if it wasn't. Opening a link that was
+ *    emailed to that inbox is the same proof the verification mail asks for,
+ *    and leaving them to click a second link to say so is theatre.
+ */
+export async function redeemPasswordSetToken(
+  token: string,
+  passwordHash: string
+): Promise<{ userId: string; email: string; name: string } | null> {
+  const db = getDb();
+  const row = await db.passwordSetToken.findUnique({ where: { token }, include: { user: true } });
+  if (!row || row.usedAt || row.supersededAt || row.expiresAt < new Date()) return null;
+  if (row.user.email.toLowerCase() !== row.email.toLowerCase()) return null;
+
+  await db.$transaction([
+    db.passwordSetToken.update({ where: { id: row.id }, data: { usedAt: new Date() } }),
+    db.user.update({
+      where: { id: row.userId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        emailVerifiedAt: row.user.emailVerifiedAt ?? new Date(),
+      },
+    }),
+  ]);
+
+  return { userId: row.userId, email: row.user.email, name: row.user.name };
+}
+
 /**
  * Start a second-factor challenge. The code is stored HASHED — a leaked row
  * must not be a working second factor.
