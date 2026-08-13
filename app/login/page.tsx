@@ -158,6 +158,14 @@ function LoginForm() {
         {busy ? "Signing in…" : "Sign in"}
       </Button>
 
+      {/* Deliberately below the button and plainly worded. Someone who can't
+          get in is already frustrated; the way out should not be a puzzle. */}
+      <p className="text-center text-sm">
+        <Link href="/forgot-password" className="text-teal hover:underline">
+          Forgotten your password?
+        </Link>
+      </p>
+
       <p className="text-center text-sm text-ink/50">
         <Link href="/" className="text-teal hover:underline">
           ← Back to Price my Prang
