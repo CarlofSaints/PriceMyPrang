@@ -11,17 +11,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async () => ({
-        // This list must cover every `accept=` on every form that posts here —
+        // This list must cover every `accept=` on every form that posts here:
         // for certificates that is CERTIFICATE_ACCEPT in lib/uploadError.ts.
         // Warranty certificates are asked for as "image/*,application/pdf" on
         // the registration form and on a repairer's own listing, and a
-        // certificate is almost always a PDF — leaving it out of this list
+        // certificate is almost always a PDF: leaving it out of this list
         // failed the upload at the Blob API with "Content type mismatch",
         // which the form could only report as "upload failed", so applicants
         // were told to load the certificate again, forever.
         //
         // `accept="image/*"` means EVERY image format, so a scanned
-        // certificate arriving as TIFF or BMP has to be accepted too — the
+        // certificate arriving as TIFF or BMP has to be accepted too: the
         // file picker offers those whether or not this list does.
         //
         // SVG is excluded ON PURPOSE: it can carry script, and this endpoint
@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           // Documents. Carl's call, 12 Aug 2026: repairers send whatever their
           // manufacturer gave them, and being told "wrong file type" is worse
           // for him than storing a .docx. Note this endpoint takes ANONYMOUS
-          // uploads — that is the trade-off he accepted knowingly.
+          // uploads: that is the trade-off he accepted knowingly.
           "application/pdf",
           "application/msword",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

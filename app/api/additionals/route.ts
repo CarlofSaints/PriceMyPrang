@@ -14,7 +14,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AdditionalStatus, QuoteLineItem } from "@/lib/types";
 
 /**
- * Additionals — extra work found after a vehicle is stripped.
+ * Additionals: extra work found after a vehicle is stripped.
  *
  * Everything here is scoped to ONE workshop's own additionals on a job. A
  * repairer must never see what a competitor found on the same vehicle, which
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
 
   await logActivity({
     action: b.id ? "additional.update" : "additional.create",
-    summary: `${user.name} ${b.id ? "reworked" : "raised"} additionals #${saved.seq} on ${b.reference} — R${t.total.toFixed(2)}`,
+    summary: `${user.name} ${b.id ? "reworked" : "raised"} additionals #${saved.seq} on ${b.reference} for R${t.total.toFixed(2)}`,
     entityType: "additional",
     entityId: saved.id,
     entityLabel: `${b.reference} #${saved.seq}`,

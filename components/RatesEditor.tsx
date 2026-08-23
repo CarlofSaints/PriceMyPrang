@@ -34,7 +34,7 @@ export default function RatesEditor({
   panelBeaters: RatesPanelBeater[];
   insurers: { id: string; name: string }[];
   initialCards: RateCard[];
-  /** The workshop's own rates — shared across all of their cards. */
+  /** The workshop's own rates: shared across all of their cards. */
   initialCustomTypes?: CustomRateType[];
   /** Managers can switch between workshops; a panel beater sees only their own. */
   canManage: boolean;
@@ -58,7 +58,7 @@ export default function RatesEditor({
     setError(null);
     const qs = `panelBeaterId=${encodeURIComponent(nextPbId)}`;
     try {
-      // Both belong to the workshop being switched to — loading one without the
+      // Both belong to the workshop being switched to: loading one without the
       // other would price this workshop's cards against the last one's rates.
       const [cardRes, customRes] = await Promise.all([
         fetch(`/api/rate-cards?${qs}`),
@@ -92,7 +92,7 @@ export default function RatesEditor({
   /**
    * Remove a custom rate from the workshop entirely.
    *
-   * Confirmed because it is NOT scoped to the card on screen — it takes the
+   * Confirmed because it is NOT scoped to the card on screen: it takes the
    * rate, and any value set for it, off every card the workshop has.
    */
   async function deleteCustomType(type: CustomRateType) {
@@ -114,7 +114,7 @@ export default function RatesEditor({
     }
     setCustomTypes((list) => list.filter((c) => c.id !== type.id));
     // Drop it from the open draft too, or saving would re-post a value for a
-    // rate that no longer exists — the server drops it, but the box would sit
+    // rate that no longer exists: the server drops it, but the box would sit
     // there filled in until the next reload, looking saved.
     setDraft((d) => {
       if (!d) return d;
@@ -294,7 +294,7 @@ export default function RatesEditor({
                   })
                 }
               >
-                <option value="cash">Cash — the client pays directly</option>
+                <option value="cash">Cash: the client pays directly</option>
                 <option value="insurance">Insurance</option>
               </select>
             </Field>
@@ -312,7 +312,7 @@ export default function RatesEditor({
                   onChange={(e) => setDraft({ ...draft, insurerName: e.target.value })}
                   placeholder="e.g. Hollard"
                 />
-                {/* Suggestions only — the name is free text, because a workshop
+                {/* Suggestions only. The name is free text, because a workshop
                     may hold an SLA with an insurer we haven't listed. */}
                 <datalist id="pmp-insurers">
                   {insurers.map((i) => (

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Price my Prang — shared data types (stored as JSON in Vercel Blob)
+// Price my Prang: shared data types (stored as JSON in Vercel Blob)
 // ---------------------------------------------------------------------------
 
 export type Permission =
@@ -24,7 +24,7 @@ export type Permission =
   // the insurer. Held by the workshop team who actually strip the car.
   | "manage_additionals"
   // Super Admin: the site-wide activity log. Deliberately NOT given to any
-  // other seeded role — it shows every workshop's activity to whoever holds it.
+  // other seeded role: it shows every workshop's activity to whoever holds it.
   | "view_activity_log";
 
 /**
@@ -48,14 +48,14 @@ export interface Role {
 export type RoleName = string;
 
 // ---------------------------------------------------------------------------
-// Rate types — DATA, created by Super Admins. Each becomes a row on the panel
+// Rate types: DATA, created by Super Admins. Each becomes a row on the panel
 // beater Rates page. Panel beaters set a value per active rate type.
 // ---------------------------------------------------------------------------
 export type RateUnit = "rand_per_hour" | "rand" | "percent";
 
 /**
  * Values on a rate card, grouped by block. Field keys come from the fixed
- * catalogue in lib/rateCard.ts — rate types are no longer data.
+ * catalogue in lib/rateCard.ts: rate types are no longer data.
  */
 export type RateValues = Partial<Record<RateScope, Record<string, number>>>;
 
@@ -97,7 +97,7 @@ export interface RateCard {
 }
 
 // ---------------------------------------------------------------------------
-// Insurance companies — the list a CONSUMER picks from when requesting a quote.
+// Insurance companies: the list a CONSUMER picks from when requesting a quote.
 // Deliberately no rate card: rates are negotiated per repairer and live on that
 // workshop's RateCard, so there is no central rate for an insurer.
 // ---------------------------------------------------------------------------
@@ -106,7 +106,7 @@ export interface InsuranceCompany {
   name: string;
   active: boolean;
   createdAt: string;
-  /** Loaded on demand — the generic contacts, plus this workshop's private ones. */
+  /** Loaded on demand: the generic contacts, plus this workshop's private ones. */
   contacts?: InsurerContact[];
 }
 
@@ -115,7 +115,7 @@ export interface InsuranceCompany {
  *
  * `panelBeaterId` is what separates the two kinds: unset means a GENERIC
  * contact PMP maintains and every workshop can use; set means PRIVATE to that
- * workshop — the handler they actually deal with, which no other workshop sees.
+ * workshop: the handler they actually deal with, which no other workshop sees.
  */
 export interface InsurerContact {
   id: string;
@@ -135,7 +135,7 @@ export type AdditionalStatus = "pending" | "approved" | "declined";
 
 /**
  * Extra work found after stripping a vehicle, priced and sent to the insurer
- * for approval. A separate document from the accepted quote — the customer
+ * for approval. A separate document from the accepted quote: the customer
  * agreed to a number, and this asks for more on top of it.
  */
 export interface Additional {
@@ -144,7 +144,7 @@ export interface Additional {
   /** The job's reference, carried for display. */
   reference?: string;
   panelBeaterId: string;
-  /** "Additionals #1", "#2" — stripping can reveal more than once. */
+  /** "Additionals #1", "#2": stripping can reveal more than once. */
   seq: number;
   status: AdditionalStatus;
   reason?: string;
@@ -162,7 +162,7 @@ export interface Additional {
   vat: number;
   total: number;
 
-  /** The claim number AS SENT — a copy, so a later edit can't rewrite history. */
+  /** The claim number AS SENT: a copy, so a later edit can't rewrite history. */
   claimNumber?: string;
 
   contactId?: string;
@@ -204,7 +204,7 @@ export interface RepairerAgreement {
   token: string;
   sentToName: string;
   sentToEmail: string;
-  /** Unsigned until this is set — that's what makes it an agreement. */
+  /** Unsigned until this is set: that's what makes it an agreement. */
   signedAt?: string;
   signerName?: string;
   signerTitle?: string;
@@ -261,7 +261,7 @@ export interface PanelBeater {
   tradingAs?: string;
   companyRegNumber: string; // mandatory
   vatNumber?: string;
-  physicalAddress: string; // mandatory — geocoded for the map
+  physicalAddress: string; // mandatory, geocoded for the map
   lat?: number;
   lng?: number;
   mibcoNumber?: string;
@@ -270,7 +270,7 @@ export interface PanelBeater {
   miwaNumber?: string;
   labourRateSenior?: number;
   labourRateJunior?: number;
-  // Rates live on RateCard rows now — a workshop has several (cash, plus one
+  // Rates live on RateCard rows now: a workshop has several (cash, plus one
   // per insurer), not a single flat card.
   logoUrl?: string;
   email?: string;
@@ -286,7 +286,7 @@ export interface PanelBeater {
 }
 
 // ---------------------------------------------------------------------------
-// Suppliers — a curated list of parts suppliers (not a catalogue of parts).
+// Suppliers: a curated list of parts suppliers (not a catalogue of parts).
 // Each supplier records which part types they carry, the makes they cover, and
 // a free-text note of what they supply.
 // ---------------------------------------------------------------------------
@@ -354,8 +354,8 @@ export interface VehicleDetails {
 }
 
 /**
- * A VIN decoded by imagin8. `found: false` is a real, cached answer — the
- * vendor had no record — not an error, so an undecodable VIN isn't re-billed
+ * A VIN decoded by imagin8. `found: false` is a real, cached answer: the
+ * vendor had no record: not an error, so an undecodable VIN isn't re-billed
  * on every page load.
  */
 export interface VinLookupResult {
@@ -375,7 +375,7 @@ export interface VinLookupResult {
 
 // ---------------------------------------------------------------------------
 // Consumer QC. A RATING is public; a COMPLAINT never is. They are deliberately
-// separate records — a comment left with a rating is not a complaint.
+// separate records: a comment left with a rating is not a complaint.
 // ---------------------------------------------------------------------------
 
 export type ComplaintCategory =
@@ -429,7 +429,7 @@ export const COMPLAINT_STATUS_LABEL: Record<ComplaintStatus, string> = {
 
 export const VEHICLE_SAFETY_LABEL: Record<VehicleSafety, string> = {
   safe: "Yes, it's driveable",
-  unsafe: "No — I don't think it's safe",
+  unsafe: "No, I don't think it's safe",
   unsure: "I'm not sure",
 };
 
@@ -521,7 +521,7 @@ export interface QuoteRequest {
   lastName: string;
   email: string;
   phone: string;
-  /** Optional — for self- or partially-insured businesses quoting under a company. */
+  /** Optional: for self- or partially-insured businesses quoting under a company. */
   companyName?: string;
   hasInsurance: YesNo;
   /** Insurer name (from the dropdown or free text), captured when hasInsurance = "yes". */
@@ -565,7 +565,7 @@ export interface QuoteRequest {
   quotes: BuiltQuote[];
 }
 
-/** Suggested CODE values for a quote line (free text — not enforced). */
+/** Suggested CODE values for a quote line (free text: not enforced). */
 export const QUOTE_LINE_CODES = [
   "New",
   "Alt",
@@ -583,7 +583,7 @@ export interface QuoteLineItem {
   quantity: number;
   /** What the part cost the workshop, before mark-up. Optional. */
   partsCost?: number;
-  /** What the part is CHARGED at — cost plus the rate card's mark-up. */
+  /** What the part is CHARGED at: cost plus the rate card's mark-up. */
   partsAmount: number;
 
   // Optional parts-catalogue link (from the old parts picker).
@@ -591,7 +591,7 @@ export interface QuoteLineItem {
   partNumber?: string;
 
   /**
-   * Where the part was sourced. BACK OFFICE ONLY — never printed on the
+   * Where the part was sourced. BACK OFFICE ONLY: never printed on the
    * customer's quote. `supplier` is a verbatim name copy so provenance
    * survives the supplier being removed from the workshop's book.
    */
@@ -646,7 +646,7 @@ export interface BuiltQuote {
   createdByName?: string;
 
   /**
-   * Where this quote stands with the CONSUMER — they accept one, which declines
+   * Where this quote stands with the CONSUMER: they accept one, which declines
    * the rest. Not to be confused with PanelBeater.status, which is whether
    * we've vetted the workshop.
    */
@@ -657,7 +657,7 @@ export interface BuiltQuote {
 export type QuoteStatus = "awaiting_approval" | "accepted" | "declined";
 
 // ---------------------------------------------------------------------------
-// Dev planner — Super Admin's own pipeline of development work. Nothing here is
+// Dev planner: Super Admin's own pipeline of development work. Nothing here is
 // visible to panel beaters or consumers.
 // ---------------------------------------------------------------------------
 
@@ -734,7 +734,7 @@ export interface DevTicket {
 }
 
 /**
- * The four cards. Counts are of OPEN tickets only (backlog + in progress) —
+ * The four cards. Counts are of OPEN tickets only (backlog + in progress):
  * a pipeline that includes finished work only ever grows, which tells you
  * nothing about what's left to do.
  */
@@ -773,7 +773,7 @@ export interface ActivityEntry {
 
   panelBeaterId?: string;
   /**
-   * Resolved when the log is READ, not stored — a workshop renaming itself
+   * Resolved when the log is READ, not stored: a workshop renaming itself
    * would otherwise leave the log reading two different ways for the same
    * workshop. The id is the durable fact.
    */
@@ -821,7 +821,7 @@ export interface ActivityStats {
   /** Distinct signed-in people who did something today. */
   activeUsersToday: number;
   signInsToday: number;
-  /** Refusals + failures today — the number worth looking at twice. */
+  /** Refusals + failures today: the number worth looking at twice. */
   problemsToday: number;
 }
 

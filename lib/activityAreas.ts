@@ -2,14 +2,14 @@
 //
 // DELIBERATELY IN ITS OWN FILE, with no imports. lib/activityLog.ts pulls in
 // getDb() and therefore Prisma, which cannot be bundled into a client
-// component — importing these labels from there broke the build with
+// component: importing these labels from there broke the build with
 // "the chunking context does not support external modules (request:
 // node:module)". Keep this file free of anything server-side.
 
 export const ACTIVITY_AREAS: Record<string, string> = {
   auth: "Sign in & passwords",
   user: "Users",
-  // What became of a message after Resend took it — delivered, bounced,
+  // What became of a message after Resend took it: delivered, bounced,
   // marked as spam. Fed by the webhook at /api/webhooks/resend.
   email: "Email delivery",
   role: "Roles",
@@ -34,7 +34,7 @@ export const ACTIVITY_AREAS: Record<string, string> = {
   admin: "Admin",
 };
 
-/** The bit before the first dot — "quote.build" is in the "quote" area. */
+/** The bit before the first dot: "quote.build" is in the "quote" area. */
 export function areaOf(action: string): string {
   return action.split(".")[0] ?? "other";
 }

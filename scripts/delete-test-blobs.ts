@@ -5,13 +5,13 @@
  *   npm run blob:clean-tests          # lists what it WOULD delete, deletes nothing
  *   npm run blob:clean-tests -- --yes # actually deletes
  *
- * Needs a real BLOB_READ_WRITE_TOKEN in .env.local — the project's copy is
+ * Needs a real BLOB_READ_WRITE_TOKEN in .env.local: the project's copy is
  * marked Sensitive, so `vercel env pull` writes an empty string. Copy it from
  * the Blob store's own page instead (Storage -> your store -> Connect).
  *
  * Safety: a blob is deletable here only if it is under
  * panel-beaters/certificates/ AND its name says it is a test. Real certificates
- * live in the same folder, so the name test is what protects them — it is
+ * live in the same folder, so the name test is what protects them: it is
  * deliberately narrow rather than clever. Dry run is the default.
  */
 import { list, del } from "@vercel/blob";
@@ -62,7 +62,7 @@ async function main() {
   for (const b of doomed) console.log(`  ${b.pathname}  (${b.size} B)`);
 
   if (!confirmed) {
-    console.log("\nDry run — nothing deleted. Re-run with -- --yes to delete these.");
+    console.log("\nDry run. Nothing deleted. Re-run with -- --yes to delete these.");
     return;
   }
 

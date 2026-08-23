@@ -24,7 +24,7 @@ function scrub(u: User) {
  * Whose users this caller may touch.
  *
  * PMP staff (manage_panel_beaters) manage everyone. A workshop's own admin
- * holds manage_users too, but only over their own team — so everything below
+ * holds manage_users too, but only over their own team, so everything below
  * filters by, and forces, their panelBeaterId. Without this, "manage_users"
  * would hand every workshop admin the entire platform's user list.
  */
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "You can't assign that role" }, { status: 403 });
 
   // A panel-beater role detached from a workshop is a login that can't do
-  // anything — no dashboard, no team, no rates. Refuse rather than create it.
+  // anything: no dashboard, no team, no rates. Refuse rather than create it.
   if (scope.platform && role.scope === "panel_beater" && !b.panelBeaterId)
     return NextResponse.json(
       { error: "Choose which panel beater this user belongs to." },
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   // opted out and intends to hand the typed password over themselves.
   //
   // The typed password is still set on the account either way, so it remains a
-  // working fallback the admin can read out if the email doesn't arrive — it is
+  // working fallback the admin can read out if the email doesn't arrive: it is
   // simply never written into the message. See the PasswordSetToken model for
   // why a password in an email body is a deliverability problem, not just an
   // aesthetic one.
@@ -189,13 +189,13 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Don't allow the last person who can administer the platform to be removed
-  // — there'd be no way back in to put one back.
+  //: there'd be no way back in to put one back.
   const roles = await getRoles();
   const isPlatformAdmin = (u: User) =>
     u.active && permissionsForRole(u.role, roles).includes("manage_panel_beaters");
   if (isPlatformAdmin(target) && users.filter(isPlatformAdmin).length <= 1)
     return NextResponse.json(
-      { error: "This is the last administrator — promote someone else first." },
+      { error: "This is the last administrator. Promote someone else first." },
       { status: 409 }
     );
 
@@ -251,7 +251,7 @@ export async function PATCH(request: Request) {
   const u = users.find((x) => x.id === b.id);
   if (!u) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Reaching a user outside your workshop is a 404, not a 403 — a workshop
+  // Reaching a user outside your workshop is a 404, not a 403: a workshop
   // admin shouldn't be able to probe for who exists elsewhere.
   if (!scope.platform && u.panelBeaterId !== scope.panelBeaterId)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -275,7 +275,7 @@ export async function PATCH(request: Request) {
   // Turning it ON is how a workshop puts its whole team behind a second
   // factor; turning it OFF is the only way back in for someone whose inbox
   // has died, since the codes go to that same address. Both are ordinary
-  // admin work, so no password is asked for here — but NOT on your own
+  // admin work, so no password is asked for here, but NOT on your own
   // account: that would let anyone at a signed-in admin's unlocked screen
   // strip the admin's own second factor without knowing their password,
   // which is exactly what /api/auth/two-factor demands a password to stop.
@@ -296,7 +296,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Change your own two-step sign-in under “Change password” — it needs your password.",
+            "Change your own two-step sign-in under “Change password”, because it needs your password.",
         },
         { status: 403 }
       );
@@ -314,14 +314,14 @@ export async function PATCH(request: Request) {
   //
   // IT NO LONGER TOUCHES THEIR PASSWORD. It used to have to: the original was
   // hashed the moment it was set and nobody, us included, can read it back, so
-  // "re-send" meant minting a new temporary password — which silently killed
+  // "re-send" meant minting a new temporary password, which silently killed
   // whatever the recipient was already using. On 12 Aug 2026 one misplaced
   // click on this button locked a Super Admin out of his own repairer login.
   // Now it issues a one-time link instead, and until the recipient uses it,
   // nothing about their account changes.
   //
   // The URL is returned to the admin (see the response) so it can be passed on
-  // by hand when the email doesn't arrive — which is the situation this button
+  // by hand when the email doesn't arrive, which is the situation this button
   // exists for. It is NEVER written to the activity log.
   let setPasswordLink: string | null = null;
   if (b.welcome || b.resetLink) {
@@ -332,8 +332,8 @@ export async function PATCH(request: Request) {
       await createPasswordSetToken(u.id, u.email, purpose, purpose === "reset" ? 48 : undefined)
     );
 
-    // A repairer gets the panel-beater welcome — "we have your application,
-    // sign in and finish your listing" — not the bare credentials note, which
+    // A repairer gets the panel-beater welcome: "we have your application,
+    // sign in and finish your listing": not the bare credentials note, which
     // would read as though we had never seen their sign-up.
     const pb = u.panelBeaterId ? await getPanelBeater(u.panelBeaterId) : null;
     mail =
@@ -352,7 +352,7 @@ export async function PATCH(request: Request) {
             mustChangePassword: true,
           });
   } else if (b.password) {
-    // An admin-issued password is temporary by default — the user is made to
+    // An admin-issued password is temporary by default: the user is made to
     // replace it on their next visit to the portal.
     const mustChangePassword = b.mustChangePassword !== false;
     u.passwordHash = await hashPassword(b.password);
@@ -404,10 +404,10 @@ export async function PATCH(request: Request) {
       : "user.update",
     summary: b.welcome
       ? `${admin.name} re-sent the welcome email to ${u.name} (${u.email})` +
-        (mail?.sent ? "" : ` — but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
+        (mail?.sent ? "" : `, but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
       : b.resetLink
       ? `${admin.name} emailed ${u.name} (${u.email}) a link to set a new password` +
-        (mail?.sent ? "" : ` — but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
+        (mail?.sent ? "" : `, but it did not send${mail?.error ? `: ${mail.error}` : ""}`)
       : changed.length
       ? `${admin.name} changed ${changed.join(", ")} for ${u.name}`
       : `${admin.name} saved ${u.name} with no changes`,
@@ -421,7 +421,7 @@ export async function PATCH(request: Request) {
     detail: {
       email: u.email,
       changes,
-      // Whether a link or a password went out — NEVER the link itself. It is a
+      // Whether a link or a password went out: NEVER the link itself. It is a
       // credential, and unlike a field called "token" it would sail straight
       // past redact() on its name alone.
       passwordReset: !!b.password,
@@ -444,7 +444,7 @@ export async function PATCH(request: Request) {
     emailError: mail?.error,
     emailSkipped: skipped,
     // Returned ONLY when a link was just minted, so the admin can pass it on by
-    // hand when the email doesn't arrive — the Mac-Rites situation, where the
+    // hand when the email doesn't arrive: the Mac-Rites situation, where the
     // only remaining option was to invent a password and phone it through.
     setPasswordUrl: setPasswordLink ?? undefined,
   });

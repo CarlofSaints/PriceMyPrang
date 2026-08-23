@@ -3,12 +3,12 @@
 //
 // Two fingerprints, because they catch different mistakes:
 //
-//   sha256  — the exact same FILE. This is the common case by a mile: someone
+//   sha256: the exact same FILE. This is the common case by a mile: someone
 //             picks the same image for "Front" and "Back" because the file
 //             picker reopened on the last thing they touched. Byte-identical,
 //             so a hash match is certain and can never be a false positive.
 //
-//   dHash   — the same PICTURE, not the same file: resaved, resized, recompressed,
+//   dHash: the same PICTURE, not the same file: resaved, resized, recompressed,
 //             screenshotted, or re-sent through WhatsApp (which re-encodes every
 //             image, so the bytes always differ). A 64-bit gradient hash compared
 //             by Hamming distance.
@@ -72,7 +72,7 @@ export async function dHash(file: Blob): Promise<string | null> {
     bitmap.close?.();
     const { data } = ctx.getImageData(0, 0, DHASH_W, DHASH_H);
 
-    // Rec. 601 luma — closer to perceived brightness than a flat average.
+    // Rec. 601 luma: closer to perceived brightness than a flat average.
     const grey: number[] = [];
     for (let i = 0; i < data.length; i += 4) {
       grey.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);

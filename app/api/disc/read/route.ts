@@ -11,10 +11,10 @@ export const maxDuration = 60;
 const ALLOWED_MEDIA = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 
 // Reads a South African vehicle licence disc and extracts vehicle identity.
-// NOTE: MVP approach — Claude reads the disc directly. The VIN lookup will be
+// NOTE: MVP approach: Claude reads the disc directly. The VIN lookup will be
 // upgraded to a proper VIN → vehicle-details API later (firstcheck / vindocs).
 export async function POST(request: Request) {
-  // Anonymous by design — a consumer photographs their disc before any account
+  // Anonymous by design: a consumer photographs their disc before any account
   // exists. That makes both guards below load-bearing.
   const ip = clientIp(request);
   const limited = rateLimit(`disc-read:${ip}`, 12, 60_000);
@@ -29,8 +29,8 @@ export async function POST(request: Request) {
   if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
 
   // The pathname arrives in the REQUEST BODY and is then read with the server's
-  // own token, so without this an anonymous caller could name any blob —
-  // including a dev-ticket document that /api/media refuses to serve them — and
+  // own token, so without this an anonymous caller could name any blob,
+  // including a dev-ticket document that /api/media refuses to serve them, and
   // get its text back through Claude. Normalise first: a proxy URL and a raw
   // pathname must be judged as the same thing.
   if (!isAnonReadableMedia(pathnameFromMediaUrl(ref))) {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    // No key configured — return empty so the flow still works.
+    // No key configured: return empty so the flow still works.
     return NextResponse.json({} satisfies VehicleDetails);
   }
 
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     await logActivity({
       action: "ocr.disc",
       summary: result.registration
-        ? `A licence disc was read — ${result.registration}`
+        ? `A licence disc was read: ${result.registration}`
         : "A licence disc was read",
       ...consumerActor(),
       detail: {

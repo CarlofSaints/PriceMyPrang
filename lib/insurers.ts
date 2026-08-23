@@ -4,18 +4,18 @@
 // These are BRANDS, not licensed entities, and that is deliberate: someone
 // filling in the quote form knows they are "with MiWay", not that MiWay is
 // underwritten by Santam. Several names below share an underwriter (the
-// Telesure stable — Auto & General, Budget, Dial Direct, First for Women,
-// Virseker — is one company wearing five badges), but a consumer who cannot
+// Telesure stable: Auto & General, Budget, Dial Direct, First for Women,
+// Virseker: is one company wearing five badges), but a consumer who cannot
 // find their own badge picks "Other", and we have learnt nothing.
 //
 // Seeded, then owned by admins: once these rows exist they are ordinary data
 // and can be renamed or deactivated on /portal/admin/insurers. Re-running the
-// seed only ever ADDS what is missing — it never revives something an admin
+// seed only ever ADDS what is missing: it never revives something an admin
 // deactivated, and never renames what they have edited.
 // ---------------------------------------------------------------------------
 
 export const SA_INSURERS: string[] = [
-  // Direct insurers — the names most people will look for first.
+  // Direct insurers: the names most people will look for first.
   "Santam",
   "OUTsurance",
   "Discovery Insure",

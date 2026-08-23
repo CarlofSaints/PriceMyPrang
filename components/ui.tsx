@@ -59,7 +59,7 @@ export const inputClass =
  * also the only place a dialog can carry an explanation of what the button is
  * about to do.
  *
- * Closes on Escape and on a click outside the panel — a dialog with no visible
+ * Closes on Escape and on a click outside the panel: a dialog with no visible
  * way out is the complaint in [[dismissable-dropdowns]]. `onClose` is held in a
  * ref so the listeners are bound once and are not torn down and rebuilt on
  * every keystroke in the form inside.

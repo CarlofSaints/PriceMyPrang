@@ -12,7 +12,7 @@ import { COMPLAINT_STATUSES, type AuthUser, type ComplaintStatus, type Complaint
 
 // One route, two audiences. A workshop sees complaints against ITSELF; PMP
 // staff see every one. The scope is decided here from the permission, never
-// from a panelBeaterId in the query — that would let a workshop read another's.
+// from a panelBeaterId in the query: that would let a workshop read another's.
 
 type Scope =
   | { error: NextResponse }
@@ -100,7 +100,7 @@ export async function PATCH(request: Request) {
 
 /**
  * Record how a complaint was dealt with. This is the part Jerome's ticket is
- * actually about — the repairer writing down what they did about it.
+ * actually about: the repairer writing down what they did about it.
  */
 export async function POST(request: Request) {
   const s = await scope();
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
   if (!existing || (!s.all && existing.panelBeaterId !== s.panelBeaterId))
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // A workshop can NEVER write an internal note — that flag is what keeps a
+  // A workshop can NEVER write an internal note: that flag is what keeps a
   // note out of their own view, so letting them set it would be incoherent.
   const internal = s.all ? !!b.internal : false;
 
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       entityLabel: updated.reference,
       ...actorFromUser(s.user),
       panelBeaterId: updated.panelBeaterId,
-      // WHETHER a note was internal, and how long it was — never the text. The
+      // WHETHER a note was internal, and how long it was: never the text. The
       // note itself is on the complaint, and a grievance does not need copying
       // into a second table.
       detail: { internal, chars: text.length },

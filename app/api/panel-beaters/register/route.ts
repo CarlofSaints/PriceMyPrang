@@ -21,12 +21,12 @@ import {
 } from "@/lib/email";
 import type { PanelBeater, User } from "@/lib/types";
 
-// The workshop's first two logins are its admins — they need to be able to add
+// The workshop's first two logins are its admins: they need to be able to add
 // the rest of their team (estimators, buyers) without coming through us.
 
 /**
  * Give the applicant a way in. Both the person who filled the form in and the
- * business owner get their own login on the workshop — they're often different
+ * business owner get their own login on the workshop: they're often different
  * people, and neither should have to share a password with the other. Same
  * address twice collapses to one account.
  *
@@ -42,7 +42,7 @@ import type { PanelBeater, User } from "@/lib/types";
  *
  * The separate "confirm your address" email is GONE, deliberately: the link is
  * now the only way into a new account, and opening one that was emailed to that
- * inbox proves the address just as well — so redeeming it marks the address
+ * inbox proves the address just as well, so redeeming it marks the address
  * verified (see redeemPasswordSetToken). Sending a second link to prove the
  * first link arrived is one more message to be quarantined for no gain.
  */
@@ -127,7 +127,7 @@ async function createLogins(
       entityType: "user",
       entityId: user.id,
       entityLabel: user.name,
-      // Nobody is signed in — the workshop is registering itself.
+      // Nobody is signed in: the workshop is registering itself.
       actorKind: "applicant",
       actorName: user.name,
       actorEmail: email,
@@ -143,7 +143,7 @@ async function createLogins(
 
 /**
  * Send the repairer agreement for signing, as a separate email from the
- * welcome. Goes to whoever completed the form — they're the contact, and the
+ * welcome. Goes to whoever completed the form: they're the contact, and the
  * email tells them to forward it if they aren't the authorised signatory.
  */
 async function sendAgreementInvite(pb: PanelBeater): Promise<boolean> {
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
     labourRateSenior: b.labourRateSenior != null ? Number(b.labourRateSenior) : undefined,
     labourRateJunior: b.labourRateJunior != null ? Number(b.labourRateJunior) : undefined,
     logoUrl: b.logoUrl?.trim() || undefined,
-    // The form no longer asks for a separate contact email — it's the workshop
+    // The form no longer asks for a separate contact email: it's the workshop
     // address printed on quotes, so fall back to the owner (then whoever filled
     // the form in) rather than leaving quotes with no email on them.
     email: b.email?.trim() || b.ownerEmail?.trim() || b.completedByEmail?.trim() || undefined,
@@ -250,7 +250,7 @@ export async function POST(request: Request) {
   const logins = await createLogins(pb, request);
 
   // The agreement goes as its own email, to the person who filled the form in.
-  // Skipped silently when no document has been uploaded yet — a registration
+  // Skipped silently when no document has been uploaded yet: a registration
   // must not fail because we haven't published terms.
   const agreementSent = await sendAgreementInvite(pb);
 
@@ -266,7 +266,7 @@ export async function POST(request: Request) {
     entityType: "panel_beater",
     entityId: pb.id,
     entityLabel: pb.tradingAs || pb.companyName,
-    // No login exists yet — this is the form that creates the first ones.
+    // No login exists yet: this is the form that creates the first ones.
     actorKind: "applicant",
     actorName: pb.completedByName || pb.ownerName,
     actorEmail: pb.completedByEmail || pb.ownerEmail,

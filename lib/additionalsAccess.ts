@@ -4,7 +4,7 @@ import type { AuthUser } from "@/lib/types";
 /**
  * Which workshop a caller is acting as when working on additionals.
  *
- * A panel-beater login is pinned to its own listing — a posted id is never
+ * A panel-beater login is pinned to its own listing: a posted id is never
  * trusted, or one workshop could raise additionals in another's name. PMP staff
  * who manage panel beaters may act on a NAMED workshop, because assessors price
  * jobs too, but they must say which since they have no workshop of their own.

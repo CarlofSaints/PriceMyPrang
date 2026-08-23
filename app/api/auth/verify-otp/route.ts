@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter the code we emailed you" }, { status: 400 });
 
   const challenge = await getLoginChallenge(challengeId);
-  // Expired, already used, or never existed — all the same outwardly.
+  // Expired, already used, or never existed: all the same outwardly.
   if (!challenge)
     return NextResponse.json(
       { error: "That code has expired. Please sign in again." },
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (!(await verifyPassword(code.trim(), challenge.codeHash))) {
     const attempts = await recordChallengeAttempt(challengeId);
     const left = Math.max(0, 5 - attempts);
-    // The code itself is never logged — only that one was wrong, and how many
+    // The code itself is never logged: only that one was wrong, and how many
     // tries are left.
     await logActivity({
       action: "auth.two_factor",

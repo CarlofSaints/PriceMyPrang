@@ -12,7 +12,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 // Third-party API keys entered in the portal. Two gates on every write and on
 // the reveal: the Super Admin permission, AND the caller re-typing their own
-// password. The session alone is not enough — a borrowed unlocked screen must
+// password. The session alone is not enough: a borrowed unlocked screen must
 // not be able to read out or swap a billable credential.
 
 /** The integrations we accept a key for. Anything else is rejected outright. */
@@ -26,7 +26,7 @@ async function requireManage() {
   return { user };
 }
 
-/** Metadata only — masked value, who set it, when. Never the key. */
+/** Metadata only: masked value, who set it, when. Never the key. */
 export async function GET() {
   const gate = await requireManage();
   if (gate.error) return gate.error;
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
   // catching it here beats discovering it as a 401 from imagin8 weeks later.
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key))
     return NextResponse.json(
-      { error: "That looks like an email address, not an API key — check the field was not autofilled." },
+      { error: "That looks like an email address, not an API key. Check the field was not autofilled." },
       { status: 400 }
     );
 

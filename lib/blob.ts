@@ -4,7 +4,7 @@ import { mediaPath, pathnameFromMediaUrl } from "./mediaPath";
 // ---------------------------------------------------------------------------
 // Media store on top of a PRIVATE Vercel Blob store.
 //
-// Records live in Postgres (lib/db.ts); this module handles BYTES only —
+// Records live in Postgres (lib/db.ts); this module handles BYTES only:
 // photos, licence discs, video, warranty certificates and generated PDFs.
 // Everything is stored with access:"private" and streamed back to the browser
 // through /api/media/<pathname>, so customer media is never publicly reachable.

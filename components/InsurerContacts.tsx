@@ -144,12 +144,12 @@ export default function InsurerContacts({
                         )}
                       </div>
                       <div className="text-sm text-ink/60">
-                        {[c.role, c.email, c.phone].filter(Boolean).join(" · ") || "—"}
+                        {[c.role, c.email, c.phone].filter(Boolean).join(" · ") || "No contact details"}
                       </div>
                       {c.notes && <div className="mt-0.5 text-xs italic text-ink/50">{c.notes}</div>}
                       {!c.email && (
                         <div className="mt-0.5 text-xs text-amber">
-                          No email — additionals can&apos;t be sent to this one.
+                          No email, so additionals can&apos;t be sent to this one.
                         </div>
                       )}
                     </div>

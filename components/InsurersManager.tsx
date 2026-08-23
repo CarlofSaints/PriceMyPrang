@@ -45,7 +45,7 @@ export default function InsurersManager({
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       const insurer = (await res.json()) as InsuranceCompany;
       setInsurers((list) => [...list, insurer].sort((a, b) => a.name.localeCompare(b.name)));
-      // Drop any suggestion that now matches — it has become a real option.
+      // Drop any suggestion that now matches: it has become a real option.
       setPending((list) => list.filter((s) => s.name.toLowerCase() !== trimmed.toLowerCase()));
       return true;
     } catch (err) {
@@ -105,7 +105,7 @@ export default function InsurersManager({
           </p>
           <p className="mt-1 text-sm text-ink/70">
             These were typed into &ldquo;Other / not listed&rdquo; on a quote request and still
-            aren&apos;t on your list. Nothing has been added automatically — check each one is a
+            aren&apos;t on your list. Nothing has been added automatically. Check each one is a
             real insurer (and spelled properly) before accepting it.
           </p>
           <ul className="mt-3 space-y-2">
@@ -136,7 +136,7 @@ export default function InsurersManager({
             ))}
           </ul>
           <p className="mt-2 text-xs text-ink/50">
-            &ldquo;Ignore&rdquo; only hides it until you reload — it doesn&apos;t change the
+            &ldquo;Ignore&rdquo; only hides it until you reload. It doesn&apos;t change the
             customer&apos;s request.
           </p>
         </div>

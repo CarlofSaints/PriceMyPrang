@@ -96,7 +96,7 @@ export default function RolesManager({ initial }: { initial: Role[] }) {
                 {roles.map((role) => (
                   <th key={role.id} className="min-w-[120px] px-3 py-3 text-center align-bottom">
                     <div className="font-display text-sm font-semibold text-ink">{role.name}</div>
-                    {/* PMP and a workshop each have an "Admin" — say which. */}
+                    {/* PMP and a workshop each have an "Admin", so say which. */}
                     <div className="text-[10px] font-normal text-ink/50">
                       {role.scope === "panel_beater" ? "panel beater" : "Price my Prang"}
                     </div>
@@ -153,7 +153,7 @@ export default function RolesManager({ initial }: { initial: Role[] }) {
       {/* Add a role */}
       <form onSubmit={createRole} className="pmp-card flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[220px]">
-          <Field label="Add a role" hint="Creates a new column — then tick its permissions.">
+          <Field label="Add a role" hint="Creates a new column, then tick its permissions.">
             <input
               className={inputClass}
               value={newName}

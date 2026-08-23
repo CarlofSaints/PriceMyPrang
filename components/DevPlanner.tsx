@@ -84,7 +84,7 @@ export default function DevPlanner({
   const [editTitle, setEditTitle] = useState("");
   const [editDetail, setEditDetail] = useState("");
 
-  // Note drafts are keyed by ticket — you can start a note on one card, scroll
+  // Note drafts are keyed by ticket: you can start a note on one card, scroll
   // off to read another, and come back to what you typed.
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [noteBusyId, setNoteBusyId] = useState<string | null>(null);
@@ -202,7 +202,7 @@ export default function DevPlanner({
    *
    * `remindOn: null` clears the date. It has to be null rather than undefined:
    * JSON.stringify drops undefined keys entirely, and the API reads a missing
-   * key as "leave this field alone" — so undefined could never clear anything.
+   * key as "leave this field alone", so undefined could never clear anything.
    */
   async function patch(
     id: string,
@@ -249,7 +249,7 @@ export default function DevPlanner({
 
   /**
    * Saves the title/detail of an existing ticket. Sends `detail` even when it
-   * is empty so clearing it actually clears it — the API treats undefined as
+   * is empty so clearing it actually clears it: the API treats undefined as
    * "leave alone", which would otherwise make the field impossible to empty.
    */
   async function saveEdit(id: string) {
@@ -522,7 +522,7 @@ export default function DevPlanner({
             </Field>
           </div>
 
-          <Field label="Attachments" hint="Documents, screenshots, specs — up to 25MB each.">
+          <Field label="Attachments" hint="Documents, screenshots, specs, up to 25MB each.">
             <input
               ref={fileInput}
               type="file"
@@ -770,7 +770,7 @@ export default function DevPlanner({
                       type="date"
                       className="mt-1 w-full rounded-lg border border-ink/15 px-3 py-2 text-sm font-normal text-ink"
                       value={t.remindOn ?? ""}
-                      // null (not undefined) clears the date — undefined is
+                      // null (not undefined) clears the date: undefined is
                       // dropped by JSON.stringify, which the API reads as
                       // "leave it alone", making a date impossible to remove.
                       onChange={(e) => patch(t.id, { remindOn: e.target.value || null })}

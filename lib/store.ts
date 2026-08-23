@@ -60,7 +60,7 @@ import type {
 //
 // The exported signatures are unchanged from the Blob-JSON implementation so
 // callers didn't have to move, with two deliberate exceptions: getAllRequests
-// (replaced by listRequests/getDashboardStats — it could not survive scale) and
+// (replaced by listRequests/getDashboardStats: it could not survive scale) and
 // saveRequest (replaced by the narrower updateRequestStatus/upsertQuote).
 // ---------------------------------------------------------------------------
 
@@ -151,7 +151,7 @@ export async function findUserById(id: string): Promise<User | null> {
 /**
  * Change one user's password.
  *
- * Deliberately NOT saveUsers() — that replaces the whole collection and deletes
+ * Deliberately NOT saveUsers(): that replaces the whole collection and deletes
  * anyone missing from the list, which is fine for the admin Users page but far
  * too blunt for a self-service endpoint. This touches a single row.
  */
@@ -169,7 +169,7 @@ export async function setUserPassword(
 /**
  * Remove one user.
  *
- * Deliberately NOT saveUsers() — that replaces the whole collection, so a
+ * Deliberately NOT saveUsers(): that replaces the whole collection, so a
  * caller working from a filtered list (a workshop admin sees only their own
  * team) would delete everyone they couldn't see.
  */
@@ -287,7 +287,7 @@ export async function listAgreementDocuments(): Promise<AgreementDocument[]> {
 
 /**
  * Store a newly uploaded agreement and make it the active one. Only one can be
- * active — a repairer signing tomorrow must not get yesterday's terms.
+ * active: a repairer signing tomorrow must not get yesterday's terms.
  */
 export async function addAgreementDocument(doc: AgreementDocument): Promise<void> {
   const db = getDb();
@@ -309,7 +309,7 @@ export async function addAgreementDocument(doc: AgreementDocument): Promise<void
 }
 
 /**
- * Remove a document. Refused once anyone has signed it — the signature would
+ * Remove a document. Refused once anyone has signed it: the signature would
  * otherwise point at nothing, and what they agreed to becomes unprovable.
  */
 export async function deleteAgreementDocument(
@@ -593,7 +593,7 @@ const toAdditional = (a: AdditionalRow): Additional => ({
 /**
  * Additionals raised on a job.
  *
- * `panelBeaterId` scopes it to one workshop's own — a repairer must never see
+ * `panelBeaterId` scopes it to one workshop's own: a repairer must never see
  * what a competitor found on the same vehicle, exactly as with quotes.
  */
 export async function listAdditionals(
@@ -613,7 +613,7 @@ export async function getAdditional(id: string): Promise<Additional | null> {
   return row ? toAdditional(row) : null;
 }
 
-/** Everything a workshop has outstanding, newest first — for their dashboard. */
+/** Everything a workshop has outstanding, newest first: for their dashboard. */
 export async function listAdditionalsForPanelBeater(
   panelBeaterId: string
 ): Promise<Additional[]> {
@@ -771,7 +771,7 @@ export async function setAdditionalStatus(
   return getAdditional(id);
 }
 
-/** Delete a draft. A sent request is kept — it is a record of what was asked. */
+/** Delete a draft. A sent request is kept: it is a record of what was asked. */
 export async function deleteAdditional(
   id: string,
   panelBeaterId: string
@@ -812,7 +812,7 @@ const toInsurerContact = (r: {
  * maintains, plus that workshop's OWN private ones.
  *
  * `panelBeaterId` undefined means "PMP staff view" and returns the generic set
- * only — never another workshop's private contacts, which are their own
+ * only: never another workshop's private contacts, which are their own
  * commercial relationship and not ours to publish.
  */
 export async function getInsurerContacts(
@@ -906,8 +906,8 @@ export async function saveInsurers(insurers: InsuranceCompany[]): Promise<void> 
  * Insurer names consumers typed into "Other / not listed" that still don't
  * match anything in the list, most-requested first.
  *
- * These are SUGGESTIONS, never entries: the text is unverified — typos, broker
- * names, "work policy" — so an admin decides what becomes a real option. A name
+ * These are SUGGESTIONS, never entries: the text is unverified: typos, broker
+ * names, "work policy", so an admin decides what becomes a real option. A name
  * disappears from here the moment it's added, because it then matches.
  */
 export async function listSuggestedInsurers(): Promise<
@@ -950,7 +950,7 @@ export async function upsertInsurer(insurer: InsuranceCompany): Promise<void> {
   await getDb().$transaction((tx) => writeInsurer(tx, insurer));
 }
 
-/** Shared insurer write — replaces the rate card wholesale. */
+/** Shared insurer write: replaces the rate card wholesale. */
 async function writeInsurer(
   tx: TxClient,
   i: InsuranceCompany
@@ -1109,7 +1109,7 @@ async function writePanelBeater(tx: TxClient, pb: PanelBeater): Promise<void> {
     update: data,
   });
 
-  // Warranties are replaced wholesale — the forms post the complete set and
+  // Warranties are replaced wholesale: the forms post the complete set and
   // it's small. Rate cards are NOT touched here: they're edited on their own
   // page, and a listing edit must never wipe a workshop's pricing.
   await tx.warranty.deleteMany({ where: { panelBeaterId: pb.id } });
@@ -1233,7 +1233,7 @@ export async function createPanelBeaterSupplier(
 /**
  * Update ONE supplier, and only if it belongs to the given workshop.
  *
- * Deliberately NOT saveSuppliers() — that replaces the entire collection and
+ * Deliberately NOT saveSuppliers(): that replaces the entire collection and
  * deletes anything missing from the list it is handed, which from a workshop's
  * own page would wipe Price my Prang's list and every other repairer's book.
  * Returns null when the row isn't theirs, so the route can 404 rather than
@@ -1261,7 +1261,7 @@ export async function updatePanelBeaterSupplier(
   return toSupplier(row);
 }
 
-/** Same ownership check as the update — a miss is a 404, never a 403. */
+/** Same ownership check as the update: a miss is a 404, never a 403. */
 export async function deletePanelBeaterSupplier(
   id: string,
   panelBeaterId: string
@@ -1514,7 +1514,7 @@ function mediaRows(
  * Create a request, allocating a unique reference.
  *
  * The reference counter is incremented inside the database, and `reference`
- * carries a unique constraint — so concurrent submissions can neither collide
+ * carries a unique constraint, so concurrent submissions can neither collide
  * nor overwrite one another. On the rare clash we simply take the next number.
  */
 export async function createRequest(
@@ -1574,7 +1574,7 @@ export async function createRequest(
       return toRequest(row);
     } catch (err) {
       if (!isUniqueViolation(err, "reference")) throw err;
-      // Reference taken — loop and take the next sequence number.
+      // Reference taken: loop and take the next sequence number.
     }
   }
   throw new Error("Could not allocate a unique quote reference");
@@ -1640,7 +1640,7 @@ export async function upsertQuote(reference: string, quote: BuiltQuote): Promise
       select: { id: true },
     });
 
-    // Lines are replaced wholesale — the builder posts the complete quote.
+    // Lines are replaced wholesale: the builder posts the complete quote.
     await tx.quoteLineItem.deleteMany({ where: { quoteId: saved.id } });
     if (quote.lines.length) {
       await tx.quoteLineItem.createMany({
@@ -1835,7 +1835,7 @@ const toRateCard = (r: {
 
 /**
  * A workshop's own cards. Every card carries its own values, insurance ones
- * included — the rates in an insurer SLA are negotiated per repairer, so there
+ * included: the rates in an insurer SLA are negotiated per repairer, so there
  * is nothing central to inherit from.
  */
 export async function getRateCards(panelBeaterId: string): Promise<RateCard[]> {
@@ -1912,7 +1912,7 @@ export async function getCustomRateTypes(panelBeaterId: string): Promise<CustomR
  * Define a new custom rate for a workshop.
  *
  * Returns `null` when the name is already taken. Compared case-insensitively
- * in code because the DB's unique index is not — without this, "Polishing" and
+ * in code because the DB's unique index is not: without this, "Polishing" and
  * "polishing" become two rates that look identical on the card.
  */
 export async function createCustomRateType(
@@ -1933,8 +1933,8 @@ export async function createCustomRateType(
 /**
  * Remove a custom rate and every value set against it.
  *
- * The values are NOT a foreign key — they're `custom:<id>` rows in
- * rate_card_values — so nothing cascades and they must be cleared explicitly,
+ * The values are NOT a foreign key: they're `custom:<id>` rows in
+ * rate_card_values, so nothing cascades and they must be cleared explicitly,
  * or they'd linger as orphans that Power BI still reports.
  *
  * The delete is scoped to THIS workshop's cards even though the id makes the
@@ -2008,7 +2008,7 @@ export async function getPanelBeaterQuoteStats(
 }
 
 /**
- * Every request sent to this workshop, quoted or not — the dashboard doubles as
+ * Every request sent to this workshop, quoted or not: the dashboard doubles as
  * their to-do list, so a job they haven't priced yet still has to show up.
  */
 export async function listPanelBeaterWork(
@@ -2037,7 +2037,7 @@ export async function listPanelBeaterWork(
         year: true,
         registration: true,
         isInsuranceClaim: true,
-        // Only THIS workshop's quote — a panel beater must never see what a
+        // Only THIS workshop's quote: a panel beater must never see what a
         // competitor quoted on the same job.
         quotes: {
           where: { panelBeaterId },
@@ -2081,7 +2081,7 @@ export async function getRequestByPublicToken(token: string): Promise<QuoteReque
 }
 
 /**
- * The consumer picks one quote. Accepting is exclusive — every other quote on
+ * The consumer picks one quote. Accepting is exclusive: every other quote on
  * the same request is declined in the same transaction, so two workshops can
  * never both believe they won. Re-accepting the one already accepted is a
  * no-op; switching to a different one is allowed and moves the acceptance.
@@ -2209,7 +2209,7 @@ const DEV_TICKET_INCLUDE = {
 
 /**
  * Urgent first, then the committed work, then the wishlist. Within a priority
- * the oldest ticket leads — something logged three weeks ago should not sink
+ * the oldest ticket leads: something logged three weeks ago should not sink
  * below today's, which is how a backlog quietly rots.
  */
 const DEV_TICKET_ORDER: Prisma.DevTicketOrderByWithRelationInput[] = [
@@ -2217,7 +2217,7 @@ const DEV_TICKET_ORDER: Prisma.DevTicketOrderByWithRelationInput[] = [
   { createdAt: "asc" },
 ];
 
-/** Midnight UTC today — the cut-off at which an unmet reminder date is overdue. */
+/** Midnight UTC today: the cut-off at which an unmet reminder date is overdue. */
 function startOfToday(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -2395,7 +2395,7 @@ export async function addDevTicketAttachments(
 
 /**
  * Adds a note to a ticket. The author is passed in from the SESSION by the
- * route — never from the request body — and `createdByName` is stored as a
+ * route, never from the request body, and `createdByName` is stored as a
  * verbatim copy so a deleted user doesn't erase who said what.
  */
 export async function addDevTicketNote(
@@ -2455,8 +2455,8 @@ export async function removeDevTicketAttachment(
 
 /**
  * Tickets whose reminder has come due and has not been sent. Anything dated on
- * or before today qualifies, so one that fell over a weekend — or during an
- * outage — is still chased rather than silently skipped.
+ * or before today qualifies, so one that fell over a weekend, or during an
+ * outage: is still chased rather than silently skipped.
  */
 export async function listDueDevReminders(now: Date): Promise<DevTicket[]> {
   const endOfToday = new Date(
@@ -2516,7 +2516,7 @@ function isUniqueViolation(err: unknown, field: string): boolean {
 
 /**
  * Third-party API keys entered in the portal. The plaintext key never touches
- * this table — `lib/secrets.ts` seals it first — because Power BI reads this
+ * this table, `lib/secrets.ts` seals it first, because Power BI reads this
  * database directly.
  */
 export async function setIntegrationSecret(
@@ -2574,7 +2574,7 @@ export async function getIntegrationCredentials(
 
 /**
  * The decrypted key, for server-side use only. Returns null when unset OR when
- * the stored value can no longer be decrypted (a rotated SESSION_SECRET) — the
+ * the stored value can no longer be decrypted (a rotated SESSION_SECRET): the
  * caller cannot tell the difference and does not need to; the Integrations page
  * reports the distinction to the admin.
  */
@@ -2591,7 +2591,7 @@ export async function deleteIntegrationSecret(id: string): Promise<void> {
 // ---- VIN lookup cache ------------------------------------------------------
 
 /**
- * imagin8 bills per transaction, so every decode is cached — including a MISS,
+ * imagin8 bills per transaction, so every decode is cached: including a MISS,
  * or an undecodable VIN would be re-billed on every page load.
  */
 export async function getCachedVin(vin: string): Promise<VinLookupResult | null> {
@@ -2664,7 +2664,7 @@ export async function createConsumerAccessLink(
 }
 
 /**
- * Resolve a link to its request. Returns null for unknown or expired tokens —
+ * Resolve a link to its request. Returns null for unknown or expired tokens:
  * the caller cannot tell which, so a expired token leaks nothing about whether
  * the reference behind it exists.
  *
@@ -2706,7 +2706,7 @@ export async function acceptedPanelBeaterFor(
   };
 }
 
-/** Every workshop the job was sent to — the fallback when nothing was accepted. */
+/** Every workshop the job was sent to: the fallback when nothing was accepted. */
 export async function quotedPanelBeatersFor(
   requestId: string
 ): Promise<{ id: string; name: string }[]> {
@@ -2740,7 +2740,7 @@ const toRating = (r: {
   createdAt: iso(r.createdAt),
 });
 
-/** One rating per job per workshop — a second submission replaces the first. */
+/** One rating per job per workshop: a second submission replaces the first. */
 export async function upsertRating(input: {
   requestId: string;
   panelBeaterId: string;
@@ -2772,7 +2772,7 @@ export async function getRatingFor(
 }
 
 /**
- * A workshop's public score. HIDDEN comments still count toward the average —
+ * A workshop's public score. HIDDEN comments still count toward the average:
  * hiding is for abusive wording, not for burying a low mark.
  */
 export async function ratingSummaryFor(panelBeaterId: string): Promise<RatingSummary> {
@@ -3075,7 +3075,7 @@ export type PasswordSetPurpose = "welcome" | "reset";
  * Issue a link, standing down any outstanding ones for the same user.
  *
  * The default 14 days is long on purpose: this is the ONLY way into a new
- * panel-beater account, and there is no self-service "forgot password" yet — an
+ * panel-beater account, and there is no self-service "forgot password" yet: an
  * expired link means telephoning Price my Prang. A reset asks for a shorter one.
  */
 export async function createPasswordSetToken(
@@ -3112,7 +3112,7 @@ export interface PasswordSetTokenView {
 
 /**
  * Look at a link without spending it, so the page can greet the person by name
- * before they have typed anything. Returns null for anything not usable — used,
+ * before they have typed anything. Returns null for anything not usable: used,
  * superseded, expired, or issued for an address the account no longer holds.
  */
 export async function peekPasswordSetToken(token: string): Promise<PasswordSetTokenView | null> {
@@ -3126,7 +3126,7 @@ export async function peekPasswordSetToken(token: string): Promise<PasswordSetTo
 }
 
 /**
- * Spend the link and set the password, in ONE transaction — a token that is
+ * Spend the link and set the password, in ONE transaction: a token that is
  * marked used but whose password write failed would lock the account out for
  * good.
  *
@@ -3162,7 +3162,7 @@ export async function redeemPasswordSetToken(
 }
 
 /**
- * Start a second-factor challenge. The code is stored HASHED — a leaked row
+ * Start a second-factor challenge. The code is stored HASHED: a leaked row
  * must not be a working second factor.
  */
 export async function createLoginChallenge(

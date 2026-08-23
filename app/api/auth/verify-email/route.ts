@@ -6,7 +6,7 @@ import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 /**
- * POST — redeem a token, or ask for a fresh link.
+ * POST: redeem a token, or ask for a fresh link.
  *
  * Redeeming is deliberately NOT gated on a session: the link is usually opened
  * in whatever browser the email was read in, which may not be the one that
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const { token, resend } = (await request.json()) as { token?: string; resend?: boolean };
 
   if (resend) {
-    // Re-sending DOES need a session — otherwise anyone could make us mail a
+    // Re-sending DOES need a session: otherwise anyone could make us mail a
     // stranger repeatedly just by knowing their address.
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

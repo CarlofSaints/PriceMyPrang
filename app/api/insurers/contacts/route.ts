@@ -15,9 +15,9 @@ import type { AuthUser } from "@/lib/types";
  * Contacts at an insurer.
  *
  * Two kinds, and the difference is the whole security model:
- *  - GENERIC (panelBeaterId null) — PMP staff maintain them, everyone sees
+ *  - GENERIC (panelBeaterId null): PMP staff maintain them, everyone sees
  *    them. Writing one needs `manage_insurers`.
- *  - PRIVATE (panelBeaterId set)  — the workshop's own handler. Only that
+ *  - PRIVATE (panelBeaterId set): the workshop's own handler. Only that
  *    workshop may read or write it, because who a repairer knows at an insurer
  *    is their own commercial relationship, not something to share with the
  *    workshop down the road.
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   }
 
   // A private contact belongs to the caller's own workshop. The id comes from
-  // the SESSION, never the body — a posted panelBeaterId would let one
+  // the SESSION, never the body: a posted panelBeaterId would let one
   // workshop plant contacts in another's list.
   if (!workshop)
     return NextResponse.json(
@@ -152,7 +152,7 @@ export async function PATCH(request: Request) {
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const existing = await findInsurerContact(b.id);
-  // Another workshop's contact is a 404, not a 403 — consistent with the rest
+  // Another workshop's contact is a 404, not a 403: consistent with the rest
   // of this app, and an id must not be a way to learn what exists elsewhere.
   if (!existing || !mayWrite(user, existing))
     return NextResponse.json({ error: "Not found" }, { status: 404 });

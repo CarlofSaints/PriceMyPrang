@@ -6,7 +6,7 @@
  *
  * Additive and idempotent. Matching is case-insensitive on the name, so a
  * second run adds nothing, and an insurer an admin has renamed, deactivated or
- * added by hand is never touched. Nothing is ever deleted — saveInsurers()
+ * added by hand is never touched. Nothing is ever deleted: saveInsurers()
  * would prune rows not in the list it is handed, so this uses upsertInsurer()
  * one at a time instead.
  */
@@ -36,7 +36,7 @@ async function main() {
   const missing = SA_INSURERS.filter((n) => !known.has(n.trim().toLowerCase()));
 
   if (missing.length === 0) {
-    console.log("Nothing to add — every name in lib/insurers.ts is already there.");
+    console.log("Nothing to add. Every name in lib/insurers.ts is already there.");
     return;
   }
 

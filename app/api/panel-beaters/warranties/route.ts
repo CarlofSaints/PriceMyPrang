@@ -9,7 +9,7 @@ import type { WarrantyApproval } from "@/lib/types";
 /**
  * Add or replace ONE manufacturer warranty on a workshop's listing, so a panel
  * beater can keep their certificates current without reopening the whole
- * registration form. Adding the same manufacturer twice updates it in place —
+ * registration form. Adding the same manufacturer twice updates it in place:
  * that's how mergeWarranties already behaves, and a workshop can only hold one
  * approval per manufacturer anyway.
  */

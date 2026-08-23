@@ -13,14 +13,14 @@ export async function GET(request: Request) {
   //
   // FAILS CLOSED. This used to read `if (secret && ...)`, so an unset
   // CRON_SECRET disabled the check entirely and left the route open to anyone
-  // — a guard written as a condition that is skipped when its own input is
+  //: a guard written as a condition that is skipped when its own input is
   // missing. A missing secret is now a misconfiguration, not permission.
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    console.error("CRON_SECRET is not set — refusing to run the cron.");
+    console.error("CRON_SECRET is not set, refusing to run the cron.");
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
-  // The secret was missing from this comparison — it read `Bearer ` with no
+  // The secret was missing from this comparison: it read `Bearer ` with no
   // interpolation, so the real cron call (which sends `Bearer <secret>`) was
   // rejected 401 and this reminder has never run, while anyone sending the
   // literal header `Authorization: Bearer ` would have been let straight in.
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   }
 
   // A cron that stops running is invisible until somebody notices the emails
-  // stopped — which is exactly what the bug above caused. A row per run means
+  // stopped, which is exactly what the bug above caused. A row per run means
   // "when did this last work" is a question the log can answer.
   await logActivity({
     action: "cron.dev_reminders",

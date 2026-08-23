@@ -9,7 +9,7 @@ type SafeUser = Omit<User, "passwordHash">;
 
 /**
  * A readable temporary password, offered as a starting point in the reset
- * dialog. Ambiguous characters are left out — this gets read down a phone
+ * dialog. Ambiguous characters are left out: this gets read down a phone
  * line when the email doesn't arrive, which is the whole reason it exists.
  */
 function suggestPassword(): string {
@@ -30,7 +30,7 @@ export default function UsersManager({
   roles: Role[];
   /**
    * True when a workshop admin is managing their own team. The workshop is then
-   * implicit — the server forces it — so there's nothing to pick.
+   * implicit, the server forces it, so there's nothing to pick.
    */
   scopedToWorkshop?: boolean;
 }) {
@@ -51,11 +51,11 @@ export default function UsersManager({
   const [error, setError] = useState<string | null>(null);
   /**
    * `link` is shown with a Copy button. It is how an admin gets a locked-out
-   * repairer moving when the email itself never lands — the situation that
+   * repairer moving when the email itself never lands: the situation that
    * previously ended with inventing a password and reading it down the phone.
    */
   const [notice, setNotice] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
-  // The link that was copied, not a boolean — a later notice carrying a
+  // The link that was copied, not a boolean: a later notice carrying a
   // different link would otherwise still read "Copied".
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,7 +83,7 @@ export default function UsersManager({
   const workshopName = (id: string) => {
     const pb = panelBeaters.find((p) => p.id === id);
     // A linked workshop we can't name means the listing was deleted out from
-    // under the login — worth showing rather than rendering a blank cell.
+    // under the login: worth showing rather than rendering a blank cell.
     return pb ? pb.tradingAs || pb.companyName : "Unknown workshop";
   };
   const selectedRole = roles.find((r) => r.id === form.role);
@@ -97,7 +97,7 @@ export default function UsersManager({
     emailSkipped?: boolean;
     /**
      * Returned whenever a set-password link was just minted, so it can be
-     * passed on by hand when the email doesn't arrive — which is the entire
+     * passed on by hand when the email doesn't arrive, which is the entire
      * reason these buttons exist.
      */
     setPasswordUrl?: string;
@@ -113,15 +113,15 @@ export default function UsersManager({
     if (u.emailSkipped)
       return {
         ok: true,
-        text: `${subject} — no email sent. Give them this password yourself: ${password}`,
+        text: `${subject}: no email sent. Give them this password yourself: ${password}`,
       };
     if (u.emailSent)
       return {
         ok: true,
         text:
           what === "created"
-            ? `User created — ${u.email} has been emailed a link to choose their own password. The one you typed also works, if you need to hand it over.`
-            : `Password reset — new details emailed to ${u.email}.`,
+            ? `User created. ${u.email} has been emailed a link to choose their own password. The one you typed also works, if you need to hand it over.`
+            : `Password reset. New details emailed to ${u.email}.`,
       };
     return {
       ok: false,
@@ -153,7 +153,7 @@ export default function UsersManager({
   }
 
   /**
-   * Delete a login for good. Named for what it does — the row disappears only
+   * Delete a login for good. Named for what it does: the row disappears only
    * once the server has confirmed it, so a refused delete doesn't leave the
    * table lying about who still exists.
    */
@@ -191,8 +191,8 @@ export default function UsersManager({
   /**
    * Turning the emailed second factor on or off for someone else is confirmed
    * both ways, because both directions can bite: ON sends every future sign-in
-   * through their inbox — if mail doesn't reach that address they can't get in
-   * at all — and OFF drops a protection the user may have chosen for
+   * through their inbox: if mail doesn't reach that address they can't get in
+   * at all, and OFF drops a protection the user may have chosen for
    * themselves. The wording lives in the twoFactor dialog below.
    */
 
@@ -203,7 +203,7 @@ export default function UsersManager({
   //
   // The dialog bodies are written INLINE in the JSX below rather than as inner
   // components. A component declared inside a component is a new type on every
-  // render, so React unmounts and remounts it — which would drop focus and the
+  // render, so React unmounts and remounts it, which would drop focus and the
   // caret on every keystroke in the password box. See
   // [[react-nested-component-remounts]].
 
@@ -212,7 +212,7 @@ export default function UsersManager({
     setNotice(null);
     setPw(suggestPassword());
     setPwEmail(true);
-    // The link is the default. Typing a password here is the exception now —
+    // The link is the default. Typing a password here is the exception now:
     // for handing one over in person or down a phone.
     setResetMode("link");
     setDialog({ kind: "reset", user: u });
@@ -237,7 +237,7 @@ export default function UsersManager({
               }
             : {
                 ok: false,
-                text: `That email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. Send them this link instead — it still works:`,
+                text: `That email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. Send them this link instead, it still works:`,
                 link: u.setPasswordUrl,
               }
         );
@@ -273,14 +273,14 @@ export default function UsersManager({
         u.emailSent
           ? {
               ok: true,
-              text: `Welcome email sent to ${target.email}, with a link for them to choose their own password. If it doesn't reach them, send them this link yourself — it's the same one:`,
+              text: `Welcome email sent to ${target.email}, with a link for them to choose their own password. If it doesn't reach them, send them this link yourself, it's the same one:`,
               link: u.setPasswordUrl,
             }
           : {
               ok: false,
               text:
                 `The welcome email did NOT send${u.emailError ? ` (${u.emailError})` : ""}. ` +
-                `Send them this link instead — it still works:`,
+                `Send them this link instead, it still works:`,
               link: u.setPasswordUrl,
             }
       );
@@ -306,7 +306,7 @@ export default function UsersManager({
       setNotice({
         ok: true,
         text: enable
-          ? `Two-step sign-in is on for ${target.email} — it applies from their next sign-in.`
+          ? `Two-step sign-in is on for ${target.email}. It applies from their next sign-in.`
           : `Two-step sign-in is off for ${target.email}.`,
       });
     closeDialog();
@@ -433,7 +433,7 @@ export default function UsersManager({
             <span>
               Email them a link to choose their own password
               <span className="block text-xs text-ink/60">
-                The password you typed above is set either way and stays a working fallback —
+                The password you typed above is set either way and stays a working fallback,
                 it is simply never written into the email. Uncheck to send nothing and hand it
                 over yourself; it&apos;ll be shown here once after you create them.
               </span>
@@ -463,7 +463,7 @@ export default function UsersManager({
 
       {/* overflow-x-auto, and a min-width on the table, because seven columns
           do not fit a laptop with the sidebar open. Without both, the last
-          column — Reset password and Delete — was squeezed to nothing and then
+          column, Reset password and Delete, was squeezed to nothing and then
           CLIPPED by overflow-hidden, with no scrollbar to reach it: on 12 Aug
           2026 that left a Super Admin unable to reset a locked-out repairer's
           password at all. Every other table in the app already does this. */}
@@ -474,7 +474,7 @@ export default function UsersManager({
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
-              {/* Pointless on a workshop's own Team page — they'd all say the
+              {/* Pointless on a workshop's own Team page, because they'd all say the
                   same thing. Only PMP staff see users across workshops. */}
               {!scopedToWorkshop && <th className="px-4 py-3">Panel beater</th>}
               <th className="px-4 py-3">Role</th>
@@ -492,7 +492,7 @@ export default function UsersManager({
                   {u.name}
                   {u.mustChangePassword && (
                     <span
-                      title="Still on a temporary password — they must change it at next sign-in."
+                      title="Still on a temporary password. They must change it at next sign-in."
                       className="ml-2 whitespace-nowrap rounded-full bg-amber/25 px-2 py-0.5 text-[11px] font-semibold text-ink/70"
                     >
                       temp password
@@ -505,7 +505,7 @@ export default function UsersManager({
                     {u.panelBeaterId ? (
                       <span className="text-ink">{workshopName(u.panelBeaterId)}</span>
                     ) : (
-                      <span className="text-ink/35">— Price my Prang —</span>
+                      <span className="text-ink/35">Price my Prang</span>
                     )}
                   </td>
                 )}
@@ -621,7 +621,7 @@ export default function UsersManager({
           <div className="space-y-3 text-sm text-ink/80">
             <p>
               Sends the same welcome letter they should have received when their login was
-              created — an introduction, their sign-in address, and a one-time link to choose
+              created: an introduction, their sign-in address, and a one-time link to choose
               their own password.
             </p>
             {/* This used to warn that a resend MINTS a new password and kills
@@ -629,7 +629,7 @@ export default function UsersManager({
                 out loud to anyone who remembers the old behaviour. */}
             <p className="rounded-xl bg-teal/10 p-3 text-ink">
               <strong className="font-semibold">Nothing changes until they use it.</strong> Any
-              password they already have keeps working. No password is written in the email —
+              password they already have keeps working. No password is written in the email,
               which is also why it stands a better chance of getting past a spam filter.
             </p>
             <p className="text-ink/60">
@@ -702,7 +702,7 @@ export default function UsersManager({
                 <span>
                   Set a password myself
                   <span className="block text-xs text-ink/60">
-                    Replaces their password immediately — for handing over in person or on the
+                    Replaces their password immediately, for handing over in person or on the
                     phone.
                   </span>
                 </span>
@@ -742,7 +742,7 @@ export default function UsersManager({
                   <span>
                     Email the new password to them
                     <span className="block text-xs text-ink/60">
-                      Untick to hand it over yourself — it&apos;ll be shown here once instead.
+                      Untick to hand it over yourself, and it&apos;ll be shown here once instead.
                       Bear in mind a password in an email is the thing spam filters object to.
                     </span>
                   </span>

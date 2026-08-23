@@ -10,7 +10,7 @@ export default async function UsersPage() {
   if (!can(user, "manage_users")) redirect("/portal");
 
   // PMP staff manage everyone. A workshop's own admin manages only their team,
-  // and may only hand out panel-beater roles — mirrored server-side in
+  // and may only hand out panel-beater roles: mirrored server-side in
   // /api/users, which is what actually enforces it.
   const isPlatform = can(user, "manage_panel_beaters");
   const workshopId = isPlatform ? null : user.panelBeaterId;

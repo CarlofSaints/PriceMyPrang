@@ -170,10 +170,10 @@ export default function ComplaintsGrid({
                         {shortDate(c.createdAt)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">
-                        {c.reference ?? "—"}
+                        {c.reference ?? "Not given"}
                       </td>
                       {canManageAll && (
-                        <td className="px-4 py-3 font-semibold">{c.panelBeaterName ?? "—"}</td>
+                        <td className="px-4 py-3 font-semibold">{c.panelBeaterName ?? "Not given"}</td>
                       )}
                       <td className="px-4 py-3">{COMPLAINT_CATEGORY_LABEL[c.category]}</td>
                       <td className="px-4 py-3">
@@ -183,12 +183,12 @@ export default function ComplaintsGrid({
                           </span>
                         ) : (
                           <span className="text-xs text-ink/50">
-                            {c.vehicleSafety ? VEHICLE_SAFETY_LABEL[c.vehicleSafety] : "—"}
+                            {c.vehicleSafety ? VEHICLE_SAFETY_LABEL[c.vehicleSafety] : "Not stated"}
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs text-ink/70">
-                        {c.desiredOutcome ? COMPLAINT_OUTCOME_LABEL[c.desiredOutcome] : "—"}
+                        {c.desiredOutcome ? COMPLAINT_OUTCOME_LABEL[c.desiredOutcome] : "Not stated"}
                       </td>
                       <td className="px-4 py-3">
                         <select
@@ -295,7 +295,7 @@ export default function ComplaintsGrid({
                                         {n.authorName} · {shortDate(n.createdAt)}
                                         {n.internal && (
                                           <span className="ml-2 font-semibold text-ink/60">
-                                            internal — not shown to the repairer
+                                            internal, not shown to the repairer
                                           </span>
                                         )}
                                       </p>
@@ -327,7 +327,7 @@ export default function ComplaintsGrid({
                                         onChange={(e) => setInternal(e.target.checked)}
                                         className="h-4 w-4 accent-[#00848d]"
                                       />
-                                      Internal only — the repairer won&apos;t see this
+                                      Internal only. The repairer won&apos;t see this
                                     </label>
                                   )}
                                 </div>

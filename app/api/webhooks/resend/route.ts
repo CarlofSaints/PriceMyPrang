@@ -3,14 +3,14 @@ import crypto from "node:crypto";
 import { findUserByEmail } from "@/lib/store";
 import { logActivity } from "@/lib/activityLog";
 
-// node:crypto, and a raw request body — neither survives the edge runtime.
+// node:crypto, and a raw request body: neither survives the edge runtime.
 export const runtime = "nodejs";
 
 // ---------------------------------------------------------------------------
 // What Resend did with a message after we handed it over.
 //
 // WHY THIS EXISTS. Until now the strongest thing this app could say about any
-// email was "Resend accepted it" — which is what it said about all three
+// email was "Resend accepted it", which is what it said about all three
 // messages to Mac-Rites that nobody ever received. Acceptance is not delivery.
 // A bounce, a spam complaint or a silent quarantine left no trace anywhere,
 // so "did she get it?" was unanswerable by anything except asking her.
@@ -73,13 +73,13 @@ interface ResendEvent {
  * over and then nothing" is exactly the story that needed telling. Opens and
  * clicks are NOT: they fire repeatedly, they are wrong as often as they're
  * right once a mail client prefetches images, and they would bury the events
- * that mean something — the same reasoning that keeps successful media reads
+ * that mean something: the same reasoning that keeps successful media reads
  * out of the log.
  */
 const HANDLED: Record<string, { outcome: "success" | "failed"; verb: string }> = {
   "email.sent": { outcome: "success", verb: "was accepted for delivery" },
   "email.delivered": { outcome: "success", verb: "was DELIVERED" },
-  "email.delivery_delayed": { outcome: "failed", verb: "is DELAYED — not delivered yet" },
+  "email.delivery_delayed": { outcome: "failed", verb: "is DELAYED, not delivered yet" },
   "email.bounced": { outcome: "failed", verb: "BOUNCED" },
   "email.complained": { outcome: "failed", verb: "was marked as SPAM by the recipient" },
 };
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
   }
 
-  // Must be read as raw text — the signature covers the exact bytes, so
+  // Must be read as raw text: the signature covers the exact bytes, so
   // parsing and re-serialising would break it.
   const raw = await request.text();
   if (!verify(raw, request.headers, secret))
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
   }
 
   const handled = event.type ? HANDLED[event.type] : undefined;
-  // 200 on purpose for anything we don't record — an open or a click is a
+  // 200 on purpose for anything we don't record: an open or a click is a
   // perfectly valid event, and a non-2xx would make Svix retry it forever.
   if (!handled) return NextResponse.json({ ok: true, ignored: event.type ?? null });
 
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     action: event.type!,
     summary:
       `Email to ${recipient ?? "an unknown address"} ${handled.verb}` +
-      (event.data?.subject ? ` — “${event.data.subject}”` : ""),
+      (event.data?.subject ? `: “${event.data.subject}”` : ""),
     outcome: handled.outcome,
     entityType: user ? "user" : null,
     entityId: user?.id ?? null,

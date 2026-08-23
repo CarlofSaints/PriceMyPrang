@@ -22,7 +22,7 @@ export default async function VerifyEmailPage({
           <>
             <h1 className="mt-4 font-display text-2xl font-bold text-ink">Email confirmed</h1>
             <p className="text-sm text-ink/60">
-              Thanks — {result.email} is confirmed. You can sign in now.
+              Thanks, {result.email} is confirmed. You can sign in now.
             </p>
             <Link
               href="/login"

@@ -10,8 +10,8 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 //
 // Instantiation is lazy. Next.js evaluates top-level module code at build time,
 // and reading DATABASE_URL eagerly would crash `next build` on a deploy where
-// the env var isn't set yet. Note: a plain lazy `let`, NOT a Proxy wrapper —
-// Proxies break libraries that introspect the client.
+// the env var isn't set yet. Note: a plain lazy `let`, NOT a Proxy wrapper,
+// because Proxies break libraries that introspect the client.
 // ---------------------------------------------------------------------------
 
 let client: PrismaClient | null = null;

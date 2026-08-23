@@ -39,7 +39,7 @@ export default async function RatesPage() {
         <h1 className="font-display text-3xl font-bold text-ink">Rates</h1>
         <p className="text-ink/60">
           Add a rate card for cash work (the client pays directly) and one for each insurer you
-          work with. Nothing is required — fill in what applies and leave the rest blank.
+          work with. Nothing is required, so fill in what applies and leave the rest blank.
         </p>
       </div>
       <RatesEditor

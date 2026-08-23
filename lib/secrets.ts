@@ -9,7 +9,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypt
 // access rules. A plaintext key column would put a live, billable credential
 // somewhere it was never meant to travel. Ciphertext there is inert.
 //
-// AES-256-GCM, so the tag detects tampering as well as hiding the value — a
+// AES-256-GCM, so the tag detects tampering as well as hiding the value: a
 // silently altered key would otherwise surface as a confusing 401 from the
 // vendor rather than an obvious local error.
 // ---------------------------------------------------------------------------
@@ -21,13 +21,13 @@ const ALGO = "aes-256-gcm";
  * to keep the number of secrets Carl has to manage down.
  *
  * TRADE-OFF, deliberate: rotating SESSION_SECRET makes anything stored here
- * undecryptable. That is recoverable — re-enter the key on the Integrations
- * page — and `decryptSecret` reports it as a clear error rather than pretending
+ * undecryptable. That is recoverable: re-enter the key on the Integrations
+ * page, and `decryptSecret` reports it as a clear error rather than pretending
  * the key is simply unset.
  */
 function wrappingKey(): Buffer {
   const source = process.env.SESSION_SECRET;
-  if (!source) throw new Error("SESSION_SECRET is not set — cannot encrypt integration keys");
+  if (!source) throw new Error("SESSION_SECRET is not set, so integration keys cannot be encrypted");
   // Fixed salt: the input is already a high-entropy secret, and a random salt
   // would have to be stored alongside every row for no added strength here.
   return scryptSync(source, "pmp-integration-secrets", 32);
@@ -51,7 +51,7 @@ export function encryptSecret(plain: string): SealedSecret {
 }
 
 /**
- * Returns null when the stored value cannot be read — a rotated SESSION_SECRET
+ * Returns null when the stored value cannot be read: a rotated SESSION_SECRET
  * or a tampered row. Callers treat that as "no key configured" but the caller
  * that matters (the Integrations page) tells the admin to re-enter it, so this
  * never fails silently in a way that looks like the feature is broken.
@@ -70,7 +70,7 @@ export function decryptSecret(sealed: SealedSecret): string | null {
 }
 
 /**
- * "sk-live-abcd…wxyz" — enough for an admin to confirm WHICH key is loaded
+ * "sk-live-abcd…wxyz": enough for an admin to confirm WHICH key is loaded
  * without revealing it. The reveal endpoint (password-gated) is the only way
  * to see the whole thing.
  */

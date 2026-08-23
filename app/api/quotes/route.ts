@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
   // A supplier id arrives from the browser, so it is checked against the
   // quoting workshop's OWN book before it is stored. Otherwise a posted id
-  // could link a line to another repairer's supplier — a quiet cross-tenant
+  // could link a line to another repairer's supplier: a quiet cross-tenant
   // reference sitting in a table Power BI reads. An unrecognised id is dropped
   // rather than rejected: the NAME is kept either way, so provenance survives
   // and the estimator isn't blocked mid-quote by a bad id they can't see.
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
   // request's status on once every requested quote is in.
   await upsertQuote(req.reference, quote);
 
-  // Let the consumer know there's something to look at. Best-effort — the quote
+  // Let the consumer know there's something to look at. Best-effort: the quote
   // is saved either way, and they can still reach it from an earlier link.
   // Skipped for repairer-initiated jobs, where the workshop handles the client.
   let quoteReadyEmail: "sent" | "failed" | "skipped" = "skipped";
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     entityId: req.reference,
     entityLabel: req.reference,
     ...actorFromUser(user),
-    // The workshop the quote is FOR — staff quoting on someone's behalf have no
+    // The workshop the quote is FOR: staff quoting on someone's behalf have no
     // panelBeaterId of their own, and this is the number a report groups by.
     panelBeaterId: pb.id,
     detail: {

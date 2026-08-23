@@ -7,7 +7,7 @@ import type { AuthUser } from "./types";
 // Every meaningful thing anyone does on the site lands here: signing in,
 // creating a user, submitting the consumer form, building a quote, sending an
 // additional to an insurer, changing a rate, revealing an API key. Refusals and
-// failures are recorded too — a log of successes only can't answer "who kept
+// failures are recorded too: a log of successes only can't answer "who kept
 // trying to get in".
 //
 // THREE RULES, in order of importance:
@@ -24,7 +24,7 @@ import type { AuthUser } from "./types";
 //  3. THE ROW IS APPEND-ONLY. Nothing updates or deletes one, and no API can.
 //
 // The countable dimensions are real columns (see the model comment) because
-// this table is meant to be charted later — the stats work is a query over
+// this table is meant to be charted later: the stats work is a query over
 // action / actorId / outcome / createdAt, with no JSON parsing.
 // ---------------------------------------------------------------------------
 
@@ -145,7 +145,7 @@ export function actorFromUser(user: AuthUser): ActivityActor {
     actorId: user.id,
     actorName: user.name,
     actorEmail: user.email,
-    // The role NAME, not the id — the log is read by a person, and roles have
+    // The role NAME, not the id: the log is read by a person, and roles have
     // been renamed once already (admin → "Site Admin").
     actorRole: user.roleName ?? user.role,
     panelBeaterId: user.panelBeaterId ?? null,
@@ -163,7 +163,7 @@ export function systemActor(job: string): ActivityActor {
 }
 
 export interface ActivityInput extends ActivityActor {
-  /** Dotted verb — area first, e.g. "user.create", "auth.login.failed". */
+  /** Dotted verb: area first, e.g. "user.create", "auth.login.failed". */
   action: string;
   /** One line a person can read without expanding anything. */
   summary: string;
@@ -176,7 +176,7 @@ export interface ActivityInput extends ActivityActor {
   outcome?: ActivityOutcome;
   status?: number | null;
 
-  /** Changed fields, counts, totals — anything that isn't a column. */
+  /** Changed fields, counts, totals: anything that isn't a column. */
   detail?: unknown;
 
   /** The incoming request, for method / path / IP / user agent. */
@@ -197,7 +197,7 @@ function requestMeta(request: Request | null | undefined) {
   return {
     method: request.method,
     path,
-    // Same derivation as lib/rateLimit.ts — Vercel sets x-forwarded-for and the
+    // Same derivation as lib/rateLimit.ts: Vercel sets x-forwarded-for and the
     // first entry is the client.
     ip:
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -212,7 +212,7 @@ function requestMeta(request: Request | null | undefined) {
  *
  * Awaited rather than fired and forgotten: on serverless a promise left running
  * after the response is sent is not guaranteed to finish, so a detached write
- * would drop lines unpredictably — which is worse than a few milliseconds.
+ * would drop lines unpredictably, which is worse than a few milliseconds.
  *
  * NEVER THROWS. Callers may `await logActivity(...)` anywhere without a guard.
  */
@@ -245,12 +245,12 @@ export async function logActivity(input: ActivityInput): Promise<void> {
       },
     });
   } catch (err) {
-    // Deliberately swallowed — see rule 1 at the top of this file.
+    // Deliberately swallowed: see rule 1 at the top of this file.
     console.error("[activity] failed to record", input.action, err);
   }
 }
 
-// The area display names live in lib/activityAreas.ts, which imports nothing —
+// The area display names live in lib/activityAreas.ts, which imports nothing:
 // a client component needs them and cannot pull this file's Prisma dependency
 // through the bundler. Re-exported so server code has one obvious place to
 // import from.

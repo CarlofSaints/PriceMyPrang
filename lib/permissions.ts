@@ -36,15 +36,15 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
   manage_integrations:
     "Super Admin: set the third-party API keys the platform bills against (currently the imagin8 VIN lookup). Revealing a key requires re-entering your own password.",
   manage_own_suppliers:
-    "A workshop maintaining its OWN book of parts suppliers — add, edit, remove. Typically the buyer. Never shows another workshop's suppliers.",
+    "A workshop maintaining its OWN book of parts suppliers: add, edit, remove. Typically the buyer. Never shows another workshop's suppliers.",
   view_own_suppliers:
-    "See the workshop's own supplier list without being able to change it — enough to source a part while quoting.",
+    "See the workshop's own supplier list without being able to change it, which is enough to source a part while quoting.",
   manage_own_complaints:
     "A workshop reading complaints made against it and recording how each was put right. Never shows another workshop's complaints.",
   manage_complaints:
     "Super Admin: every complaint across the network, including internal notes the repairer never sees.",
   view_activity_log:
-    "Super Admin: the record of everything everyone has done on the site — sign-ins, forms filled in, quotes built, records changed, and what was refused. Shows every workshop's activity, so it is Price my Prang staff only.",
+    "Super Admin: the record of everything everyone has done on the site: sign-ins, forms filled in, quotes built, records changed, and what was refused. Shows every workshop's activity, so it is Price my Prang staff only.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];

@@ -17,7 +17,7 @@ import {
   type DevTicketStatus,
 } from "@/lib/types";
 
-// The dev planner is PMP's own backlog — Super Admin only. Every handler goes
+// The dev planner is PMP's own backlog: Super Admin only. Every handler goes
 // through requireManage, so there is no route here a panel beater can reach.
 async function requireManage() {
   const { user, response } = await requireUser();
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const title = typeof b.title === "string" ? b.title.trim() : "";
   if (!title) return NextResponse.json({ error: "A title is required" }, { status: 400 });
 
-  // Author and timestamp come from the SESSION, never the body — otherwise a
+  // Author and timestamp come from the SESSION, never the body: otherwise a
   // ticket could claim to have been logged by someone else.
   const ticket = await createDevTicket({
     title,
@@ -144,7 +144,7 @@ export async function PATCH(request: Request) {
   // Status is the field people actually watch move, so it leads the summary.
   await logActivity({
     action: "dev_ticket.update",
-    summary: `${gate.user.name} updated the ticket “${ticket.title}” — now ${ticket.priority}, ${ticket.status.replace("_", " ")}`,
+    summary: `${gate.user.name} updated the ticket “${ticket.title}” to ${ticket.priority}, ${ticket.status.replace("_", " ")}`,
     entityType: "dev_ticket",
     entityId: ticket.id,
     entityLabel: ticket.title,

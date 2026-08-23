@@ -13,7 +13,7 @@ import type { AgreementDocument } from "@/lib/types";
 
 export const maxDuration = 60;
 
-// Managing the repairer agreement is a Super Admin job — it's the contract the
+// Managing the repairer agreement is a Super Admin job: it's the contract the
 // whole network signs.
 async function requireSuperAdmin() {
   const { user, response } = await requireUser();
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose a .docx file to upload" }, { status: 400 });
   if (!file.name.toLowerCase().endsWith(".docx"))
     return NextResponse.json(
-      { error: "Only .docx files are supported — export from Word." },
+      { error: "Only .docx files are supported. Export from Word." },
       { status: 400 }
     );
 
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   // the log even though it happens perhaps twice a year.
   await logActivity({
     action: "agreement.upload",
-    summary: `${gate.user.name} uploaded a new repairer agreement — “${doc.title}” is now the active version`,
+    summary: `${gate.user.name} uploaded a new repairer agreement: “${doc.title}” is now the active version`,
     entityType: "agreement_document",
     entityId: doc.id,
     entityLabel: doc.title,
@@ -115,7 +115,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Repairers have already signed this version, so it can't be deleted — upload a new one instead and this becomes history.",
+          "Repairers have already signed this version, so it can't be deleted. Upload a new one instead and this becomes history.",
       },
       { status: 409 }
     );

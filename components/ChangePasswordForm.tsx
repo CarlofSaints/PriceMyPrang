@@ -76,7 +76,7 @@ export default function ChangePasswordForm({ forced = false }: { forced?: boolea
         hint={
           forced
             ? "The one from your welcome email."
-            : "The password you sign in with today — not the temporary one from your welcome email, if you have already replaced it."
+            : "The password you sign in with today, not the temporary one from your welcome email, if you have already replaced it."
         }
       >
         <input

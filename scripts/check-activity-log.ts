@@ -5,7 +5,7 @@ import { getDb } from "../lib/db";
 //
 //   npx dotenv -e .env.local -- npx tsx scripts/check-activity-log.ts
 //
-// tsx transforms to CJS here, so no top-level await — hence main().
+// tsx transforms to CJS here, so no top-level await: hence main().
 async function main() {
   const db = getDb();
 

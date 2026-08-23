@@ -6,7 +6,7 @@ import { logActivity, consumerActor } from "@/lib/activityLog";
 // ---------------------------------------------------------------------------
 // "I want to rate or complain about my repair."
 //
-// The consumer types their REFERENCE, but PMP-date-SURNAME-nn is guessable —
+// The consumer types their REFERENCE, but PMP-date-SURNAME-nn is guessable:
 // it names a job, it doesn't prove you own one. So the reference only triggers
 // an email to the address already on that job; the link in that email is the
 // actual credential.
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   }
 
   // The RESPONSE stays identical for a real and a made-up reference; the LOG
-  // may tell them apart, and has to — a run of misses from one address is
+  // may tell them apart, and has to: a run of misses from one address is
   // somebody walking the reference space, which is the attack this endpoint was
   // designed against. Only a Super Admin ever reads this.
   await logActivity({

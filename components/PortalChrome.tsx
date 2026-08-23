@@ -96,7 +96,7 @@ export default function PortalChrome({
           />
         )}
 
-        {/* Left sidebar — collapsible / pop-out */}
+        {/* Left sidebar: collapsible / pop-out */}
         <aside
           className={`fixed bottom-0 left-0 top-16 z-40 w-64 transform overflow-y-auto border-r border-ink/10 bg-white transition-transform lg:static lg:top-0 lg:z-auto lg:shrink-0 lg:translate-x-0 lg:transition-[width] ${
             open

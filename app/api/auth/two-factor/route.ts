@@ -14,7 +14,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
  * Switching it OFF additionally needs admin rights. Two-step is a control the
  * business sets, not a personal preference: once an admin has turned it on for
  * someone, that person opting themselves back out would undo it silently. So
- * anyone may raise their own protection, and only an admin may lower it —
+ * anyone may raise their own protection, and only an admin may lower it,
  * which is also the answer for a phished user whose attacker would otherwise
  * disable the factor as their first move.
  *

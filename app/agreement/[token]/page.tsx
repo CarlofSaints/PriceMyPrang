@@ -4,7 +4,7 @@ import AgreementSigner from "@/components/AgreementSigner";
 import { getRepairerAgreementByToken, getPanelBeater } from "@/lib/store";
 import { shortDate } from "@/lib/format";
 
-// PUBLIC page — reached from the emailed link. The token is the only
+// PUBLIC page: reached from the emailed link. The token is the only
 // credential, so it must never be indexed.
 export const metadata = { robots: { index: false, follow: false } };
 

@@ -10,7 +10,7 @@
  * What a certificate file picker offers.
  *
  * MUST stay in step with `allowedContentTypes` in app/api/media/upload/route.ts
- * — a picker that offers a type the server refuses is the exact bug this file
+ *: a picker that offers a type the server refuses is the exact bug this file
  * exists because of. Extensions are listed alongside the MIME types because
  * Windows hands some Office files a blank or vendor-specific type.
  */
@@ -47,7 +47,7 @@ export interface UploadedFileInfo {
 export interface UploadFailureReport {
   /** Which screen, in words a reader of the activity log will recognise. */
   context: string;
-  /** Which field — e.g. the manufacturer whose certificate this was. */
+  /** Which field: e.g. the manufacturer whose certificate this was. */
   label?: string;
   file?: UploadedFileInfo;
   reason: unknown;
@@ -86,7 +86,7 @@ export function reportUploadFailure(r: UploadFailureReport): void {
       }),
     }).catch(() => {});
   } catch {
-    // Nothing to do — this is the error path already.
+    // Nothing to do: this is the error path already.
   }
 }
 
@@ -95,14 +95,14 @@ export function uploadErrorMessage(err: unknown, file?: UploadedFileInfo): strin
 
   if (/content type/i.test(raw)) {
     const type = file?.type || "that file type";
-    return `We can't accept ${type} here — upload a PDF, a Word or Excel file, or a photo/scan (JPG, PNG, TIFF).`;
+    return `We can't accept ${type} here. Upload a PDF, a Word or Excel file, or a photo/scan (JPG, PNG, TIFF).`;
   }
   if (/too large|maximum|size/i.test(raw)) {
-    return "That file is too big — keep it under 60MB.";
+    return "That file is too big. Keep it under 60MB.";
   }
   if (/fetch|network/i.test(raw)) {
     return "The upload couldn't reach us. Check your connection and try again.";
   }
   // Never swallow the reason: an unlabelled failure is one nobody can diagnose.
-  return `Upload failed${raw ? ` — ${raw}` : "."}`;
+  return `Upload failed${raw ? `: ${raw}` : "."}`;
 }

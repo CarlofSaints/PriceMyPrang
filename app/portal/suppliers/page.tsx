@@ -31,7 +31,7 @@ export default async function MySuppliersPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Suppliers</h1>
         <p className="text-ink/60">
-          Who you buy parts from. This list is yours alone — no other workshop can see it, and it
+          Who you buy parts from. This list is yours alone. No other workshop can see it, and it
           is what the quote builder will offer when a line is a new, used or alternate part.
           {!canEdit && " You have view-only access."}
         </p>

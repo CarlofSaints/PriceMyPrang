@@ -13,7 +13,7 @@ import type { AuthUser, Supplier } from "@/lib/types";
 // A workshop's OWN supplier book. Separate from /api/suppliers, which is Price
 // my Prang's platform-wide list under manage_parts.
 //
-// For a workshop's own login the id comes from the SESSION and nowhere else — a
+// For a workshop's own login the id comes from the SESSION and nowhere else: a
 // posted panelBeaterId would let one repairer read or write another's book, and
 // a supplier list is commercially sensitive (it is who they buy from and, by
 // implication, at what price).
@@ -28,7 +28,7 @@ type Gate =
 
 /**
  * @param target a workshop id from the caller. HONOURED ONLY for PMP staff
- *   building a quote on a workshop's behalf — they need that workshop's
+ *   building a quote on a workshop's behalf: they need that workshop's
  *   supplier book, not their own (they have none). A workshop's own login can
  *   never use it, or one repairer could read another's suppliers.
  */
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
 
   const b = (await request.json()) as Record<string, unknown>;
   const f = fields(b);
-  // Nothing else is required — a buyer adding a supplier mid-job shouldn't be
+  // Nothing else is required: a buyer adding a supplier mid-job shouldn't be
   // stopped by a VAT number they'd have to go and find.
   if (!f.name) return NextResponse.json({ error: "Supplier company name is required" }, { status: 400 });
 

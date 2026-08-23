@@ -8,7 +8,7 @@ export const metadata = { title: "Choose your password · Price my Prang" };
 /**
  * The landing page for a "choose your own password" link.
  *
- * The token is PEEKED here, not spent — the page has to greet the person and
+ * The token is PEEKED here, not spent: the page has to greet the person and
  * show them a form before anything is decided, and redeeming on load would
  * burn the link for anyone who opened the email, got distracted and came back.
  * It is spent by the POST behind the form.
@@ -39,7 +39,7 @@ export default async function SetPasswordPage({
             <p className="text-sm text-ink/60">
               It has expired, has already been used, or a newer one was sent
               afterwards. Ask your Price my Prang contact to send you a fresh
-              link — or reply to the email it came from.
+              link, or reply to the email it came from.
             </p>
             <Link
               href="/login"

@@ -9,7 +9,7 @@ export default function TwoFactorToggle({
 }: {
   initialEnabled: boolean;
   /**
-   * Whether this person may switch their own two-step off — admins only.
+   * Whether this person may switch their own two-step off: admins only.
    * Cosmetic: /api/auth/two-factor refuses it regardless of what's rendered.
    */
   canDisable?: boolean;
@@ -76,11 +76,11 @@ export default function TwoFactorToggle({
         <div className="space-y-3">
           {turningOn && (
             <p className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-sm text-ink">
-              Make sure you can receive email at your account address before turning this on — it
+              Make sure you can receive email at your account address before turning this on, because it
               becomes part of how you sign in.
               {!canDisable && (
                 <span className="mt-1 block font-semibold">
-                  You won&apos;t be able to switch it back off yourself — only an administrator
+                  You won&apos;t be able to switch it back off yourself. Only an administrator
                   can.
                 </span>
               )}

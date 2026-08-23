@@ -1,12 +1,12 @@
 /**
- * Show what is actually in the Blob store. READ-ONLY — deletes nothing.
+ * Show what is actually in the Blob store. READ-ONLY: deletes nothing.
  *
  *   npm run blob:list                  # everything, grouped by top-level folder
  *   npm run blob:list -- --prefix data/    # just the suspected dead JSON
  *
  * Needs a real BLOB_READ_WRITE_TOKEN in .env.local. The project's copy of that
  * variable is marked Sensitive in Vercel, so `vercel env pull` writes an empty
- * string for it — copy the value from the Blob STORE's page in the dashboard
+ * string for it: copy the value from the Blob STORE's page in the dashboard
  * instead (Storage -> your store -> the .env.local / Connect snippet).
  *
  * Deleting is a separate, deliberate step: media for live quotes lives in the

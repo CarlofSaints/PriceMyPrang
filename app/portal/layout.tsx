@@ -45,7 +45,7 @@ export default async function PortalLayout({
   }
 
   // Unconfirmed address: same treatment, and deliberately AFTER the password
-  // gate — someone holding a temporary password should finish that first, or
+  // gate: someone holding a temporary password should finish that first, or
   // they'd be asked to confirm an address while still on credentials they
   // didn't choose. Accounts predating verification were backfilled, so this
   // only ever stops a new sign-up.
@@ -75,7 +75,7 @@ export default async function PortalLayout({
 
   // Main navigation (left sidebar).
   const items: NavItem[] = [];
-  // Panel-beater logins get a dashboard too — their own work, not the network's.
+  // Panel-beater logins get a dashboard too: their own work, not the network's.
   if (can(user, "view_dashboard") || (can(user, "onboard_self") && user.panelBeaterId))
     items.push({ href: "/portal", label: "Dashboard" });
   if (can(user, "build_quotes") || can(user, "onboard_self"))
@@ -98,7 +98,7 @@ export default async function PortalLayout({
   if (user.panelBeaterId && (can(user, "manage_own_suppliers") || can(user, "view_own_suppliers")))
     items.push({ href: "/portal/suppliers", label: "Suppliers" });
   // Extra work found after stripping a car. Needs a real workshop, not just
-  // the permission — a Site Admin holds it via ALL_PERMISSIONS but has no
+  // the permission: a Site Admin holds it via ALL_PERMISSIONS but has no
   // jobs of their own to raise additionals against.
   if (user.panelBeaterId && can(user, "manage_additionals")) {
     items.push({ href: "/portal/additionals", label: "Additionals" });
@@ -118,7 +118,7 @@ export default async function PortalLayout({
   if (can(user, "onboard_self") && !can(user, "manage_roles"))
     items.push({ href: "/portal/roles", label: "Roles" });
 
-  // Control Centre — Super Admin (PriceMyPrang employee) only.
+  // Control Centre: Super Admin (PriceMyPrang employee) only.
   const adminItems: NavItem[] = [];
   if (can(user, "manage_panel_beaters"))
     adminItems.push({ href: "/portal/panel-beaters", label: "Panel beaters" });
@@ -127,7 +127,7 @@ export default async function PortalLayout({
   if (can(user, "manage_panel_beaters"))
     adminItems.push({ href: "/portal/admin/agreement", label: "Repairer agreement" });
   if (can(user, "manage_roles")) adminItems.push({ href: "/portal/admin/roles", label: "Roles" });
-  // Rate types are no longer configurable — the card structure is fixed in
+  // Rate types are no longer configurable: the card structure is fixed in
   // lib/rateCard.ts, so there's nothing for an admin to manage.
   if (can(user, "manage_insurers"))
     adminItems.push({ href: "/portal/admin/insurers", label: "Insurance companies" });
@@ -135,16 +135,16 @@ export default async function PortalLayout({
     adminItems.push({ href: "/portal/admin/complaints", label: "Complaints" });
   if (can(user, "manage_integrations"))
     adminItems.push({ href: "/portal/admin/integrations", label: "Integrations" });
-  // Everything everyone has done. Staff-only by design — it shows every
+  // Everything everyone has done. Staff-only by design: it shows every
   // workshop's activity side by side.
   if (can(user, "view_activity_log"))
     adminItems.push({ href: "/portal/admin/activity", label: "Activity log" });
-  // PMP's own backlog. Last in the list — it's internal housekeeping, not a
+  // PMP's own backlog. Last in the list: it's internal housekeeping, not a
   // part of running the network.
   if (can(user, "manage_dev_tickets"))
     adminItems.push({ href: "/portal/admin/dev-planner", label: "Dev planner" });
 
-  // Vetting is a property of the WORKSHOP, not the login — every user attached
+  // Vetting is a property of the WORKSHOP, not the login: every user attached
   // to an unapproved panel beater sees this, however many of them there are.
   const workshop = user.panelBeaterId ? await getPanelBeater(user.panelBeaterId) : null;
   const awaitingVetting = !!workshop && workshop.status !== "approved";
@@ -163,7 +163,7 @@ export default async function PortalLayout({
           </p>
           <p className="mt-1 text-sm text-ink/70">
             Once your documents have been checked, you will be approved. In the meantime you can
-            carry on setting up {workshop.tradingAs || workshop.companyName} — your workshop
+            carry on setting up {workshop.tradingAs || workshop.companyName}. Your workshop
             won&apos;t appear to consumers until it&apos;s approved.
           </p>
         </div>

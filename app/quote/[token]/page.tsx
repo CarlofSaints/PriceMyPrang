@@ -3,7 +3,7 @@ import { Logo } from "@/components/Logo";
 import ConsumerQuoteList, { type ConsumerQuote } from "@/components/ConsumerQuoteList";
 import { getRequestByPublicToken, getPanelBeaters } from "@/lib/store";
 
-// PUBLIC page — the consumer's own quotes, reached from the link we email them.
+// PUBLIC page: the consumer's own quotes, reached from the link we email them.
 // The token is the only credential, so it must never be indexed or logged.
 export const metadata = { robots: { index: false, follow: false } };
 
@@ -16,7 +16,7 @@ export default async function ConsumerQuotePage({
   const request = await getRequestByPublicToken(token);
   if (!request) notFound();
 
-  // Only the workshops that actually quoted are named — the consumer has no
+  // Only the workshops that actually quoted are named: the consumer has no
   // business seeing who else was approached.
   const panelBeaters = await getPanelBeaters();
   const nameFor = (id: string) => {
@@ -48,7 +48,7 @@ export default async function ConsumerQuotePage({
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <h1 className="font-display text-3xl font-bold text-ink">Your quotes</h1>
         <p className="mt-1 text-ink/60">
-          Hi {request.firstName} — here&apos;s everything we have for{" "}
+          Hi {request.firstName}, here&apos;s everything we have for{" "}
           {vehicle || "your vehicle"}.
         </p>
 
@@ -60,7 +60,7 @@ export default async function ConsumerQuotePage({
             </div>
             <div>
               <dt className="text-ink/50">Vehicle</dt>
-              <dd className="font-semibold text-ink">{vehicle || "—"}</dd>
+              <dd className="font-semibold text-ink">{vehicle || "Not given"}</dd>
             </div>
             <div>
               <dt className="text-ink/50">Quotes requested</dt>
@@ -74,7 +74,7 @@ export default async function ConsumerQuotePage({
         </div>
 
         <p className="mt-8 text-center text-xs text-ink/40">
-          Keep this page private — anyone with the link can see and accept your quotes.
+          Keep this page private. Anyone with the link can see and accept your quotes.
         </p>
       </main>
     </div>

@@ -14,7 +14,7 @@ import { can } from "@/lib/permissions";
 // ---------------------------------------------------------------------------
 
 const ALLOWED_CONTENT_TYPES = [
-  // Images — screenshots are the common case.
+  // Images: screenshots are the common case.
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -42,7 +42,7 @@ const ALLOWED_CONTENT_TYPES = [
 ];
 
 export async function POST(request: Request): Promise<NextResponse> {
-  // Checked BEFORE a token is minted — an upload token is a write credential,
+  // Checked BEFORE a token is minted: an upload token is a write credential,
   // so it must never be handed out to someone who could not create a ticket.
   const { user, response } = await requireUser();
   if (response) return response;

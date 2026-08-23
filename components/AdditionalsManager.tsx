@@ -93,7 +93,7 @@ export default function AdditionalsManager({
     load(reference);
   }, [reference, load]);
 
-  // The claim number starts from the job and stays editable — an insurer can't
+  // The claim number starts from the job and stays editable: an insurer can't
   // process additionals without one, and it is routinely still outstanding when
   // the original quote is built.
   useEffect(() => {
@@ -166,7 +166,7 @@ export default function AdditionalsManager({
 
   async function saveDraft() {
     const saved = await save();
-    if (saved) setNotice({ ok: true, text: `Saved as a draft — not sent yet.` });
+    if (saved) setNotice({ ok: true, text: `Saved as a draft. Not sent yet.` });
   }
 
   async function updateStatus(a: Additional, status: AdditionalStatus) {
@@ -235,7 +235,7 @@ export default function AdditionalsManager({
             {jobs.length === 0 && <option value="">No jobs yet</option>}
             {jobs.map((j) => (
               <option key={j.reference} value={j.reference}>
-                {j.reference} — {j.clientName} · {j.vehicle}
+                {j.reference} · {j.clientName} · {j.vehicle}
                 {j.registration ? ` (${j.registration})` : ""}
               </option>
             ))}
@@ -328,7 +328,7 @@ export default function AdditionalsManager({
                         a.sentAt ? STATUS_STYLE[a.status] : "bg-ink/10 text-ink/60"
                       }`}
                     >
-                      {a.sentAt ? STATUS_LABEL[a.status] : "Draft — not sent"}
+                      {a.sentAt ? STATUS_LABEL[a.status] : "Draft, not sent"}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
@@ -457,7 +457,7 @@ function DraftEditor({
     setSendError(null);
     if (!claimNumber.trim() && job.isInsuranceClaim) {
       setSendError(
-        "Enter the claim number first — an insurer can't match additionals to a claim without it."
+        "Enter the claim number first. An insurer can't match additionals to a claim without it."
       );
       return;
     }
@@ -469,7 +469,7 @@ function DraftEditor({
       !confirm(
         `Send Additionals to the insurer${
           notifyClient ? ` and tell ${job.clientName}` : ""
-        }?\n\nOnce sent it locks — anything further has to be a new request.`
+        }?\n\nOnce sent it locks, and anything further has to be a new request.`
       )
     )
       return;
@@ -503,7 +503,7 @@ function DraftEditor({
           data.clientSent
             ? " The client has been told too."
             : notifyClient
-              ? ` The client copy didn't send${data.clientError ? ` (${data.clientError})` : ""} — the insurer has it.`
+              ? ` The client copy didn't send${data.clientError ? ` (${data.clientError})` : ""}, but the insurer has it.`
               : ""
         }`
       );
@@ -530,7 +530,7 @@ function DraftEditor({
           label="Claim number"
           hint={
             job.isInsuranceClaim
-              ? "Required — the insurer matches additionals to the claim by this."
+              ? "Required. The insurer matches additionals to the claim by this."
               : "Not an insurance claim, so this is optional."
           }
         >
@@ -538,7 +538,7 @@ function DraftEditor({
             className={inputClass}
             value={claimNumber}
             onChange={(e) => onClaimNumber(e.target.value)}
-            placeholder={job.isInsuranceClaim ? "e.g. CLM-2026-88421" : "—"}
+            placeholder={job.isInsuranceClaim ? "e.g. CLM-2026-88421" : "Not applicable"}
           />
         </Field>
         <Field label="What did you find?" hint="Goes at the top of both emails.">
@@ -675,7 +675,7 @@ function DraftEditor({
               {contacts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {[c.name, c.role].filter(Boolean).join(" · ") || c.email}
-                  {c.email ? ` — ${c.email}` : ""}
+                  {c.email ? ` · ${c.email}` : ""}
                   {c.panelBeaterId ? "  (yours)" : ""}
                 </option>
               ))}
@@ -685,7 +685,7 @@ function DraftEditor({
         ) : (
           <p className="text-xs text-ink/60">
             {insurer
-              ? `No contacts saved for ${insurer.name} yet. Type an address below — you can save it as your own contact on the Insurers page.`
+              ? `No contacts saved for ${insurer.name} yet. Type an address below, and you can save it as your own contact on the Insurers page.`
               : "This job has no insurer on record. Type the address to send to."}
           </p>
         )}

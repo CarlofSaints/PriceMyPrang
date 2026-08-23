@@ -65,7 +65,7 @@ export default async function FeedbackPage({
       </div>
     );
 
-  // Only the workshop whose quote they accepted — the one that actually did the
+  // Only the workshop whose quote they accepted: the one that actually did the
   // work. Falls back to everyone quoted if none was accepted, so a poor quoting
   // experience can still be raised.
   const accepted = await acceptedPanelBeaterFor(link.requestId);

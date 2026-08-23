@@ -15,7 +15,7 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "Price my Prang — Crash · Quote · Claim",
+  title: "Price my Prang · Crash · Quote · Claim",
   description:
     "The fastest way to price a prang. Request repair quotes from nearby panel beaters in minutes.",
   icons: {

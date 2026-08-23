@@ -19,7 +19,7 @@ export default function ResendVerification() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not send it");
-      // Already confirmed in another tab — a reload drops them into the portal.
+      // Already confirmed in another tab: a reload drops them into the portal.
       if (data.alreadyVerified) return window.location.reload();
       setState("sent");
     } catch (err) {
@@ -37,7 +37,7 @@ export default function ResendVerification() {
       )}
       {state === "sent" ? (
         <p className="rounded-xl border border-teal/30 bg-teal/10 p-3 text-sm text-teal">
-          Sent. Check your inbox — and your spam folder, since it&apos;s the first mail
+          Sent. Check your inbox, and your spam folder, since it&apos;s the first mail
           we&apos;ve sent you.
         </p>
       ) : (

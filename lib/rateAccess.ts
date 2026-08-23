@@ -7,7 +7,7 @@ import { can } from "@/lib/permissions";
  *
  * Shared by /api/rate-cards and /api/rate-cards/custom-types on purpose.
  * Custom rates are priced on a card, so the two endpoints reach the same data
- * and must agree about who owns it — a second copy of this check is a second
+ * and must agree about who owns it: a second copy of this check is a second
  * thing to remember to fix.
  */
 export async function resolveRateTarget(

@@ -70,7 +70,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const [building, setBuilding] = useState(false);
 
   // The workshop's own supplier book, for sourcing New / Used / Alternate
-  // parts. Fetched for the workshop the quote is FOR — not the same as the
+  // parts. Fetched for the workshop the quote is FOR: not the same as the
   // signed-in user's workshop when PMP staff quote on a repairer's behalf.
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
@@ -113,7 +113,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
 
   /**
    * Pull the chosen workshop's rate cards. Rates are per workshop AND per
-   * insurer, so they can only be fetched once we know who is quoting — a
+   * insurer, so they can only be fetched once we know who is quoting: a
    * different workshop on the same job prices it differently.
    */
   const loadRateCards = useCallback(async (id: string, req: QuoteRequest | null) => {
@@ -126,7 +126,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     try {
       const qs = `panelBeaterId=${encodeURIComponent(id)}`;
       // The custom rates come along because their VALUES sit on the card but
-      // their names and units don't — without them a custom rate is an
+      // their names and units don't: without them a custom rate is an
       // unlabelled number the estimator can't identify.
       const [res, customRes] = await Promise.all([
         fetch(`/api/rate-cards?${qs}`),
@@ -169,7 +169,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
           fetch(`/api/requests/${encodeURIComponent(reference.trim())}`),
           fetch("/api/panel-beaters"),
         ]);
-        if (!rReq.ok) throw new Error("Request not found — check the reference.");
+        if (!rReq.ok) throw new Error("Request not found. Check the reference.");
         const req = (await rReq.json()) as QuoteRequest;
         setRequest(req);
         setPanelBeaters(rPb.ok ? await rPb.json() : []);
@@ -214,7 +214,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
    * Apply a patch, then re-price the part if we have both a cost and a mark-up
    * for its type. Re-runs when the CODE changes too, since switching New → Used
    * changes which percentage applies. A patch that sets partsAmount directly is
-   * left alone — that's the estimator overriding the calculation.
+   * left alone: that's the estimator overriding the calculation.
    */
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((ls) =>
@@ -228,7 +228,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
         if (next.partsCost != null && markup != null) {
           next.partsAmount = Number((next.partsCost * (1 + markup / 100)).toFixed(2));
         } else if (next.partsCost != null && patch.partsCost !== undefined) {
-          // No mark-up configured for this type — charge it on at cost.
+          // No mark-up configured for this type: charge it on at cost.
           next.partsAmount = next.partsCost;
         }
         return next;
@@ -236,7 +236,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     );
   }
 
-  // Live totals — same module the server uses, so the screen and the PDF can
+  // Live totals: same module the server uses, so the screen and the PDF can
   // never disagree about what a quote comes to.
   const {
     partsTotal,
@@ -423,12 +423,12 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                   <strong>{labourRate != null ? `${zar(labourRate)}/hr` : "not set"}</strong> ·
                   Paint <strong>{paintRate != null ? `${zar(paintRate)}/hr` : "not set"}</strong>
                   {" · "}Parts mark-up OEM{" "}
-                  <strong>{rates.markup_oem != null ? `${rates.markup_oem}%` : "—"}</strong> · Alt{" "}
+                  <strong>{rates.markup_oem != null ? `${rates.markup_oem}%` : "Not set"}</strong> · Alt{" "}
                   <strong>
-                    {rates.markup_alternate != null ? `${rates.markup_alternate}%` : "—"}
+                    {rates.markup_alternate != null ? `${rates.markup_alternate}%` : "Not set"}
                   </strong>{" "}
                   · Used{" "}
-                  <strong>{rates.markup_used != null ? `${rates.markup_used}%` : "—"}</strong>
+                  <strong>{rates.markup_used != null ? `${rates.markup_used}%` : "Not set"}</strong>
                   <span className="block text-xs text-ink/50">
                     Enter hours and a parts cost below; amounts are worked out for you. Type over
                     any amount to override it.
@@ -437,7 +437,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
               ) : (
                 <p className="mt-3 text-xs text-ink/50">
                   {rateCards.length
-                    ? "No card selected — amounts are typed in by hand."
+                    ? "No card selected, so amounts are typed in by hand."
                     : "This workshop hasn't set up any rate cards on the Rates page yet."}
                 </p>
               )}
@@ -449,7 +449,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                     ...SCOPED_FIELDS,
                     ...GENERAL_FIELDS,
                     // The workshop's own rates get the same one-click
-                    // treatment — a custom rate the estimator has to retype is
+                    // treatment: a custom rate the estimator has to retype is
                     // a rate they'll stop using.
                     ...customTypes.map(
                       (c): RateField => ({
@@ -517,7 +517,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                 required
                 hint={
                   sundriesMode === "percent"
-                    ? `Percentage of parts (${zar(partsTotal)}) — currently ${zar(sundriesAmount)}.`
+                    ? `Percentage of parts (${zar(partsTotal)}), currently ${zar(sundriesAmount)}.`
                     : "A flat rand amount. Switch to % to charge a share of parts instead."
                 }
               >
@@ -531,7 +531,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                     onChange={(e) => setSundries(Number(e.target.value) || 0)}
                     aria-label={sundriesMode === "percent" ? "Sundries percent" : "Sundries rand"}
                   />
-                  {/* One box, two meanings — the toggle says which, and the
+                  {/* One box, two meanings. The toggle says which, and the
                       hint above shows what a % works out to in rands. */}
                   <select
                     className={`${inputClass} w-20`}
@@ -555,7 +555,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                 />
               </Field>
             </div>
-            <Field label="Note to client" hint="Optional — e.g. “Vehicle needs to be stripped for unseen damages.”">
+            <Field label="Note to client" hint="Optional, for example “Vehicle needs to be stripped for unseen damages.”">
               <input
                 className={inputClass}
                 value={notes}
@@ -695,7 +695,7 @@ function LineCard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not add the supplier");
       onSupplierAdded(data as Supplier);
-      // Select what they just created — that was the point of adding it.
+      // Select what they just created: that was the point of adding it.
       onChange({ supplierId: data.id, supplier: data.name });
       setAdding(false);
       setNewName("");
@@ -708,7 +708,7 @@ function LineCard({
   return (
     <div className="rounded-2xl border border-teal/15 bg-white p-3">
       {/* Column labels. Placeholders disappear the moment a field is filled,
-          which left the estimator guessing which box was which — QTY in
+          which left the estimator guessing which box was which. QTY in
           particular read as an unexplained "1". */}
       <div className="mb-1 hidden grid-cols-12 gap-2 px-1 sm:grid">
         <span className="col-span-2 text-xs font-semibold uppercase tracking-wide text-ink/45">
@@ -793,7 +793,7 @@ function LineCard({
         </button>
       </div>
 
-      {/* Where the part came from. Only for New / Alt / Used — a Repair or a
+      {/* Where the part came from. Only for New / Alt / Used. A Repair or a
           Note wasn't bought from anyone.
 
           BACK OFFICE ONLY: this never reaches the customer's quote. It is here
@@ -804,7 +804,7 @@ function LineCard({
           <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-ink/50">
             Sourced from{" "}
             <span className="font-normal normal-case tracking-normal text-ink/40">
-              — not shown on the customer&apos;s quote
+              not shown on the customer&apos;s quote
             </span>
           </p>
 
@@ -852,7 +852,7 @@ function LineCard({
               }}
               aria-label="Supplier"
             >
-              <option value="">— choose a supplier —</option>
+              <option value="">Choose a supplier</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}

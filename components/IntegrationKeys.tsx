@@ -6,7 +6,7 @@ import { Button, Field, inputClass } from "./ui";
 
 export type IntegrationMeta = {
   masked: string;
-  /** The non-secret half — shown in full, it identifies the account. */
+  /** The non-secret half: shown in full, it identifies the account. */
   clientId?: string;
   updatedByName?: string;
   updatedAt: string;
@@ -101,7 +101,7 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
   return (
     <div className="pmp-card max-w-2xl space-y-5 p-6">
       <div>
-        <h2 className="font-display text-xl font-semibold text-ink">imagin8 — VIN lookup</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">imagin8 VIN lookup</h2>
         <p className="mt-1 text-sm text-ink/60">
           Decodes a VIN read off the licence disc into make, model, year, M&amp;M code and
           values. Billed per lookup, so every result is cached and never fetched twice.
@@ -206,7 +206,7 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
       {editing && (
         <div className="space-y-4">
           {/* Chrome reads "text field followed by password field" as a login
-              form and fills the first one with the saved username — which put
+              form and fills the first one with the saved username, which put
               an email address in the API key box. The decoys below absorb that,
               and the real inputs opt out by name as well as by attribute. */}
           <input type="text" name="username" autoComplete="username" className="hidden" readOnly />
@@ -220,7 +220,7 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
 
           <Field
             label="Client ID"
-            hint="Issued by imagin8 alongside the key. Not a secret — shown in full so you can confirm which account is wired up."
+            hint="Issued by imagin8 alongside the key. Not a secret, so it is shown in full so you can confirm which account is wired up."
           >
             <input
               className={`${inputClass} font-mono`}
@@ -288,7 +288,7 @@ export default function IntegrationKeys({ initial }: { initial: IntegrationMeta 
 
       <p className="border-t border-ink/10 pt-4 text-xs text-ink/45">
         The key is encrypted before it is stored, so it is unreadable to anything querying the
-        database directly — including Power BI.
+        database directly, including Power BI.
       </p>
     </div>
   );

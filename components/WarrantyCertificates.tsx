@@ -200,8 +200,8 @@ export default function WarrantyCertificates({
                     <td className="px-4 py-3 font-semibold text-ink">{r.panelBeaterName}</td>
                   )}
                   <td className="px-4 py-3">{r.manufacturer}</td>
-                  <td className="px-4 py-3 text-ink/70">{r.startDate ? shortDate(r.startDate) : "—"}</td>
-                  <td className="px-4 py-3 text-ink/70">{r.expiryDate ? shortDate(r.expiryDate) : "—"}</td>
+                  <td className="px-4 py-3 text-ink/70">{r.startDate ? shortDate(r.startDate) : "Not set"}</td>
+                  <td className="px-4 py-3 text-ink/70">{r.expiryDate ? shortDate(r.expiryDate) : "Not set"}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${

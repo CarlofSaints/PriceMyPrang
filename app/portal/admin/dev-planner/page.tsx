@@ -16,7 +16,7 @@ export default async function DevPlannerPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Dev planner</h1>
         <p className="text-ink/60">
-          The development pipeline — what needs building, how badly it&apos;s wanted, and when to
+          The development pipeline: what needs building, how badly it&apos;s wanted, and when to
           be reminded. Only Super Admins can see this.
         </p>
       </div>

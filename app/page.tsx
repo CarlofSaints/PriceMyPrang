@@ -11,8 +11,8 @@ const APPROVALS = [
 
 const STEPS = [
   { n: "1", t: "Snap the damage", d: "Answer a few quick questions and upload photos of the prang." },
-  { n: "2", t: "Pick your workshop", d: "Choose nearby panel beaters from the map — as many quotes as you like." },
-  { n: "3", t: "Pay & confirm", d: "A flat R350 per quote — quick, secure checkout to lock in your request." },
+  { n: "2", t: "Pick your workshop", d: "Choose nearby panel beaters from the map, as many quotes as you like." },
+  { n: "3", t: "Pay & confirm", d: "A flat R350 per quote, with quick, secure checkout to lock in your request." },
   { n: "4", t: "Get your quote", d: "Our assessors do the legwork and come back to you within 24 hours." },
 ];
 
@@ -39,13 +39,13 @@ export default function Home() {
           The fastest way to <span className="text-coral">price a prang</span>.
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-lg text-ink/70">
-          Had a bump? Request repair quotes from trusted panel beaters near you — no phone calls,
+          Had a bump? Request repair quotes from trusted panel beaters near you, with no phone calls,
           no runaround. Just snap, pick and go.
         </p>
 
         {/* Two audiences land here: someone who has just pranged, and someone
             whose repair is finished. The second had no way in at all until
-            this — the page existed but nothing on the site pointed at it. */}
+            this: the page existed but nothing on the site pointed at it. */}
         <div className="mt-9 flex flex-wrap items-start justify-center gap-6">
           <QuoteLauncher size="lg" />
 

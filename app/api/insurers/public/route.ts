@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getInsurers } from "@/lib/store";
 
-// Public, consumer-facing list — only active insurers' id + name, for the
+// Public, consumer-facing list: only active insurers' id + name, for the
 // "Who is your insurance company?" dropdown on the quote form.
 export async function GET() {
   const list = await getInsurers();

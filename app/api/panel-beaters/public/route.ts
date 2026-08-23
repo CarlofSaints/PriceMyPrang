@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPanelBeaters } from "@/lib/store";
 
-// Public, consumer-facing list — only what the map needs, only active workshops.
+// Public, consumer-facing list: only what the map needs, only active workshops.
 export async function GET() {
   const all = await getPanelBeaters();
   const publicList = all

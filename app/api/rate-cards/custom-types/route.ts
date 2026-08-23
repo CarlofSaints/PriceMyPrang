@@ -10,7 +10,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { RateUnit } from "@/lib/types";
 
 /**
- * A workshop's own custom rates — the ones they invent on top of the fixed
+ * A workshop's own custom rates: the ones they invent on top of the fixed
  * catalogue. Defined here; priced per card through /api/rate-cards.
  *
  * Same ownership check as the cards themselves (resolveRateTarget), because
@@ -19,7 +19,7 @@ import type { RateUnit } from "@/lib/types";
 
 const UNITS: RateUnit[] = ["rand_per_hour", "rand", "percent"];
 
-/** Long enough for "Diamond cut rim repair — oversize", short of an essay. */
+/** Long enough for "Diamond cut rim repair: oversize", short of an essay. */
 const MAX_LABEL = 60;
 
 export async function GET(request: Request) {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     );
 
   const created = await createCustomRateType(target.id, label, b.unit);
-  // Null means the name is taken. 409 rather than 400 — nothing about the
+  // Null means the name is taken. 409 rather than 400: nothing about the
   // request was malformed, it just collides with what's already there.
   if (!created)
     return NextResponse.json(
@@ -95,7 +95,7 @@ export async function DELETE(request: Request) {
   if ("error" in target) return target.error;
 
   // Removes the values set against it on every one of this workshop's cards.
-  // Another workshop's rate is a 404, not a 403 — same as everywhere else here,
+  // Another workshop's rate is a 404, not a 403: same as everywhere else here,
   // so an id can't be used to discover what exists.
   // Read the label BEFORE deleting, so the log names the rate rather than an
   // opaque uuid nobody can look up afterwards.

@@ -6,7 +6,7 @@ import { logActivity, actorFromUser, consumerActor } from "@/lib/activityLog";
 
 // Streams a PRIVATE media blob (damage photos, licence disc, video, logos,
 // quote PDFs). URLs contain an unguessable random suffix. Only media prefixes
-// are allowed — data files (users, requests JSON) can never be reached here.
+// are allowed: data files (users, requests JSON) can never be reached here.
 //
 // Customer media stays reachable by URL alone, because emailed links to quote
 // PDFs and certificates have to work for people with no login. Dev-ticket
@@ -27,7 +27,7 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  // 404 rather than 403 throughout — a signed-out caller learns nothing about
+  // 404 rather than 403 throughout: a signed-out caller learns nothing about
   // whether the file exists.
   if (pathname.startsWith("dev-tickets/")) {
     const user = await getCurrentUser();
@@ -48,7 +48,7 @@ export async function GET(
   }
 
   // Complaint evidence. Private between the customer, the workshop named in the
-  // complaint, and us — so unlike a quote PDF it is never reachable by URL
+  // complaint, and us, so unlike a quote PDF it is never reachable by URL
   // alone. Either complaints permission gets in; the pathname's random suffix
   // is what stops one workshop stumbling onto another's.
   if (pathname.startsWith("complaints/")) {

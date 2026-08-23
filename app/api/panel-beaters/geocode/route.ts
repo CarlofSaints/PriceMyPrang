@@ -6,7 +6,7 @@ import { geocodeWithStatus } from "@/lib/geocode";
 // Look up coordinates for an address on demand (the "Get coordinates" button).
 //
 // PUBLIC: the sign-up form runs this before the applicant has a login, so it
-// can't require one — letting them see the pin means they can fix a wrong
+// can't require one: letting them see the pin means they can fix a wrong
 // address before submitting, instead of it landing "not geocoded" for an admin.
 // It does spend Google Geocoding quota though, so anonymous callers are capped.
 const WINDOW_MS = 60_000;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (user) {
-    // A signed-in user still needs a panel-beater permission — being logged in
+    // A signed-in user still needs a panel-beater permission: being logged in
     // isn't a free pass to the admin form's tooling.
     if (!can(user, "manage_panel_beaters") && !can(user, "onboard_self"))
       return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
   const result = await geocodeWithStatus(address);
 
-  // keySource names which env var is configured — a diagnostic for our own
+  // keySource names which env var is configured: a diagnostic for our own
   // people, not something to hand to anonymous callers.
   if (!user)
     return NextResponse.json({

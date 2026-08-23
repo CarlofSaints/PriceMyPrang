@@ -18,7 +18,7 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-// No 0/O/1/l/I — these get read off a screen and typed by hand.
+// No 0/O/1/l/I: these get read off a screen and typed by hand.
 const TEMP_PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /**
@@ -45,14 +45,14 @@ const SITE_DOMAIN = "pricemyprang.co.za";
  *
  * THE BUG THIS FIXES: proxy.ts 308s the bare apex and the .vercel.app host to
  * www, but /api is exempt from that redirect. So signing in at
- * `pricemyprang.co.za` succeeded and set a cookie scoped to the APEX — and the
+ * `pricemyprang.co.za` succeeded and set a cookie scoped to the APEX, and the
  * very next page load 308'd to `www`, which never receives an apex-scoped
  * cookie. The result was a login that worked and then bounced straight back to
  * /login, over and over, in any browser.
  *
  * Scoping to `.pricemyprang.co.za` lets the apex and www share one session.
  *
- * Returns undefined for any other host — a preview deployment, localhost, the
+ * Returns undefined for any other host: a preview deployment, localhost, the
  * .vercel.app domain. A browser silently DISCARDS a cookie whose Domain it
  * doesn't belong to, so naming our domain there would set no cookie at all and
  * trade a redirect loop for a sign-in that fails without saying why.
@@ -88,7 +88,7 @@ export async function destroySession(): Promise<void> {
   const domain = await cookieDomain();
   // Delete BOTH shapes. A cookie set before this change is scoped to the exact
   // host, and clearing only the domain-scoped one would leave the old one
-  // behind — signing out would appear to do nothing.
+  // behind: signing out would appear to do nothing.
   jar.delete(COOKIE_NAME);
   if (domain) jar.set(COOKIE_NAME, "", { path: "/", domain, maxAge: 0 });
 }
@@ -99,7 +99,7 @@ export async function destroySession(): Promise<void> {
  *
  * As well as the signed-out check, this refuses anyone still holding an
  * admin-issued temporary password. The portal layout swaps the whole UI for the
- * change-password screen, but that only governs what's on screen — a tab left
+ * change-password screen, but that only governs what's on screen: a tab left
  * open from before the reset, or a direct call, would otherwise still work.
  * Deliberately NOT used by /api/auth/change-password, which has to stay
  * reachable for them to get out of it.
@@ -164,7 +164,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 /**
  * A six-digit second-factor code.
  *
- * crypto.getRandomValues, not Math.random — this is a credential, however
+ * crypto.getRandomValues, not Math.random: this is a credential, however
  * short-lived. The modulo bias across 2^32 into 10^6 is far below anything
  * that matters for a code that expires in ten minutes and dies after five
  * wrong guesses.

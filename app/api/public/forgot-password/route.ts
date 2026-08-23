@@ -9,11 +9,11 @@ import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
  *
  * WHY THIS EXISTS: without it, every forgotten password is a phone call to
  * Price my Prang, and the set-password links that replaced emailed passwords
- * expire — so an unattended expiry used to mean an admin had to intervene.
+ * expire, so an unattended expiry used to mean an admin had to intervene.
  * Nobody should have to be that admin.
  *
  * THE RESPONSE IS IDENTICAL WHATEVER HAPPENS. Unknown address, disabled
- * account, mail refused by Resend — all answer the same 200. Anything else
+ * account, mail refused by Resend: all answer the same 200. Anything else
  * turns this into a "does this person have an account?" oracle, on an endpoint
  * anyone on the internet can reach. What actually happened goes to the
  * activity log, which only staff can read.
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   if (!user || !user.active) {
     await logActivity({
       action: "auth.password.forgot",
-      summary: `Password reset asked for ${email} — ${
+      summary: `Password reset asked for ${email}: ${
         user ? "that login is disabled" : "no such login"
       }`,
       // Not a failure of ours. Somebody typed an address we don't hold, or one
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     request,
   });
 
-  // Still the same 200 even when the send failed — the caller learning that
+  // Still the same 200 even when the send failed: the caller learning that
   // Resend choked would confirm the account exists just as surely as a
   // friendly "check your inbox" would.
   return ok;

@@ -3,7 +3,7 @@
 // Media blobs live in a PRIVATE store, so they can't be viewed by their raw
 // blob URL. Instead we store a relative proxy path and stream the bytes through
 // /api/media/<pathname> using the server token. Data (users, requests, etc.)
-// is NEVER served by that proxy — only these media prefixes are allowed.
+// is NEVER served by that proxy: only these media prefixes are allowed.
 
 export const MEDIA_PREFIXES = [
   "requests/",
@@ -19,7 +19,7 @@ export const MEDIA_PREFIXES = [
  * The proxy is otherwise deliberately open: emailed quote PDFs and certificate
  * links have to work for people with no login, and they rely on the pathname
  * being unguessable. Internal documents and complaint evidence have no such
- * excuse — a complaint is private between the customer, the workshop named in
+ * excuse: a complaint is private between the customer, the workshop named in
  * it, and us.
  */
 export const GUARDED_MEDIA_PREFIXES = ["dev-tickets/", "complaints/"] as const;
@@ -35,7 +35,7 @@ export function isMediaPathname(pathname: string): boolean {
 /**
  * The only prefix an UNAUTHENTICATED endpoint may read bytes from.
  *
- * `requests/` is where a consumer's own upload lands — their licence disc and
+ * `requests/` is where a consumer's own upload lands: their licence disc and
  * odometer photo, taken seconds earlier by someone with no account. Everything
  * else in the store belongs to somebody: `dev-tickets/` is internal, and
  * `panel-beaters/` holds warranty certificates.
@@ -43,7 +43,7 @@ export function isMediaPathname(pathname: string): boolean {
  * This exists because the OCR endpoints take a pathname from the request body
  * and read it with the SERVER's token. Without an allowlist they will happily
  * read a document that /api/media deliberately refuses to serve, and hand it
- * back as extracted text — the permission check bypassed, not defeated.
+ * back as extracted text: the permission check bypassed, not defeated.
  */
 export const ANON_READABLE_PREFIXES = ["requests/"] as const;
 

@@ -15,7 +15,7 @@ import type { MediaRef } from "@/lib/types";
 import { Button, Field, inputClass } from "./ui";
 
 /**
- * "Add a warranty" for a panel beater who has already registered — the same
+ * "Add a warranty" for a panel beater who has already registered: the same
  * fields as the warranty section of the sign-up form, on its own.
  */
 export default function AddWarrantyPanel({
@@ -235,7 +235,7 @@ export default function AddWarrantyPanel({
             rel="noreferrer"
             className="mt-2 inline-block text-sm text-teal underline"
           >
-            ✓ Certificate uploaded — view
+            ✓ Certificate uploaded · view
           </a>
         ) : (
           <p className="mt-1 text-xs text-coral">Certificate required.</p>

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if (!b.name?.trim()) return NextResponse.json({ error: "Role name required" }, { status: 400 });
 
   const roles = await getRoles();
-  // Names only have to be unique within a scope — a workshop's "Admin" and
+  // Names only have to be unique within a scope: a workshop's "Admin" and
   // PMP's "Admin" are different jobs and both should be allowed to exist.
   const scope: Role["scope"] = b.scope === "panel_beater" ? "panel_beater" : "platform";
   if (
@@ -93,7 +93,7 @@ export async function PATCH(request: Request) {
     );
 
   // Which capabilities were granted and revoked, not merely that "permissions"
-  // changed — this endpoint is how someone's reach is widened, so the log has
+  // changed: this endpoint is how someone's reach is widened, so the log has
   // to name what was widened.
   const before = { name: role.name, permissions: [...role.permissions] };
   if (b.name?.trim()) role.name = b.name.trim();

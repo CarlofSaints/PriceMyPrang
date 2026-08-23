@@ -1,6 +1,6 @@
 # Price my Prang
 
-> Crash · Quote · Claim — the fastest way to price a prang.
+> Crash · Quote · Claim. The fastest way to price a prang.
 
 An online tool where consumers request repair quotes from nearby panel beaters,
 plus an authenticated back-office portal where assessors build and issue the
@@ -16,7 +16,7 @@ quotes. Built with **Next.js 16 (App Router)**, **Vercel Blob**, **Resend**,
 | Framework      | Next.js 16 (App Router, Turbopack, React 19) |
 | Styling        | Tailwind CSS v4 + brand tokens (Space Grotesk / Archivo) |
 | Data store     | Vercel Blob (JSON documents) |
-| Media          | Vercel Blob (client uploads — bypasses the 4.5MB API limit) |
+| Media          | Vercel Blob (client uploads, which bypass the 4.5MB API limit) |
 | Auth           | Cookie session (JWT via `jose`) + bcrypt, role/permission model |
 | Email          | Resend (branded HTML) |
 | Maps           | Google Maps (`@vis.gl/react-google-maps`) + Geocoding API |
@@ -34,12 +34,12 @@ is generated and confirmation emails go to the consumer *and* the assessors.
 
 ## Portal (`/portal`, auth required)
 
-- **Dashboard** — Total Requests / In Progress / Completed / Total Executed cards + requests grid (permission: `view_dashboard`).
-- **Request detail** — full submission, photos, video, disc, status control.
-- **Quote builder** — pull a request by reference, select workshop, add parts (from the parts catalogue or manually), enter senior/junior labour hours → generates a branded PDF (permission: `build_quotes`).
-- **Panel beaters** — onboarding form; panel beaters can self-onboard (`manage_panel_beaters` / `onboard_self`).
-- **Parts** — parts-per-supplier catalogue (`manage_parts`).
-- **Users** — roles & permissions (`manage_users`).
+- **Dashboard**: Total Requests / In Progress / Completed / Total Executed cards + requests grid (permission: `view_dashboard`).
+- **Request detail**: full submission, photos, video, disc, status control.
+- **Quote builder**: pull a request by reference, select workshop, add parts (from the parts catalogue or manually), enter senior/junior labour hours → generates a branded PDF (permission: `build_quotes`).
+- **Panel beaters**: onboarding form; panel beaters can self-onboard (`manage_panel_beaters` / `onboard_self`).
+- **Parts**: parts-per-supplier catalogue (`manage_parts`).
+- **Users**: roles & permissions (`manage_users`).
 
 ### Roles
 
@@ -60,7 +60,7 @@ npm run dev
 
 See `.env.example`. Minimum to run locally: `SESSION_SECRET`, `SEED_SECRET`,
 `BLOB_READ_WRITE_TOKEN` (link a Vercel Blob store). Maps, Claude and Resend are
-optional — the app degrades gracefully without them (map falls back to a list,
+optional, and the app degrades gracefully without them (map falls back to a list,
 disc reading is skipped, emails are not sent).
 
 ### Seed the first admin
@@ -86,6 +86,6 @@ Vercel project when ready.
 
 ## Known follow-ups
 
-- **VIN lookup upgrade** — currently Claude reads the disc; integrate a proper
+- **VIN lookup upgrade**: currently Claude reads the disc; integrate a proper
   VIN → vehicle-details API (e.g. firstcheck.co.za / vindocs.com/za) later.
 - Google **Map ID** for Advanced Markers (currently uses classic markers).

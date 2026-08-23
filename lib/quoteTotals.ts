@@ -23,7 +23,7 @@ export interface TotallableLine {
 
 /**
  * Out-work lines carry their money in `partsAmount` (the form has one money
- * box per line), but they are NOT parts — they are work sent to a third party,
+ * box per line), but they are NOT parts: they are work sent to a third party,
  * and a repairer needs to see that separately from what they bought.
  */
 export function isOutWork(code?: string): boolean {
@@ -76,7 +76,7 @@ export function computeQuoteTotals(input: {
     0
   );
 
-  // A percentage is taken on PARTS only (Carl's ruling) — not on out work,
+  // A percentage is taken on PARTS only (Carl's ruling): not on out work,
   // which the repairer is passing through rather than supplying.
   const sundries =
     input.sundriesMode === "percent"

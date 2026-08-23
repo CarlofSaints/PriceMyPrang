@@ -13,11 +13,11 @@ export async function GET(request: Request) {
   //
   // FAILS CLOSED. This used to read `if (secret && ...)`, so an unset
   // CRON_SECRET disabled the check entirely and left the route open to anyone
-  // — a guard written as a condition that is skipped when its own input is
+  //: a guard written as a condition that is skipped when its own input is
   // missing. A missing secret is now a misconfiguration, not permission.
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    console.error("CRON_SECRET is not set — refusing to run the cron.");
+    console.error("CRON_SECRET is not set, refusing to run the cron.");
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
   if (request.headers.get("authorization") !== `Bearer ${secret}`) {

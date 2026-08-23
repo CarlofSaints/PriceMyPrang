@@ -239,7 +239,7 @@ export default function MySuppliers({
             </div>
           </div>
 
-          <Field label="What they sell" hint="A brief description — panels, paint, glass, trim…">
+          <Field label="What they sell" hint="A brief description: panels, paint, glass, trim…">
             <input className={inputClass} value={draft.supplies} onChange={set("supplies")} />
           </Field>
 

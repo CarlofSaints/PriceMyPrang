@@ -9,7 +9,7 @@ import type { ActivityFilters, ActivityOutcome, ActorKind } from "@/lib/types";
 //
 // PRICE MY PRANG STAFF ONLY. This shows every workshop's activity alongside
 // every other's, so it is gated on view_activity_log, which no panel-beater
-// role holds — see lib/permissions.ts. A Site Admin picks it up automatically
+// role holds: see lib/permissions.ts. A Site Admin picks it up automatically
 // through ALL_PERMISSIONS.
 //
 // There is NO POST, PATCH or DELETE here, and there never should be. The log is

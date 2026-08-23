@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// From lib/activityAreas, NOT lib/activityLog — the latter imports Prisma and
+// From lib/activityAreas, NOT lib/activityLog: the latter imports Prisma and
 // cannot be bundled into a client component.
 import { ACTIVITY_AREAS, areaLabel } from "@/lib/activityAreas";
 import type {
@@ -15,7 +15,7 @@ import type {
 import { Button, Field, inputClass } from "./ui";
 
 // ---------------------------------------------------------------------------
-// The activity log viewer. Price my Prang staff only — see the permission gate
+// The activity log viewer. Price my Prang staff only: see the permission gate
 // on the page and in /api/admin/activity.
 //
 // Read-only on purpose: there is no edit or delete control here because there
@@ -41,7 +41,7 @@ const ACTOR_LABEL: Record<ActorKind, string> = {
   system: "Automatic",
 };
 
-/** Full date and time, in South African time — the log is read by South Africans. */
+/** Full date and time, in South African time: the log is read by South Africans. */
 function whenFull(iso: string): string {
   return new Date(iso).toLocaleString("en-ZA", {
     timeZone: "Africa/Johannesburg",
@@ -147,7 +147,7 @@ export default function ActivityLog({
       const res = await fetch(`/api/admin/activity?${query}`);
       if (!res.ok) {
         // Surface what the server said rather than a bare "something went
-        // wrong" — a silent failure on a log page is its own small irony.
+        // wrong": a silent failure on a log page is its own small irony.
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error || `The log couldn't be loaded (${res.status}).`);
       }
@@ -187,7 +187,7 @@ export default function ActivityLog({
     {
       label: "Refused or failed",
       value: stats.problemsToday,
-      hint: "today — worth a look",
+      hint: "today, worth a look",
       accent: "bg-coral",
     },
   ];
@@ -223,7 +223,7 @@ export default function ActivityLog({
       {/* ---- Filters ----
            Every control carries its own label. Stacked dropdowns whose only
            explanation is their default option ("Anyone", "Any outcome") don't
-           read as separate filters — the same thing happened on the Dev
+           read as separate filters. The same thing happened on the Dev
            Planner card, where the fix was a label rather than any logic. */}
       <div className="pmp-card space-y-3 p-4">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -476,7 +476,7 @@ export default function ActivityLog({
                         <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                           <Detail label="When">{whenFull(e.createdAt)} (SAST)</Detail>
                           <Detail label="Who">
-                            {e.actorName ?? "—"}
+                            {e.actorName ?? "System"}
                             {e.actorEmail ? ` · ${e.actorEmail}` : ""}
                           </Detail>
                           <Detail label="Type of user">{ACTOR_LABEL[e.actorKind]}</Detail>

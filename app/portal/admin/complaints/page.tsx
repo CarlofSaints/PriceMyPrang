@@ -34,7 +34,7 @@ export default async function AllComplaintsPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Complaints</h1>
         <p className="text-ink/60">
-          Every complaint across the network. Never shown publicly — ratings and their comments
+          Every complaint across the network. Never shown publicly. Ratings and their comments
           are, complaints are not.
         </p>
       </div>
@@ -72,7 +72,7 @@ export default async function AllComplaintsPage() {
                         {s.open}
                       </span>
                     ) : (
-                      <span className="text-xs text-ink/40">—</span>
+                      <span className="text-xs text-ink/40">None</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-ink/60">{s.total}</td>

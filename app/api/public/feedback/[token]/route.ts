@@ -23,7 +23,7 @@ import {
   type VehicleSafety,
 } from "@/lib/types";
 
-// The consumer side of QC. The token in the URL is the credential — it was
+// The consumer side of QC. The token in the URL is the credential: it was
 // emailed to the address already on the job, because the reference itself is
 // PMP-date-SURNAME-nn and therefore guessable.
 
@@ -37,7 +37,7 @@ async function context(token: string) {
   const request = await getRequest(reference);
   if (!request) return null;
 
-  // Only the workshop whose quote they ACCEPTED — the one that actually
+  // Only the workshop whose quote they ACCEPTED: the one that actually
   // touched the car. If nothing was accepted we fall back to the workshops the
   // job was sent to, so a bad quoting experience can still be raised.
   const accepted = await acceptedPanelBeaterFor(link.requestId);
@@ -91,7 +91,7 @@ export async function POST(
   const b = (await request.json()) as Record<string, unknown>;
   const kind = b.kind === "complaint" ? "complaint" : "rating";
 
-  // The workshop must be one this job actually went to — never trusted from
+  // The workshop must be one this job actually went to: never trusted from
   // the body alone, or a link for one job could be used to rate any workshop.
   const panelBeaterId = typeof b.panelBeaterId === "string" ? b.panelBeaterId : "";
   const workshop = ctx.workshops.find((w) => w.id === panelBeaterId);
@@ -168,7 +168,7 @@ export async function POST(
     desiredOutcome: one<ComplaintOutcome>(b.desiredOutcome, COMPLAINT_OUTCOMES),
     raisedWithRepairer:
       typeof b.raisedWithRepairer === "boolean" ? b.raisedWithRepairer : undefined,
-    // Observed, not asked for — we already know who they are from the link.
+    // Observed, not asked for: we already know who they are from the link.
     submittedIp: ip,
     submittedUserAgent: request.headers.get("user-agent") ?? undefined,
     media,
@@ -184,7 +184,7 @@ export async function POST(
     panelBeaterId: workshop.id,
     // Deliberately NOT the description. A complaint is private to the parties
     // and the repairer's own page; copying the grievance into a second table
-    // widens who can read it for no benefit — the complaint id is right here.
+    // widens who can read it for no benefit: the complaint id is right here.
     detail: {
       workshop: workshop.name,
       category: complaint.category,

@@ -5,7 +5,7 @@ import { listComplaints, ratingSummaryFor } from "@/lib/store";
 import ComplaintsGrid from "@/components/ComplaintsGrid";
 import { RatingHeadline } from "@/components/RatingStars";
 
-// A workshop's own complaints. Never another's — the query is scoped by the
+// A workshop's own complaints. Never another's: the query is scoped by the
 // panelBeaterId on the session, not by anything in the URL.
 export default async function MyComplaintsPage() {
   const user = await getCurrentUser();
@@ -36,7 +36,7 @@ export default async function MyComplaintsPage() {
         <h1 className="font-display text-3xl font-bold text-ink">Your rating &amp; complaints</h1>
         <p className="text-ink/60">
           How your customers rate you, and anything they&apos;ve raised. Complaints are private
-          between you and Price my Prang — they are never shown publicly.
+          between you and Price my Prang. They are never shown publicly.
         </p>
       </div>
 

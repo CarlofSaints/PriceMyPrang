@@ -107,10 +107,10 @@ export default function SuppliersManager({ initial }: { initial: Supplier[] }) {
             <PartTypePicker value={partTypes} onChange={setPartTypes} />
           </div>
         </div>
-        <Field label="Makes covered" hint="Add the vehicle makes they supply for — or type “All”.">
+        <Field label="Makes covered" hint="Add the vehicle makes they supply for, or type “All”.">
           <MakesInput makes={makes} onChange={setMakes} />
         </Field>
-        <Field label="What they supply" hint="Free text — e.g. body panels, bumpers, lights, mechanical.">
+        <Field label="What they supply" hint="Free text, for example body panels, bumpers, lights, mechanical.">
           <input
             className={inputClass}
             value={supplies}

@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   }
 
   const user = await findUserByEmail(key);
-  // One message for every failure — "no such user" and "wrong password" must
+  // One message for every failure: "no such user" and "wrong password" must
   // not be distinguishable, or this becomes a way to discover who has an account.
   if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
     // The LOG may distinguish them; the RESPONSE still must not. Which of the
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
-  // Second factor. NO SESSION is created here — a correct password alone must
+  // Second factor. NO SESSION is created here: a correct password alone must
   // not be enough to be signed in, which is the entire point of the factor.
   if (user.twoFactorEnabled) {
     const code = generateOtp();

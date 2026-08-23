@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
               a link to set a new password is on its way. It works for 48 hours.
             </p>
             <p className="text-sm text-ink/60">
-              Nothing after a few minutes? Look in your spam or junk folder — and if your
+              Nothing after a few minutes? Look in your spam or junk folder, and if your
               company filters mail, ask whoever looks after it to let through
               noreply@pricemyprang.co.za.
             </p>

@@ -39,7 +39,7 @@ export async function geocodeWithStatus(address: string): Promise<GeocodeResult>
   }
 }
 
-// Convenience wrapper — just the coordinates (or null).
+// Convenience wrapper: just the coordinates (or null).
 export async function geocodeAddress(
   address: string
 ): Promise<{ lat: number; lng: number } | null> {

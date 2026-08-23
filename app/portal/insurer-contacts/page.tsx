@@ -9,7 +9,7 @@ import InsurerContacts from "@/components/InsurerContacts";
  *
  * The shared contacts PMP maintains show here read-only, so a repairer can see
  * what they already have before adding their own. Anything they add is private
- * to them — who they know at an insurer is their own commercial relationship.
+ * to them, who they know at an insurer is their own commercial relationship.
  */
 export default async function InsurerContactsPage() {
   const user = await getCurrentUser();

@@ -165,7 +165,7 @@ export default function QuoteFlow({
    * Wrapped here rather than in each of the six catch blocks below: this is the
    * only place that knows whose form this is, and every caller keeps its own
    * wording for the person on the screen. The error is re-thrown untouched, so
-   * the existing handling is unaffected — an abandoned quote request is worth
+   * the existing handling is unaffected: an abandoned quote request is worth
    * money, and until now one that died at the upload left no trace at all.
    */
   async function uploadReported(
@@ -321,7 +321,7 @@ export default function QuoteFlow({
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return "Please enter a valid email address.";
     if (form.phone.replace(/\D/g, "").length < 9) return "Please enter a valid contact number.";
 
-    // Conditional fields apply in both modes — only if the answer was "yes".
+    // Conditional fields apply in both modes: only if the answer was "yes".
     if (form.hasInsurance === "yes" && !form.insurerName.trim())
       return `Please enter the name of ${repairer ? "the client's" : "your"} insurance company.`;
     if (form.isInsuranceClaim === "yes" && !form.claimNumber.trim() && !form.noClaimNumberYet)
@@ -414,7 +414,7 @@ export default function QuoteFlow({
         { enableHighAccuracy: true, timeout: 8000 }
       );
     } else {
-      setLocError("Location isn't available on this device — pick a workshop from the list.");
+      setLocError("Location isn't available on this device. Pick a workshop from the list.");
     }
     setBusy(false);
     setStep("map");
@@ -467,7 +467,7 @@ export default function QuoteFlow({
             title={repairer ? "New quote" : "Price my Prang"}
             subtitle={
               repairer
-                ? "Capture a vehicle to quote. Client details are required — everything else is optional."
+                ? "Capture a vehicle to quote. Client details are required, everything else is optional."
                 : "Tell us what happened and we'll line up your quotes."
             }
             onClose={onClose}
@@ -634,7 +634,7 @@ export default function QuoteFlow({
                     value={form.claimNumber}
                     onChange={(e) => set("claimNumber", e.target.value)}
                     disabled={form.noClaimNumberYet}
-                    placeholder={form.noClaimNumberYet ? "—" : "Your insurer's claim number"}
+                    placeholder={form.noClaimNumberYet ? "You can add this later" : "Your insurer's claim number"}
                   />
                 </Field>
                 <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-ink/70">
@@ -655,7 +655,7 @@ export default function QuoteFlow({
 
           <YesNoField
             label="Are you claiming the damage costs from someone else (3rd party)?"
-            hint="A “3rd party” is another person or their insurer — e.g. someone else drove into you and their insurance should pay. If the accident was your fault or you're claiming from your own insurer, choose “No”."
+            hint="A “3rd party” is another person or their insurer, for example someone else drove into you and their insurance should pay. If the accident was your fault or you're claiming from your own insurer, choose “No”."
             value={form.isThirdPartyClaim}
             onChange={(v) => set("isThirdPartyClaim", v as YesNo)}
             required={!repairer}
@@ -678,7 +678,7 @@ export default function QuoteFlow({
               <p className="mt-2 text-sm text-teal">
                 ✓ Disc uploaded
                 {vehicle.make || vehicle.model
-                  ? ` — ${[vehicle.make, vehicle.model].filter(Boolean).join(" ")}`
+                  ? ` · ${[vehicle.make, vehicle.model].filter(Boolean).join(" ")}`
                   : ""}
               </p>
             )}
@@ -702,7 +702,7 @@ export default function QuoteFlow({
 
           <Field
             label="Photo of your odometer"
-            hint="Take a clear photo of your dashboard showing the km reading — as proof of mileage."
+            hint="Take a clear photo of your dashboard showing the km reading, as proof of mileage."
             required={!repairer}
           >
             <input
@@ -716,13 +716,13 @@ export default function QuoteFlow({
             {odo && !odoReading && (
               <p className="mt-2 text-sm text-teal">
                 ✓ Odometer uploaded
-                {odoKm ? ` — we read ${odoKm.toLocaleString("en-ZA")} km` : ""}
+                {odoKm ? `, we read ${odoKm.toLocaleString("en-ZA")} km` : ""}
               </p>
             )}
             {odoKm != null && Number(form.mileageKm) > 0 && Number(form.mileageKm) !== odoKm && (
               <p className="mt-1 text-xs text-coral">
                 The photo reads {odoKm.toLocaleString("en-ZA")} km but you entered{" "}
-                {Number(form.mileageKm).toLocaleString("en-ZA")} km — please double-check.
+                {Number(form.mileageKm).toLocaleString("en-ZA")} km. Please double-check.
               </p>
             )}
           </Field>
@@ -792,7 +792,7 @@ export default function QuoteFlow({
 
           <Field
             label="Additional close-up photos of the damage"
-            hint={`Optional but helpful — get in close on the damaged areas. Tap ＋ each time to add another. Up to ${MAX_PHOTOS}.`}
+            hint={`Optional but helpful, so get in close on the damaged areas. Tap ＋ each time to add another. Up to ${MAX_PHOTOS}.`}
           >
             {/* hidden input, triggered by the + tile so it's clear each tap ADDS */}
             <input
@@ -845,7 +845,7 @@ export default function QuoteFlow({
               )}
             </div>
             <p className="mt-2 text-xs text-ink/50">
-              {photos.length}/{MAX_PHOTOS} added{photos.length > 0 ? " — tap ＋ to add another angle" : ""}
+              {photos.length}/{MAX_PHOTOS} added{photos.length > 0 ? ", tap ＋ to add another angle" : ""}
             </p>
           </Field>
 
@@ -864,7 +864,7 @@ export default function QuoteFlow({
             </Button>
           ) : (
             <Button size="lg" className="w-full" onClick={goToMap} disabled={busy}>
-              {busy ? "Please wait…" : "Next — choose your workshop"}
+              {busy ? "Please wait…" : "Next: choose your workshop"}
             </Button>
           )}
         </div>
@@ -876,7 +876,7 @@ export default function QuoteFlow({
             title="Choose your panel beater"
             subtitle={`Pick ${form.quotesRequested} different workshop${
               form.quotesRequested > 1 ? "s" : ""
-            } near you — one per quote — or let us choose for you.`}
+            } near you, one per quote, or let us choose for you.`}
             onClose={onClose}
           />
           {locError && <p className="rounded-xl bg-amber/20 p-3 text-sm text-ink">{locError}</p>}
@@ -1236,7 +1236,7 @@ function VideoCapture({
   if (!supported) {
     return (
       <p className="rounded-xl bg-ink/5 p-3 text-sm text-ink/60">
-        In-browser recording isn&apos;t supported on this device — no problem, the photos are enough.
+        In-browser recording isn&apos;t supported on this device. No problem, the photos are enough.
       </p>
     );
   }

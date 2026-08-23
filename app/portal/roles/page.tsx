@@ -7,7 +7,7 @@ import type { Permission } from "@/lib/types";
 /**
  * Read-only view of the panel-beater roles, for a workshop's own people.
  *
- * Editing roles stays a Super Admin job (/portal/admin/roles) — a workshop
+ * Editing roles stays a Super Admin job (/portal/admin/roles): a workshop
  * assigning its team is not the same as redefining what a role can do. But
  * they do need to see what they're handing out.
  */
@@ -22,7 +22,7 @@ export default async function RolesPage() {
   const roles = (await getRoles()).filter((r) => r.scope === "panel_beater");
   const permissions = Object.keys(PERMISSION_LABELS) as Permission[];
 
-  // Only show capabilities at least one of these roles actually has —
+  // Only show capabilities at least one of these roles actually has:
   // platform-only permissions are noise to a workshop.
   const relevant = permissions.filter((p) =>
     roles.some((r) => permissionsForRole(r.id, roles).includes(p))
@@ -76,7 +76,7 @@ export default async function RolesPage() {
                         </span>
                       ) : (
                         <span className="text-ink/20" aria-label="no">
-                          —
+                          ✕
                         </span>
                       )}
                     </td>
@@ -89,7 +89,7 @@ export default async function RolesPage() {
       </div>
 
       <p className="text-xs text-ink/50">
-        Need a role changed, or a new one? Ask Price my Prang — roles are shared across every
+        Need a role changed, or a new one? Ask Price my Prang. Roles are shared across every
         workshop on the panel.
       </p>
     </div>

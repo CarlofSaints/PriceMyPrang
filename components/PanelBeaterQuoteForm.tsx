@@ -37,7 +37,7 @@ async function uploadFile(file: File, prefix: string): Promise<MediaRef> {
 }
 
 /**
- * The repairer's own intake form — deliberately not the consumer journey. No
+ * The repairer's own intake form: deliberately not the consumer journey. No
  * video, no engine-damage question, no map step: the workshop already has the
  * car. Creates the request, then drops straight into the quote builder.
  */
@@ -88,7 +88,7 @@ export default function PanelBeaterQuoteForm({
    * uploadFile, plus a report to the activity log when it is refused.
    *
    * The uploader here is a signed-in repairer, so the server takes their name
-   * from the session — nothing about who they are is sent from the browser.
+   * from the session: nothing about who they are is sent from the browser.
    */
   async function uploadReported(file: File, prefix: string, label: string): Promise<MediaRef> {
     try {
@@ -134,7 +134,7 @@ export default function PanelBeaterQuoteForm({
       });
       if (res.ok) {
         const data = (await res.json()) as { km?: number };
-        // Only fill a blank field — never overwrite what the repairer typed.
+        // Only fill a blank field: never overwrite what the repairer typed.
         if (typeof data.km === "number" && data.km > 0)
           setMileageKm((m) => (m.trim() ? m : String(data.km)));
       }
@@ -208,7 +208,7 @@ export default function PanelBeaterQuoteForm({
     setBusy(true);
     setError(null);
     try {
-      // A company's contact person fills the name fields — the reference is
+      // A company's contact person fills the name fields: the reference is
       // built from the surname, and every downstream view expects a person.
       const [contactFirst, ...contactRest] = contactPerson.trim().split(/\s+/);
       const payload = {
@@ -225,7 +225,7 @@ export default function PanelBeaterQuoteForm({
         rateCardId: rateCardId || undefined,
         underWarranty,
         isThirdPartyClaim: thirdParty ? "yes" : "no",
-        // Not asked on this form — the repairer is pricing the job, not
+        // Not asked on this form: the repairer is pricing the job, not
         // triaging an insurance claim.
         hasInsurance: "no",
         isInsuranceClaim: "no",
@@ -361,7 +361,7 @@ export default function PanelBeaterQuoteForm({
           hint={
             rateOptions.length
               ? "Which of your rate cards this job is priced against."
-              : "You haven't set up any rate cards yet — add them on the Rates page."
+              : "You haven't set up any rate cards yet. Add them on the Rates page."
           }
         >
           <select

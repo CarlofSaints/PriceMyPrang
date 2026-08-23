@@ -5,7 +5,7 @@ import PanelBeaterForm from "./PanelBeaterForm";
 
 export default function RegisterLauncher({
   className = "",
-  // "Join the panel" — the pun is the point, and it's shorter and warmer than
+  // "Join the panel": the pun is the point, and it's shorter and warmer than
   // "become a registered panel beater". The subheading carries the detail.
   label = "Join the panel",
 }: {
@@ -50,7 +50,7 @@ export default function RegisterLauncher({
                   </h2>
                   <p className="text-sm text-ink/60">
                     {done
-                      ? "Thanks — our team will review your details."
+                      ? "Thanks. Our team will review your details."
                       : "Become one of the panel beaters on our panel. We only list MIWA, MIBCO & RMI approved workshops."}
                   </p>
                 </div>
@@ -69,7 +69,7 @@ export default function RegisterLauncher({
                     once your MIWA / MIBCO / RMI credentials are verified.
                   </p>
                   <p className="text-ink/70">
-                    Check your inbox — we&apos;ve emailed you a login so you can sign in and finish
+                    Check your inbox. We&apos;ve emailed you a login so you can sign in and finish
                     setting up your listing while we review it, plus our repairer agreement to
                     read and sign.
                   </p>

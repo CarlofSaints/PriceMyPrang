@@ -16,7 +16,7 @@ export default async function SuppliersPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Suppliers</h1>
         <p className="text-ink/60">
-          The list of parts suppliers — which part types they carry (new, used, alternate), the
+          The list of parts suppliers: which part types they carry (new, used, alternate), the
           makes they cover, and what they supply.
         </p>
       </div>

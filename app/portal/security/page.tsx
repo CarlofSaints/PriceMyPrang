@@ -42,7 +42,7 @@ const ACCOUNT: Measure[] = [
 const DATA: Measure[] = [
   {
     title: "Your workshop's data is walled off from every other workshop",
-    body: "Suppliers, rates, quotes, team and complaints are all scoped to your workshop by the account you signed in with — never by anything in the web address. We test this: a second workshop attempting to read, change or delete your records is refused.",
+    body: "Suppliers, rates, quotes, team and complaints are all scoped to your workshop by the account you signed in with, never by anything in the web address. We test this: a second workshop attempting to read, change or delete your records is refused.",
   },
   {
     title: "A refusal looks like 'not found'",
@@ -58,7 +58,7 @@ const DATA: Measure[] = [
   },
   {
     title: "Only you can add your own team",
-    body: "A workshop admin creating a user can only place them in your workshop and only assign workshop roles — enforced on our servers, not just hidden in the screen.",
+    body: "A workshop admin creating a user can only place them in your workshop and only assign workshop roles, enforced on our servers, not just hidden in the screen.",
   },
 ];
 
@@ -77,7 +77,7 @@ const PLATFORM: Measure[] = [
   },
   {
     title: "Customers get unguessable links, not guessable ones",
-    body: "Anything a consumer opens without logging in — their quotes, a feedback form — is reached by a random one-time link, never by a job number that could be guessed.",
+    body: "Anything a consumer opens without logging in, whether that is their quotes or a feedback form, is reached by a random one-time link, never by a job number that could be guessed.",
   },
 ];
 
@@ -92,7 +92,7 @@ const CONSUMER: Measure[] = [
   },
   {
     title: "Complaints are private",
-    body: "A complaint goes to Price my Prang and to the workshop named in it. It is never published. Star ratings and their comments are public — a complaint is not a review.",
+    body: "A complaint goes to Price my Prang and to the workshop named in it. It is never published. Star ratings and their comments are public. A complaint is not a review.",
   },
   {
     title: "Notes we keep to ourselves stay that way",
@@ -139,7 +139,7 @@ export default async function SecurityPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">How we protect your data</h1>
         <p className="mt-2 max-w-2xl text-ink/60">
-          Your rate cards, your suppliers and your customers are commercially sensitive — they
+          Your rate cards, your suppliers and your customers are commercially sensitive, and they
           say who you buy from and what you charge. Here is exactly what stands between that
           information and anybody else. No jargon, and nothing on this page that we don&apos;t
           actually do.

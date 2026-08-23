@@ -17,7 +17,7 @@ export default async function InsurersPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-ink">Insurance companies</h1>
         <p className="text-ink/60">
-          Add insurers and set each one&apos;s rate card. These rates are shared — every panel
+          Add insurers and set each one&apos;s rate card. These rates are shared. Every panel
           beater can see and use them, and consumers pick their insurer when requesting a quote.
         </p>
       </div>
@@ -27,7 +27,7 @@ export default async function InsurersPage() {
         <div>
           <h2 className="font-display text-lg font-semibold text-ink">Contacts</h2>
           <p className="text-sm text-ink/60">
-            Who to send additionals to. These are SHARED — every workshop sees them and can
+            Who to send additionals to. These are SHARED. Every workshop sees them and can
             use them as a starting point. A workshop that deals with a particular handler
             adds that person as their own private contact, which nobody else sees.
           </p>

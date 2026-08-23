@@ -56,7 +56,7 @@ export default async function NewQuotePage({
             <h2 className="font-display text-lg font-semibold text-ink">Panel beater form</h2>
             <p className="mt-1 text-sm text-ink/60">
               The workshop already has the car. Client details, rate off the rate card, vehicle and
-              photos — no map step, no video.
+              photos. No map step, no video.
             </p>
           </Link>
           <Link href="/portal/new-quote?form=consumer" className="pmp-card block hover:border-teal/50">

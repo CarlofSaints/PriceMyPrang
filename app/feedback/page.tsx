@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { Button, Field, inputClass } from "@/components/ui";
 
 // Step one: they type their reference, we email a link to the address already
-// on the job. The reference alone is never enough — PMP-date-SURNAME-nn is
+// on the job. The reference alone is never enough: PMP-date-SURNAME-nn is
 // guessable, so it names a job rather than proving you own one.
 export default function FeedbackStartPage() {
   const [reference, setReference] = useState("");
@@ -43,7 +43,7 @@ export default function FeedbackStartPage() {
             Rate your repair
           </h1>
           <p className="mt-1 text-sm text-ink/60">
-            Tell us how your repairer did — or raise a problem if something went wrong.
+            Tell us how your repairer did, or raise a problem if something went wrong.
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export default function FeedbackStartPage() {
           <form onSubmit={submit} className="pmp-card space-y-4 p-6">
             <Field
               label="Your reference number"
-              hint="On every email we've sent you — it looks like PMP-20260802-SMITH-01."
+              hint="On every email we've sent you. It looks like PMP-20260802-SMITH-01."
               required
             >
               <input

@@ -53,7 +53,7 @@ function shell(title: string, body: string): string {
 function detailRow(label: string, value: string): string {
   return `<tr>
     <td style="padding:6px 0;color:#6b7f82;font-size:13px;">${label}</td>
-    <td style="padding:6px 0;font-size:13px;text-align:right;font-weight:bold;">${value || "—"}</td>
+    <td style="padding:6px 0;font-size:13px;text-align:right;font-weight:bold;">${value || "Not given"}</td>
   </tr>`;
 }
 
@@ -62,7 +62,7 @@ function detailRow(label: string, value: string): string {
  *
  * Lives here because baseUrl() does, and every caller that mints a token is
  * about to put this in an email. NEXT_PUBLIC_APP_URL is build-time, so a link
- * built here points at whatever the deploy was built with — the www domain in
+ * built here points at whatever the deploy was built with: the www domain in
  * production.
  */
 export function passwordSetUrl(token: string): string {
@@ -82,7 +82,7 @@ function client(): Resend | null {
 
 /**
  * Who gets internal notifications (new quote requests, panel-beater applications).
- * Derived from the USER LIST — anyone active who can view the dashboard
+ * Derived from the USER LIST: anyone active who can view the dashboard
  * (admins + assessors, set in the portal). ADMIN_NOTIFY_EMAILS is an optional
  * extra for external addresses that aren't portal users.
  */
@@ -99,7 +99,7 @@ async function notifyRecipients(): Promise<string[]> {
       )
       .forEach((u) => set.add(u.email));
   } catch {
-    // ignore — fall back to env below
+    // ignore: fall back to env below
   }
   (process.env.ADMIN_NOTIFY_EMAILS || "")
     .split(",")
@@ -134,7 +134,7 @@ export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelB
     </table>
     ${
       req.letUsChoose
-        ? `<p style="font-size:14px;margin-top:16px;">You asked us to choose your workshop${req.quotesRequested > 1 ? "s" : ""} — we'll line up ${req.quotesRequested} suitable repairer${req.quotesRequested > 1 ? "s" : ""} near you.</p>`
+        ? `<p style="font-size:14px;margin-top:16px;">You asked us to choose your workshop${req.quotesRequested > 1 ? "s" : ""}, so we'll line up ${req.quotesRequested} suitable repairer${req.quotesRequested > 1 ? "s" : ""} near you.</p>`
         : `<p style="font-size:14px;margin-top:16px;">Your selected workshop${chosen.length > 1 ? "s" : ""}:</p>
     <ul style="font-size:14px;padding-left:18px;">${workshops}</ul>`
     }
@@ -143,7 +143,7 @@ export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelB
   await resend.emails.send({
     from: fromAddress(),
     to: req.email,
-    subject: `We've got your prang — ${req.reference}`,
+    subject: `We've got your prang: ${req.reference}`,
     html: shell("Thank you for your submission", body),
   });
 }
@@ -174,8 +174,8 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
     req.isInsuranceClaim === "yes"
       ? req.noClaimNumberYet
         ? "not yet available"
-        : req.claimNumber || "—"
-      : "—";
+        : req.claimNumber || "Not given"
+      : "Not given";
 
   const body = `
     <p style="font-size:15px;">A new quote request has come in and needs assessment.</p>
@@ -201,7 +201,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
       </table>
     </div>
     <p style="font-size:13px;">Full vehicle photos: ${sidePhotos}</p>
-    <p style="font-size:13px;">Damage close-ups: ${photos || "—"}</p>
+    <p style="font-size:13px;">Damage close-ups: ${photos || "None"}</p>
     ${req.video ? `<p style="font-size:13px;">Video: <a href="${abs(req.video.url)}" style="color:${BRAND.teal};">watch</a></p>` : ""}
     ${req.discImage ? `<p style="font-size:13px;">Licence disc: <a href="${abs(req.discImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
     ${req.odometerImage ? `<p style="font-size:13px;">Odometer: <a href="${abs(req.odometerImage.url)}" style="color:${BRAND.teal};">view</a></p>` : ""}
@@ -216,7 +216,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
   await resend.emails.send({
     from: fromAddress(),
     to,
-    subject: `New prang to quote — ${req.reference} (${req.firstName} ${req.lastName})`,
+    subject: `New prang to quote: ${req.reference} (${req.firstName} ${req.lastName})`,
     html: shell("New quote request", body),
   });
 }
@@ -228,7 +228,7 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
  *
  *  - setPasswordUrl: a one-time link to choose their own password. Nothing
  *    secret is written in the message, so a forwarded copy is worth nothing
- *    once it has been used, and — the reason this was built — the message no
+ *    once it has been used, and, the reason this was built, the message no
  *    longer looks like a phishing attempt to a spam filter. Microsoft 365
  *    quarantined every password-carrying email we sent to one repairer, and
  *    the app had no way of knowing.
@@ -266,7 +266,7 @@ function accessBlock(opts: {
     <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:18px 0;">
       <table style="width:100%;border-collapse:collapse;">
         ${detailRow("Login", opts.email)}
-        ${detailRow("Temporary password", opts.password || "—")}
+        ${detailRow("Temporary password", opts.password || "Not set")}
       </table>
     </div>
     <p style="margin:20px 0;">
@@ -282,7 +282,7 @@ export async function sendUserCredentials(opts: {
   email: string;
   /** A password to hand over. Mutually exclusive with setPasswordUrl. */
   password?: string;
-  /** A one-time link to choose their own password. Preferred — see accessBlock. */
+  /** A one-time link to choose their own password. Preferred: see accessBlock. */
   setPasswordUrl?: string;
   roleName?: string;
   isReset?: boolean;
@@ -379,7 +379,7 @@ export async function sendWarrantyExpiryReminder(
     </p>
     <p style="font-size:13px;line-height:1.5;color:#6b7f82;background:${BRAND.offwhite};border-radius:10px;padding:12px;">
       <strong>Please note:</strong> this is only a reminder. Price my Prang cannot renew, extend or take
-      any action on this certificate on your behalf — renewal is between you and the manufacturer.
+      any action on this certificate on your behalf. Renewal is between you and the manufacturer.
     </p>
   `;
 
@@ -399,7 +399,7 @@ export async function sendWarrantyExpiryReminder(
 
 /**
  * Tells the consumer a quote has landed and links them to their own page to
- * compare and accept one. The link carries the request's publicToken — the
+ * compare and accept one. The link carries the request's publicToken: the
  * reference is guessable, so it can't be what gates the page.
  */
 export async function sendConsumerQuoteReady(
@@ -434,12 +434,12 @@ export async function sendConsumerQuoteReady(
     </p>
     <p style="font-size:13px;color:#6b7f82;">
       You can compare every quote on your job on that page and accept the one you want. Accepting
-      one lets the other workshops know they weren&apos;t selected. Keep this link private — anyone
+      one lets the other workshops know they weren&apos;t selected. Keep this link private. Anyone
       with it can see and accept your quotes.
     </p>
     <p style="font-size:13px;color:#6b7f82;border-top:1px solid rgba(0,132,141,0.12);padding-top:14px;">
       Once the work is done, you can
-      <a href="${baseUrl()}/feedback" style="color:${BRAND.teal};">rate your repairer</a> — or tell
+      <a href="${baseUrl()}/feedback" style="color:${BRAND.teal};">rate your repairer</a>, or tell
       us if something went wrong. You&apos;ll need reference <strong>${req.reference}</strong>,
       which is why it&apos;s worth keeping this email.
     </p>
@@ -449,7 +449,7 @@ export async function sendConsumerQuoteReady(
     await resend.emails.send({
       from: fromAddress(),
       to: req.email,
-      subject: `Your quote from ${pb.tradingAs || pb.companyName} — ${req.reference}`,
+      subject: `Your quote from ${pb.tradingAs || pb.companyName}: ${req.reference}`,
       html: shell("You have a new quote", body),
     });
   } catch (err) {
@@ -459,7 +459,7 @@ export async function sendConsumerQuoteReady(
 
 /**
  * The SECOND registration email: the agreement to sign. Deliberately separate
- * from the welcome/credentials one — a contract shouldn't arrive as a footnote
+ * from the welcome/credentials one: a contract shouldn't arrive as a footnote
  * to a password, and they'll want to forward it to whoever signs.
  */
 export async function sendRepairerAgreementInvite(opts: {
@@ -476,7 +476,7 @@ export async function sendRepairerAgreementInvite(opts: {
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.name},</p>
     <p style="font-size:15px;line-height:1.5;">
       Before <strong>${opts.companyName}</strong> joins the panel, we need your agreement to our
-      repairer terms — the Terms &amp; Conditions, disclaimers, non-disclosure undertaking and
+      repairer terms: the Terms &amp; Conditions, disclaimers, non-disclosure undertaking and
       service level agreement.
     </p>
     <p style="font-size:15px;line-height:1.5;">
@@ -491,7 +491,7 @@ export async function sendRepairerAgreementInvite(opts: {
     </p>
     <p style="font-size:13px;color:#6b7f82;">
       Whoever signs must be authorised to bind the business. If that isn&apos;t you, forward this
-      email to the person who is — the link works for them too. Keep it private; anyone with it
+      email to the person who is. The link works for them too. Keep it private; anyone with it
       can sign on your behalf.
     </p>
   `;
@@ -500,7 +500,7 @@ export async function sendRepairerAgreementInvite(opts: {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: opts.email,
-      subject: `Your Price my Prang repairer agreement — ${opts.companyName}`,
+      subject: `Your Price my Prang repairer agreement: ${opts.companyName}`,
       html: shell("Repairer agreement", body),
     });
     if (error)
@@ -524,7 +524,7 @@ export async function sendSignedAgreementCopy(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${opts.signerName},</p>
     <p style="font-size:15px;line-height:1.5;">
-      Thanks — the repairer agreement for <strong>${opts.companyName}</strong> is signed. A copy is
+      Thanks. The repairer agreement for <strong>${opts.companyName}</strong> is signed. A copy is
       attached for your records, including the date and time it was accepted.
     </p>
     <p style="font-size:13px;color:#6b7f82;">Please keep this somewhere safe.</p>
@@ -546,7 +546,7 @@ export async function sendSignedAgreementCopy(opts: {
     from: fromAddress(),
     to: opts.to,
     ...(internal.length ? { bcc: internal } : {}),
-    subject: `Signed repairer agreement — ${opts.companyName}`,
+    subject: `Signed repairer agreement: ${opts.companyName}`,
     html: shell("Agreement signed", body),
     attachments,
   });
@@ -555,14 +555,14 @@ export async function sendSignedAgreementCopy(opts: {
 /**
  * Sent to the applicant when they submit the sign-up form: confirmation that
  * we have it, what happens next, and the login we created for them. One email,
- * not two — they shouldn't have to reconcile a welcome with a separate password.
+ * not two: they shouldn't have to reconcile a welcome with a separate password.
  */
 export async function sendPanelBeaterWelcome(opts: {
   name: string;
   email: string;
   /** A password to hand over. Mutually exclusive with setPasswordUrl. */
   password?: string;
-  /** A one-time link to choose their own password. Preferred — see accessBlock. */
+  /** A one-time link to choose their own password. Preferred: see accessBlock. */
   setPasswordUrl?: string;
   companyName: string;
 }): Promise<{ sent: boolean; error?: string }> {
@@ -605,7 +605,7 @@ export async function sendPanelBeaterWelcome(opts: {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: opts.email,
-      subject: `Welcome to the panel — ${opts.companyName}`,
+      subject: `Welcome to the panel: ${opts.companyName}`,
       html: shell("Welcome to the panel", body),
     });
     if (error)
@@ -650,7 +650,7 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
   await resend.emails.send({
     from: fromAddress(),
     to,
-    subject: `New panel beater application — ${pb.tradingAs || pb.companyName}`,
+    subject: `New panel beater application: ${pb.tradingAs || pb.companyName}`,
     html: shell("Panel beater application", body),
   });
 }
@@ -661,8 +661,8 @@ export async function sendPanelBeaterRegistrationNotification(pb: PanelBeater) {
  * stops the next person having to type it too.
  *
  * Deliberately only a notification: the app never creates the insurer itself.
- * The typed name is unverified consumer input — "Discovry", "my broker", "work
- * policy" — and letting that into a list other people choose from would corrupt
+ * The typed name is unverified consumer input: "Discovry", "my broker", "work
+ * policy", and letting that into a list other people choose from would corrupt
  * it within a week.
  */
 export async function sendUnknownInsurerNotification(req: QuoteRequest) {
@@ -694,7 +694,7 @@ export async function sendUnknownInsurerNotification(req: QuoteRequest) {
     <p style="font-size:14px;line-height:1.5;color:#41575b;">
       If that is a real insurer, add it on the Insurance companies page and it will appear in the
       dropdown for everyone from then on. If it's a typo or a broker rather than an insurer, just
-      ignore this — nothing has been added automatically.
+      ignore this. Nothing has been added automatically.
     </p>
     <p style="margin-top:20px;">
       <a href="${baseUrl()}/portal/admin/insurers"
@@ -707,14 +707,14 @@ export async function sendUnknownInsurerNotification(req: QuoteRequest) {
   await resend.emails.send({
     from: fromAddress(),
     to,
-    subject: `Insurer not on the list — "${req.insurerName}"`,
+    subject: `Insurer not on the list: "${req.insurerName}"`,
     html: shell("An insurer we don't have", body),
   });
 }
 
 /**
  * The reminder a dev ticket was given a date for. Goes to whoever LOGGED the
- * ticket — they're the one who wanted to be nudged. If that address is missing
+ * ticket: they're the one who wanted to be nudged. If that address is missing
  * (an old ticket, or the author was deleted) it falls back to the admin list,
  * because a reminder nobody receives is worse than one sent to the team.
  */
@@ -769,7 +769,7 @@ export async function sendDevTicketReminder(
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to,
-      subject: `Reminder — ${ticket.title} (${DEV_PRIORITY_SHORT[ticket.priority]})`,
+      subject: `Reminder: ${ticket.title} (${DEV_PRIORITY_SHORT[ticket.priority]})`,
       html: shell("Dev pipeline reminder", body),
     });
     if (error)
@@ -780,7 +780,7 @@ export async function sendDevTicketReminder(
   }
 }
 
-/** Ticket detail is user-typed and goes into an HTML email — escape it. */
+/** Ticket detail is user-typed and goes into an HTML email: escape it. */
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -793,7 +793,7 @@ function escapeHtml(s: string): string {
  * The one-time link a consumer asks for when they want to rate their repairer
  * or lodge a complaint.
  *
- * They type their REFERENCE on the site, but PMP-date-SURNAME-nn is guessable —
+ * They type their REFERENCE on the site, but PMP-date-SURNAME-nn is guessable:
  * it names a job, it doesn't prove you own one. This email is what turns a
  * reference into proof: it can only be read by whoever holds the address
  * already on the job.
@@ -826,7 +826,7 @@ export async function sendConsumerFeedbackLink(
     </p>
     <p style="font-size:13px;color:#6b7f82;">
       From there you can leave a star rating, or raise a complaint if something went wrong.
-      This link works for 48 hours and is personal to you — please don&apos;t forward it.
+      This link works for 48 hours and is personal to you, so please don&apos;t forward it.
     </p>
     <p style="font-size:13px;color:#6b7f82;">
       If you didn&apos;t ask for this, you can ignore this email. Nothing has changed on your job.
@@ -837,7 +837,7 @@ export async function sendConsumerFeedbackLink(
     await resend.emails.send({
       from: fromAddress(),
       to: req.email,
-      subject: `Leave feedback on your repair — ${req.reference}`,
+      subject: `Leave feedback on your repair: ${req.reference}`,
       html: shell("Your feedback link", body),
     });
   } catch (err) {
@@ -845,7 +845,7 @@ export async function sendConsumerFeedbackLink(
   }
 }
 
-/** "Prove you own this address" — sent on sign-up and on request. */
+/** "Prove you own this address": sent on sign-up and on request. */
 export async function sendEmailVerification(
   email: string,
   name: string,
@@ -869,7 +869,7 @@ export async function sendEmailVerification(
     </p>
     <p style="font-size:13px;color:#6b7f82;">
       This link works for 3 days. If you didn&apos;t create a Price my Prang account, you can
-      ignore this email — nothing happens until the link is used.
+      ignore this email. Nothing happens until the link is used.
     </p>
   `;
 
@@ -887,7 +887,7 @@ export async function sendEmailVerification(
 
 /**
  * The second-factor code. Deliberately spare: no link, nothing to click, and
- * an explicit line about what to do if it wasn't them — a code arriving out of
+ * an explicit line about what to do if it wasn't them: a code arriving out of
  * nowhere is the earliest sign someone else has your password.
  */
 export async function sendLoginCode(
@@ -907,7 +907,7 @@ export async function sendLoginCode(
                    font-family:monospace;color:${BRAND.ink};">${code}</span>
     </p>
     <p style="font-size:13px;color:#6b7f82;">
-      It expires in 10 minutes and can only be used once. We will never ask you for it —
+      It expires in 10 minutes and can only be used once. We will never ask you for it:
       not by phone, not by email, not by WhatsApp.
     </p>
     <p style="font-size:13px;color:#6b7f82;">
@@ -930,7 +930,7 @@ export async function sendLoginCode(
 
 /**
  * A complaint has been lodged. Goes to Price my Prang AND to the repairer named
- * in it — Carl's instruction, and the consumer is told so before they submit.
+ * in it: Carl's instruction, and the consumer is told so before they submit.
  *
  * An unsafe vehicle changes the subject line rather than adding a field
  * somewhere in the body: this lands in a mailbox alongside everything else, and
@@ -1008,9 +1008,9 @@ export async function sendComplaintLodged(
     await resend.emails.send({
       from: fromAddress(),
       to,
-      subject: `${unsafe ? "[UNSAFE VEHICLE] " : ""}Complaint — ${req.reference} — ${
+      subject: `${unsafe ? "[UNSAFE VEHICLE] " : ""}Complaint: ${req.reference} (${
         pb ? pb.tradingAs || pb.companyName : "workshop"
-      }`,
+      })`,
       html: shell("A complaint has been lodged", body),
     });
   } catch (err) {
@@ -1052,7 +1052,7 @@ export async function sendComplaintConfirmation(
       complaint.description
     }</p>
     <p style="font-size:13px;color:#6b7f82;">
-      Keep this email — the reference above is how we find your complaint if you call us.
+      Keep this email. The reference above is how we find your complaint if you call us.
     </p>
   `;
 
@@ -1060,7 +1060,7 @@ export async function sendComplaintConfirmation(
     await resend.emails.send({
       from: fromAddress(),
       to: req.email,
-      subject: `We've received your complaint — ${req.reference}`,
+      subject: `We've received your complaint: ${req.reference}`,
       html: shell("Complaint received", body),
     });
   } catch (err) {
@@ -1069,12 +1069,12 @@ export async function sendComplaintConfirmation(
 }
 
 // ---------------------------------------------------------------------------
-// Additionals — extra work found after stripping a vehicle.
+// Additionals: extra work found after stripping a vehicle.
 //
 // Two recipients, deliberately different letters. The INSURER is being asked to
 // approve a cost against a claim, so their copy leads with the claim number and
 // itemises the work. The CLIENT is being told their repair is now waiting on
-// someone else, so theirs leads with what that means for them — while still
+// someone else, so theirs leads with what that means for them, while still
 // carrying the full itemised list with amounts: the person whose car it is
 // shouldn't have to ask what was requested on their behalf.
 // ---------------------------------------------------------------------------
@@ -1095,8 +1095,8 @@ function additionalLineRow(l: QuoteLineItem): string {
       l.code ? `<span style="color:#6b7f82;font-size:11px;"> · ${escapeHtml(l.code)}</span>` : ""
     }</td>
     <td style="${cell}text-align:right;">${addNum(l.quantity) || 1}</td>
-    <td style="${cell}text-align:right;">${l.partsAmount ? addMoney(l.partsAmount) : "—"}</td>
-    <td style="${cell}text-align:right;">${labour ? addMoney(labour) : "—"}${
+    <td style="${cell}text-align:right;">${l.partsAmount ? addMoney(l.partsAmount) : "None"}</td>
+    <td style="${cell}text-align:right;">${labour ? addMoney(labour) : "None"}${
       hours ? `<span style="color:#6b7f82;font-size:11px;"> (${hours}h)</span>` : ""
     }</td>
     <td style="${cell}text-align:right;font-weight:bold;">${addMoney(lineTotal)}</td>
@@ -1136,7 +1136,7 @@ const vehicleLine = (req: QuoteRequest): string =>
 /**
  * Ask the insurer to approve extra work.
  *
- * Returns whether it actually sent. The caller stamps `sentAt` only on a true —
+ * Returns whether it actually sent. The caller stamps `sentAt` only on a true:
  * a request that looks sent but never left is worse than one that plainly
  * failed, because nobody goes chasing it.
  */
@@ -1197,7 +1197,7 @@ export async function sendAdditionalsToInsurer(opts: {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: opts.to,
-      subject: `Additionals for approval — ${
+      subject: `Additionals for approval: ${
         add.claimNumber ? `claim ${add.claimNumber}` : req.reference
       }${reg ? ` · ${reg}` : ""}`,
       html: shell("Additional work needs your approval", body),
@@ -1231,7 +1231,7 @@ export async function sendAdditionalsToClient(opts: {
     <p style="font-size:15px;line-height:1.5;">
       While stripping ${escapeHtml(vehicleLine(req))}, <strong>${escapeHtml(workshop)}</strong>
       found further damage that couldn&rsquo;t be seen before the car came apart. This is
-      normal on a repair — it means the original quote didn&rsquo;t cover everything.
+      normal on a repair. It means the original quote didn&rsquo;t cover everything.
     </p>
     <p style="font-size:15px;line-height:1.5;">
       They have sent a request for this extra work
@@ -1239,7 +1239,7 @@ export async function sendAdditionalsToClient(opts: {
       and are <strong>waiting for approval before carrying on</strong>.
       ${
         insurer
-          ? "There is nothing you need to do — but if you want to move it along, your insurer is the one to call."
+          ? "There is nothing you need to do, but if you want to move it along, your insurer is the one to call."
           : "There is nothing you need to do right now."
       }
     </p>
@@ -1267,7 +1267,7 @@ export async function sendAdditionalsToClient(opts: {
     ${additionalTable(add)}
     <p style="font-size:13px;color:#6b7f82;line-height:1.5;margin-top:18px;">
       These amounts are what the repairer has asked your insurer to approve. What you
-      actually pay depends on your policy — your excess is unchanged by this request.
+      actually pay depends on your policy. Your excess is unchanged by this request.
       Any questions about the work itself, speak to ${escapeHtml(workshop)}${
         pb?.phone ? ` on ${escapeHtml(pb.phone)}` : ""
       }.
@@ -1277,7 +1277,7 @@ export async function sendAdditionalsToClient(opts: {
     const { error } = await resend.emails.send({
       from: fromAddress(),
       to: req.email,
-      subject: `Extra work found on your repair — ${req.reference}`,
+      subject: `Extra work found on your repair: ${req.reference}`,
       html: shell("Additional work has been requested", body),
     });
     if (error) return { sent: false, error: error.message };

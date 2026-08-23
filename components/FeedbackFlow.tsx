@@ -77,7 +77,7 @@ export default function FeedbackFlow({
         URL.revokeObjectURL(el.src);
         resolve(el.duration || 0);
       };
-      // Undecodable in this browser — let it through rather than block a
+      // Undecodable in this browser: let it through rather than block a
       // legitimate complaint over a format we couldn't measure.
       el.onerror = () => resolve(0);
       el.src = URL.createObjectURL(file);
@@ -238,7 +238,7 @@ export default function FeedbackFlow({
         >
           <h2 className="font-display text-lg font-bold text-ink">Something went wrong</h2>
           <p className="mt-1 text-sm text-ink/60">
-            Raise a complaint. This is <strong>not</strong> published — it goes to us and to the
+            Raise a complaint. This is <strong>not</strong> published. It goes to us and to the
             repairer so it can be put right.
           </p>
         </button>
@@ -336,7 +336,7 @@ export default function FeedbackFlow({
       <Field
         label="What happened?"
         required
-        hint={`Up to ${COMPLAINT_MAX_WORDS} words — ${words(description)} so far.`}
+        hint={`Up to ${COMPLAINT_MAX_WORDS} words, ${words(description)} so far.`}
       >
         <textarea
           className={`${inputClass} min-h-40 ${overLimit ? "border-coral" : ""}`}
@@ -384,7 +384,7 @@ export default function FeedbackFlow({
             value={stillWithRepairer}
             onChange={(e) => setStillWithRepairer(e.target.value as "" | "yes" | "no")}
           >
-            <option value="">—</option>
+            <option value="">Choose one</option>
             <option value="yes">Yes</option>
             <option value="no">No, I have it</option>
           </select>
@@ -395,7 +395,7 @@ export default function FeedbackFlow({
             value={raisedWithRepairer}
             onChange={(e) => setRaisedWithRepairer(e.target.value as "" | "yes" | "no")}
           >
-            <option value="">—</option>
+            <option value="">Choose one</option>
             <option value="yes">Yes</option>
             <option value="no">Not yet</option>
           </select>
@@ -408,7 +408,7 @@ export default function FeedbackFlow({
           value={desiredOutcome}
           onChange={(e) => setDesiredOutcome(e.target.value as ComplaintOutcome | "")}
         >
-          <option value="">—</option>
+          <option value="">Choose one</option>
           {COMPLAINT_OUTCOMES.map((o) => (
             <option key={o} value={o}>
               {COMPLAINT_OUTCOME_LABEL[o]}

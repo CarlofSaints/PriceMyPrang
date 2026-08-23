@@ -3,7 +3,7 @@
 // caller can reach.
 //
 // HONEST LIMITATION: this is in-memory, so on serverless it is per-instance
-// rather than global — a determined attacker spread across enough cold starts
+// rather than global: a determined attacker spread across enough cold starts
 // gets more attempts than the numbers below suggest. It is here to stop casual
 // credential stuffing, reference-walking and running up an API bill, not to be
 // a security boundary on its own. Move to Upstash if that changes.
@@ -26,7 +26,7 @@ export interface RateLimitResult {
 }
 
 /**
- * @param key    what is being limited — scope it, e.g. `login:${ip}`.
+ * @param key    what is being limited: scope it, e.g. `login:${ip}`.
  * @param limit  how many are allowed in the window.
  * @param windowMs length of the window.
  */
@@ -50,7 +50,7 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
 /**
  * The caller's IP as far as we can tell. Vercel sets x-forwarded-for; the first
  * entry is the client. Falls back to a constant, which makes the limit global
- * rather than per-caller — degrading closed, not open.
+ * rather than per-caller: degrading closed, not open.
  */
 export function clientIp(request: Request): string {
   return (

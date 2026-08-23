@@ -77,14 +77,14 @@ export async function POST(request: Request) {
     sambraNumber: b.sambraNumber?.trim() || undefined,
     miwaNumber: b.miwaNumber?.trim() || undefined,
     // The form no longer captures these (rates live on the Rates page), so an
-    // edit posts nothing for them — keep whatever is already stored rather than
+    // edit posts nothing for them: keep whatever is already stored rather than
     // silently clearing it. Still honoured if a caller does send a value.
     labourRateSenior:
       b.labourRateSenior != null ? Number(b.labourRateSenior) : existing?.labourRateSenior,
     labourRateJunior:
       b.labourRateJunior != null ? Number(b.labourRateJunior) : existing?.labourRateJunior,
     logoUrl: b.logoUrl?.trim() || existing?.logoUrl,
-    // See register/route.ts — no separate contact-email field on the form now,
+    // See register/route.ts: no separate contact-email field on the form now,
     // so keep what's stored, else fall back to the owner / form completer.
     email:
       b.email?.trim() ||
@@ -191,7 +191,7 @@ export async function PATCH(request: Request) {
   await upsertPanelBeater(pb);
 
   const label = pb.tradingAs || pb.companyName;
-  // Vetting is the decision the whole network hangs on — who approved which
+  // Vetting is the decision the whole network hangs on, who approved which
   // workshop, and when, is the single most useful line in this log.
   await logActivity({
     action: status ? "panel_beater.vetting" : "panel_beater.update",

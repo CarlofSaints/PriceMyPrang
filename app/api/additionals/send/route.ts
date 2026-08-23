@@ -16,7 +16,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
  * Send an additionals request to the insurer, and tell the client.
  *
  * Split from the save on purpose. Saving is a draft the estimator can rework;
- * this is the irreversible bit — once the insurer has a set of numbers, the
+ * this is the irreversible bit: once the insurer has a set of numbers, the
  * request locks and anything further has to be a new one.
  */
 export async function POST(request: Request) {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
   if (b.contactId) {
     const contact = await findInsurerContact(b.contactId);
-    // A contact must be either generic or this workshop's own — otherwise a
+    // A contact must be either generic or this workshop's own: otherwise a
     // guessed id would let one workshop read another's private address by
     // watching where the mail went.
     if (!contact || (contact.panelBeaterId && contact.panelBeaterId !== workshop))
@@ -117,8 +117,8 @@ export async function POST(request: Request) {
     clientSent: clientResult.sent,
   });
 
-  // This is the irreversible step on this job — the insurer now holds a set of
-  // numbers — so it is logged either way round, success or failure. A send that
+  // This is the irreversible step on this job: the insurer now holds a set of
+  // numbers, so it is logged either way round, success or failure. A send that
   // silently failed is worse than one that plainly did.
   await logActivity({
     action: "additional.send",
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       {
         error: `Couldn't send it to the insurer${
           insurerResult.error ? ` (${insurerResult.error})` : ""
-        }. Nothing has been marked as sent — try again.`,
+        }. Nothing has been marked as sent. Try again.`,
       },
       { status: 502 }
     );

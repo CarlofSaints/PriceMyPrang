@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
 /**
  * Strip the HTML we converted from the .docx back to plain paragraphs.
  *
- * react-pdf can't render HTML, and the agreement is prose rather than layout —
+ * react-pdf can't render HTML, and the agreement is prose rather than layout:
  * headings and paragraphs are all it needs to stay readable and complete.
  */
 function htmlToParagraphs(html: string): { text: string; heading: boolean }[] {
@@ -85,7 +85,7 @@ export async function buildAgreementPdf(opts: {
   const blocks = htmlToParagraphs(opts.html);
 
   return renderToBuffer(
-    <Document title={`${opts.title} — ${opts.companyName}`}>
+    <Document title={`${opts.title}: ${opts.companyName}`}>
       <Page size="A4" style={styles.page} wrap>
         <Text style={styles.title}>{opts.title}</Text>
         <View style={styles.bar} />
@@ -104,11 +104,11 @@ export async function buildAgreementPdf(opts: {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Company registration number</Text>
-            <Text style={styles.value}>{opts.companyRegNumber || "—"}</Text>
+            <Text style={styles.value}>{opts.companyRegNumber || "Not given"}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>VAT number</Text>
-            <Text style={styles.value}>{opts.vatNumber || "—"}</Text>
+            <Text style={styles.value}>{opts.vatNumber || "Not given"}</Text>
           </View>
 
           <Text style={styles.sigName}>{opts.signerName}</Text>
@@ -118,7 +118,7 @@ export async function buildAgreementPdf(opts: {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Title</Text>
-            <Text style={styles.value}>{opts.signerTitle || "—"}</Text>
+            <Text style={styles.value}>{opts.signerTitle || "Not given"}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Email</Text>

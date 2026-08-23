@@ -116,7 +116,7 @@ export default function PanelBeaterMap({
         </div>
       )}
 
-      {/* Dropdown — works for ANY workshop, including those not on the map */}
+      {/* Dropdown: works for ANY workshop, including those not on the map */}
       <div>
         <label className="block text-sm font-semibold text-ink mb-1.5">
           Can&apos;t see your workshop on the map? Choose it here
@@ -130,7 +130,7 @@ export default function PanelBeaterMap({
           }}
         >
           <option value="">
-            {atMax ? `Selected ${quotesRequested} — remove one to change` : "Select a workshop…"}
+            {atMax ? `Selected ${quotesRequested}, remove one to change` : "Select a workshop…"}
           </option>
           {addable.map((p) => (
             <option key={p.id} value={p.id}>
@@ -213,7 +213,7 @@ function ListPicker({
   if (list.length === 0) {
     return (
       <p className="rounded-xl bg-amber/20 p-4 text-sm text-ink">
-        No panel beaters are on the map yet — use the dropdown above to choose one.
+        No panel beaters are on the map yet. Use the dropdown above to choose one.
       </p>
     );
   }

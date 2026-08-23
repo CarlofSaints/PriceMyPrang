@@ -5,7 +5,7 @@ import { addDevTicketNote, deleteDevTicketNote } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 
 // The running conversation on a ticket. Same Super-Admin-only gate as the
-// ticket itself — notes are internal and must never widen who can read a
+// ticket itself: notes are internal and must never widen who can read a
 // ticket's contents.
 async function requireManage() {
   const { user, response } = await requireUser();
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const body = typeof b.body === "string" ? b.body.trim() : "";
   if (!body) return NextResponse.json({ error: "The note is empty" }, { status: 400 });
 
-  // Author comes from the SESSION, never the body — otherwise a note could be
+  // Author comes from the SESSION, never the body: otherwise a note could be
   // made to look like somebody else wrote it.
   const ticket = await addDevTicketNote(b.ticketId, {
     body: body.slice(0, MAX_NOTE),

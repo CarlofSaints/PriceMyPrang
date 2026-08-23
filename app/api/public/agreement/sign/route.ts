@@ -13,7 +13,7 @@ import { logActivity } from "@/lib/activityLog";
 export const maxDuration = 60;
 
 // PUBLIC (no auth): the repairer signs from the link we emailed them. The token
-// is the credential — they have no portal login at the point this is sent.
+// is the credential: they have no portal login at the point this is sent.
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     token?: string;
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     );
 
   // Someone signing a contract is worth a line of its own, even though the
-  // signature itself is already recorded on the agreement — this is what puts
+  // signature itself is already recorded on the agreement: this is what puts
   // it on the same timeline as everything else that happened that day.
   await logActivity({
     action: "agreement.sign",
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     entityType: "repairer_agreement",
     entityId: found.agreement.id,
     entityLabel: found.agreement.sentToName,
-    // No login exists at this point — the token in their email is the credential.
+    // No login exists at this point: the token in their email is the credential.
     actorKind: "applicant",
     actorName: signerName,
     actorEmail: found.agreement.sentToEmail,

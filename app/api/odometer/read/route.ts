@@ -16,7 +16,7 @@ interface OdometerReading {
 
 // Reads a vehicle odometer from a dashboard photo and extracts the total km.
 export async function POST(request: Request) {
-  // Anonymous by design — see the note in /api/disc/read. Same two guards.
+  // Anonymous by design: see the note in /api/disc/read. Same two guards.
   const ip = clientIp(request);
   const limited = rateLimit(`odo-read:${ip}`, 12, 60_000);
   if (!limited.ok)
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       max_tokens: 512,
       system:
         "You read a vehicle's odometer from a dashboard photo. Return ONLY a JSON object, no prose. " +
-        "Keys: km (integer — the TOTAL distance on the main odometer, no thousands separators; ignore " +
+        "Keys: km (integer, the TOTAL distance on the main odometer, no thousands separators; ignore " +
         "trip meters, speed, fuel or rev counters), rawText (the digits/text you can see). " +
         "If you cannot confidently read the total distance, set km to null.",
       messages: [
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     // A paid model call, same as the disc read.
     await logActivity({
       action: "ocr.odometer",
-      summary: result.km ? `An odometer was read — ${result.km} km` : "An odometer photo could not be read",
+      summary: result.km ? `An odometer was read: ${result.km} km` : "An odometer photo could not be read",
       outcome: result.km ? "success" : "failed",
       ...consumerActor(),
       detail: { model, km: result.km, rawText: result.rawText },

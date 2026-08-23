@@ -90,7 +90,7 @@ export default function AgreementManager({ initial }: { initial: AgreementDocume
         </h2>
         <p className="text-sm text-ink/60">
           Word (.docx) only. The text is converted for the signing page, and the original file is
-          kept as the source of truth. Uploading a new one stands the current version down —
+          kept as the source of truth. Uploading a new one stands the current version down,
           signatures already given stay attached to the version that was signed.
         </p>
 
@@ -120,7 +120,7 @@ export default function AgreementManager({ initial }: { initial: AgreementDocume
 
       {docs.length === 0 ? (
         <p className="rounded-xl bg-amber/20 p-4 text-sm text-ink">
-          No agreement uploaded yet. Until one is, new repairers are NOT asked to sign anything —
+          No agreement uploaded yet. Until one is, new repairers are NOT asked to sign anything,
           registration still works, it just skips the agreement email.
         </p>
       ) : (

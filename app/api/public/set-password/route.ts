@@ -12,7 +12,7 @@ const MIN_LENGTH = 10;
  *
  * PUBLIC by design: the link is opened in whatever browser the email was read
  * in, which is usually not the one that signed up. The token IS the credential
- * — there is no session to lean on and asking for the old password would defeat
+ *: there is no session to lean on and asking for the old password would defeat
  * the point, since the whole reason for this route is that they haven't got one.
  *
  * Rate-limited per IP even though the token is a uuid: a public endpoint that
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const result = await redeemPasswordSetToken(token, await hashPassword(password));
 
   if (!result) {
-    // Deliberately vague about WHICH way it failed — used, expired, superseded
+    // Deliberately vague about WHICH way it failed: used, expired, superseded
     // and never-existed all read the same, so the response can't be used to
     // sort real tokens from invented ones. The page explains what to do next.
     await logActivity({

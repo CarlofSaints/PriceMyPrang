@@ -16,7 +16,7 @@ function LoginForm() {
   const [busy, setBusy] = useState(false);
 
   // Set once the password is accepted but a second factor is outstanding. The
-  // password is never held past this point — only the challenge id is.
+  // password is never held past this point: only the challenge id is.
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [code, setCode] = useState("");
 

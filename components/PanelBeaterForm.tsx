@@ -22,19 +22,19 @@ function friendlyGeoError(status?: string, error?: string): string {
     case "NO_ADDRESS":
       return "Enter the physical address first.";
     case "ADDRESS_TOO_LONG":
-      return "That address is too long — trim it to the street, suburb and city.";
+      return "That address is too long. Trim it to the street, suburb and city.";
     case "RATE_LIMITED":
       return "Too many lookups in a row. Wait a minute and try again.";
     case "FORBIDDEN":
       return "Your login isn't allowed to look up coordinates.";
     case "ZERO_RESULTS":
-      return "Google couldn't find that address — check the spelling / add a suburb & city.";
+      return "Google couldn't find that address. Check the spelling / add a suburb & city.";
     case "REQUEST_DENIED":
       return `Google rejected the request: ${error || "the key is restricted or the Geocoding API isn't enabled on it."}`;
     case "OVER_QUERY_LIMIT":
       return "Google quota/billing issue on the Maps project.";
     default: {
-      // Anything unlabelled — don't print a bare "undefined" at the person.
+      // Anything unlabelled: don't print a bare "undefined" at the person.
       const detail = [status, error].filter(Boolean).join(": ");
       return `Couldn't get coordinates${detail ? ` (${detail})` : ""}.`;
     }
@@ -287,7 +287,7 @@ export default function PanelBeaterForm({
         </Field>
       </div>
 
-      {/* Labour rates aren't captured here — they're maintained per rate type on
+      {/* Labour rates aren't captured here. They're maintained per rate type on
           the Rates page, which is the single source of truth for pricing.
           Contact email/phone moved up into "Contact people". */}
 
@@ -396,7 +396,7 @@ export default function PanelBeaterForm({
                   />
                   {w.certificate ? (
                     <a href={w.certificate.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-teal underline">
-                      ✓ Certificate uploaded — view
+                      ✓ Certificate uploaded · view
                     </a>
                   ) : (
                     <p className="mt-1 text-xs text-coral">Certificate required.</p>
@@ -433,7 +433,7 @@ export default function PanelBeaterForm({
       {mode === "public" && (
         <p className="rounded-xl bg-teal/5 p-3 text-sm text-ink/70">
           Your application will be reviewed by our team. Only MIWA, MIBCO and RMI approved panel
-          beaters are listed on <strong className="font-semibold text-ink">Price my Prang</strong> —
+          beaters are listed on <strong className="font-semibold text-ink">Price my Prang</strong>,
           we&apos;ll verify your details and be in touch.
         </p>
       )}

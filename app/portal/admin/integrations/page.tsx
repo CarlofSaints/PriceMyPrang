@@ -10,7 +10,7 @@ export default async function IntegrationsPage() {
   if (!can(user, "manage_integrations")) redirect("/portal");
 
   const meta = await getIntegrationSecretMeta("imagin8");
-  // Only whether it decrypts — never the key itself — crosses to the client.
+  // Only whether it decrypts, never the key itself, crosses to the client.
   const readable = meta ? (await getIntegrationKey("imagin8")) !== null : true;
 
   return (

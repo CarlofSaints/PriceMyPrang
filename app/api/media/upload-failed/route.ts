@@ -4,7 +4,7 @@ import { actorFromUser, logActivity } from "@/lib/activityLog";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rateLimit";
 
 // ---------------------------------------------------------------------------
-// "Somebody's upload was refused" — the one thing this app could not see.
+// "Somebody's upload was refused": the one thing this app could not see.
 //
 // Client uploads go straight from the browser to Vercel Blob. We mint the token
 // and hear nothing more, so when Blob rejects a file the server has no idea it
@@ -20,13 +20,13 @@ import { clientIp, rateLimit, tooManyRequests } from "@/lib/rateLimit";
 //     {ok:true}.
 //
 //  2. THE CONTENTS ARE CLAIMED BY THE BROWSER, NOT VERIFIED. Anyone can POST
-//     here — an applicant has no login, so it cannot be gated. The row is
+//     here: an applicant has no login, so it cannot be gated. The row is
 //     therefore marked `reportedBy: "browser"`, and identity is taken from the
 //     SESSION when there is one, falling back to the typed-in details only for
 //     someone who genuinely has no account yet. Read these rows as evidence of
 //     a person's experience, never as proof of who they were.
 //
-//  3. NO FILE BYTES. Name, type and size — enough to answer "which file, what
+//  3. NO FILE BYTES. Name, type and size: enough to answer "which file, what
 //     format, how big", nothing worth storing.
 // ---------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ function text(value: unknown, max = MAX_TEXT): string | null {
 /**
  * A Blob SDK message can carry a URL with a credential in the query string.
  * Rule 2 of the activity log is never to log one, and the key-name redactor
- * cannot see inside a free-text sentence — so strip them by shape here.
+ * cannot see inside a free-text sentence, so strip them by shape here.
  */
 function stripSecrets(s: string): string {
   return s
@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     action: "media.upload_failed",
     summary:
       `${who} could not upload ${fileName} (${contentType}) on ${context}` +
-      (label ? ` — ${label}` : ""),
+      (label ? `: ${label}` : ""),
     entityType: "media",
     entityLabel: fileName,
     outcome: "failed",

@@ -13,7 +13,7 @@ import AdditionalsManager, { type JobOption } from "@/components/AdditionalsMana
  * Extra work found after stripping a vehicle.
  *
  * Lives on its own page rather than on the request detail page, because that
- * one is gated on `view_dashboard` — which panel-beater roles deliberately
+ * one is gated on `view_dashboard`, which panel-beater roles deliberately
  * don't hold. This is the repairer's own view of their own jobs.
  */
 export default async function AdditionalsPage() {

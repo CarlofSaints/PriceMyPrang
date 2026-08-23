@@ -3,7 +3,7 @@ import { acceptQuote, getRequestByPublicToken } from "@/lib/store";
 import { logActivity, consumerActor } from "@/lib/activityLog";
 
 // PUBLIC (no auth): the consumer accepts one of the quotes on their own job.
-// The request's publicToken is the credential — it arrives in their email and
+// The request's publicToken is the credential: it arrives in their email and
 // is unguessable, unlike the reference. There is no login on the consumer side.
 export async function POST(request: Request) {
   const { token, quoteId } = (await request.json()) as {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       detail: { quoteId: quoteId.trim() },
       request,
     });
-    // Don't distinguish "no such token" from "that quote is on another job" —
+    // Don't distinguish "no such token" from "that quote is on another job":
     // either way the caller has no business with it.
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
   }

@@ -3,7 +3,7 @@ import { defineConfig } from "prisma/config";
 
 // ---------------------------------------------------------------------------
 // CLI-only configuration (migrate / db pull / studio). The running app does NOT
-// read this — it connects through the Neon adapter in lib/db.ts.
+// read this: it connects through the Neon adapter in lib/db.ts.
 //
 // Migrations must run over a DIRECT (unpooled) connection: PgBouncer can't hold
 // the session state DDL needs. Neon's Vercel integration injects both, with the

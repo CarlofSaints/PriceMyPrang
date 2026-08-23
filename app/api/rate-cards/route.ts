@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   const existing = await getRateCards(target.id);
 
-  // One card per insurer, and only one cash card — otherwise picking a rate on
+  // One card per insurer, and only one cash card: otherwise picking a rate on
   // a job becomes ambiguous. Names are compared case-insensitively so "Hollard"
   // and "hollard" don't become two cards.
   const clash = existing.find(
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       {
         error:
           b.kind === "cash"
-            ? "You already have a cash rate card — edit that one."
+            ? "You already have a cash rate card. Edit that one."
             : `You already have a rate card for ${clash.insurerName}.`,
       },
       { status: 409 }
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
   const cardName = card.kind === "cash" ? "cash" : (card.insurerName ?? "insurance");
   // The VALUES are what a repairer argues about months later, so the whole set
   // is kept on a create and the changed ones on an edit. Rates are numbers, not
-  // credentials — there is nothing here to redact.
+  // credentials: there is nothing here to redact.
   await logActivity({
     action: previous ? "rate.card.update" : "rate.card.create",
     summary: `${user.name} ${previous ? "updated" : "created"} the ${cardName} rate card`,
@@ -133,7 +133,7 @@ export async function DELETE(request: Request) {
     entityLabel: cardName,
     ...actorFromUser(user),
     panelBeaterId: card.panelBeaterId,
-    // The values go with it, so they are copied here — after this the log is
+    // The values go with it, so they are copied here: after this the log is
     // the only place they still exist.
     detail: { kind: card.kind, insurerName: card.insurerName, values: card.values },
     request,

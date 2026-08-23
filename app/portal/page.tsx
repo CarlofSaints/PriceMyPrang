@@ -59,7 +59,7 @@ export default async function DashboardPage({
   const search = sp.q?.trim() || undefined;
 
   // Counts and totals are computed in the database, and only one page of rows
-  // is fetched — the dashboard no longer depends on the size of the table.
+  // is fetched: the dashboard no longer depends on the size of the table.
   const [stats, { rows, total }] = await Promise.all([
     getDashboardStats(),
     listRequests({ page, pageSize: PAGE_SIZE, status, search }),
@@ -178,10 +178,10 @@ export default async function DashboardPage({
                     {r.firstName} {r.lastName}
                   </td>
                   <td className="px-4 py-3 text-ink/70">{r.email}</td>
-                  <td className="px-4 py-3">{r.make || "—"}</td>
-                  <td className="px-4 py-3">{r.model || "—"}</td>
-                  <td className="px-4 py-3">{r.year || "—"}</td>
-                  <td className="px-4 py-3">{r.colour || "—"}</td>
+                  <td className="px-4 py-3">{r.make || "Not given"}</td>
+                  <td className="px-4 py-3">{r.model || "Not given"}</td>
+                  <td className="px-4 py-3">{r.year || "Not given"}</td>
+                  <td className="px-4 py-3">{r.colour || "Not given"}</td>
                   <td className="px-4 py-3 text-center">
                     {r.quoteCount}/{r.quotesRequested}
                   </td>

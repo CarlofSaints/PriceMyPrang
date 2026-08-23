@@ -175,7 +175,7 @@ export async function POST(request: Request) {
     // Worth telling the admins so the dropdown can grow.
     const unknownInsurer = !!req.insurerName && !req.insurerId;
 
-    // Emails are best-effort — never fail the submission on an email error.
+    // Emails are best-effort: never fail the submission on an email error.
     try {
       await Promise.allSettled([
         sendConsumerConfirmation(req, chosen),

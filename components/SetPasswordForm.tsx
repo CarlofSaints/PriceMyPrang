@@ -8,7 +8,7 @@ import { Button, Field, inputClass } from "./ui";
  * Choose a password from an emailed link.
  *
  * Both boxes are plain `type="password"` with a single reveal toggle rather
- * than two independently-revealed fields — the confirm box exists to catch a
+ * than two independently-revealed fields: the confirm box exists to catch a
  * typo, and letting one be visible while the other isn't makes a mismatch
  * impossible to explain.
  */
@@ -35,7 +35,7 @@ export default function SetPasswordForm({
     setError(null);
 
     // Checked here as well as on the server so a mismatch or a short password
-    // doesn't cost a round trip — and, more to the point, doesn't SPEND the
+    // doesn't cost a round trip, and, more to the point, doesn't SPEND the
     // link on an attempt that was never going to work.
     if (password.length < 10) {
       setError("Use at least 10 characters.");

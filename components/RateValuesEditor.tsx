@@ -20,7 +20,7 @@ const UNIT_CHOICES: { value: RateUnit; label: string }[] = [
 ];
 
 /**
- * The blocks of a rate card — In warranty, Out of warranty, optional Aluminium,
+ * The blocks of a rate card: In warranty, Out of warranty, optional Aluminium,
  * and card-level General rates. Shared by the workshop's own editor and the
  * Super Admin's insurer editor so the two can never drift apart.
  */
@@ -42,7 +42,7 @@ export default function RateValuesEditor({
   readOnly?: boolean;
   /**
    * The workshop's own custom rates. Defined once for the workshop, so adding
-   * or removing one affects EVERY card — which is why the section says so.
+   * or removing one affects EVERY card, which is why the section says so.
    */
   customTypes?: CustomRateType[];
   /** Returns an error message, or null when it saved. */
@@ -186,7 +186,7 @@ export default function RateValuesEditor({
           })}
         </div>
 
-        {/* Add your own. Deliberately at the BOTTOM of General rates — this is
+        {/* Add your own. Deliberately at the BOTTOM of General rates, because this is
             where the client asked for it, and it reads as "and anything else
             you charge for" after the fixed list. */}
         {!readOnly && onAddCustom && (

@@ -11,7 +11,7 @@ function Detail({ label, value }: { label: string; value?: string }) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-ink/50">{label}</dt>
-      <dd className="font-semibold text-ink">{value || "—"}</dd>
+      <dd className="font-semibold text-ink">{value || "Not given"}</dd>
     </div>
   );
 }

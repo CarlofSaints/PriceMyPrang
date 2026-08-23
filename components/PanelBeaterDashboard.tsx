@@ -105,8 +105,8 @@ export default function PanelBeaterDashboard({
                     </div>
                   </td>
                   <td className="px-4 py-3">{r.clientName}</td>
-                  <td className="px-4 py-3">{r.vehicle || "—"}</td>
-                  <td className="px-4 py-3">{r.registration || "—"}</td>
+                  <td className="px-4 py-3">{r.vehicle || "Not given"}</td>
+                  <td className="px-4 py-3">{r.registration || "Not given"}</td>
                   <td className="px-4 py-3">{r.isInsuranceClaim ? "Insurance" : "Private"}</td>
                   <td className="px-4 py-3 text-ink/70">
                     {REQUEST_STATUS_LABEL[r.requestStatus] ?? r.requestStatus}
@@ -115,7 +115,7 @@ export default function PanelBeaterDashboard({
                     <QuoteProgress row={r} />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {r.quoteTotal != null ? zar(r.quoteTotal) : "—"}
+                    {r.quoteTotal != null ? zar(r.quoteTotal) : "Not quoted"}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">

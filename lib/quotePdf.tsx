@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRight: "1px solid #fff",
   },
-  /** The empty span above code/description/qty/parts — no banner, just rule. */
+  /** The empty span above code/description/qty/parts: no banner, just rule. */
   groupCellBlank: { backgroundColor: "#fff", borderRight: "1px solid #fff" },
   subHead: { flexDirection: "row", backgroundColor: "#eef6f6", paddingVertical: 3 },
   th: { fontFamily: "Helvetica-Bold", fontSize: 7, color: INK, paddingHorizontal: 3 },
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
 function zar(n: number) {
   return "R " + (n || 0).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-// Money in a cell — dash when zero, to match an estimate sheet.
+// Money in a cell: dash when zero, to match an estimate sheet.
 const money = (n: number) => (n ? zar(n) : "–");
 const hrs = (n: number) => (n ? String(n) : "");
 
@@ -180,7 +180,7 @@ export async function buildQuotePdf(
               A Price my Prang quotation · Crash · Quote · Claim
             </Text>
             <Text style={[styles.label, { marginTop: 6 }]}>Estimator</Text>
-            <Text style={styles.strong}>{quote.estimatorName || quote.createdByName || "—"}</Text>
+            <Text style={styles.strong}>{quote.estimatorName || quote.createdByName || "Not recorded"}</Text>
           </View>
 
           <View style={styles.box}>
@@ -215,7 +215,7 @@ export async function buildQuotePdf(
         {/* Sub header.
             These cells are FLAT siblings, exactly like the data rows below.
             They used to be wrapped in a per-group View of width CAT_SPAN, which
-            made "5%" mean 5% OF THAT 19% — about 1% of the page — so Code /
+            made "5%" mean 5% OF THAT 19%, about 1% of the page, so Code /
             Amount / Hrs overflowed and printed on top of each other. Keep this
             flat, or the header and the rows stop agreeing. */}
         <View style={styles.subHead}>
@@ -265,7 +265,7 @@ export async function buildQuotePdf(
             <Text>Parts</Text>
             <Text>{zar(quote.partsTotal)}</Text>
           </View>
-          {/* Only when there is any — an "Out work R 0,00" line on every quote
+          {/* Only when there is any. An "Out work R 0,00" line on every quote
               would be noise on the majority that have none. */}
           {quote.outWorkTotal > 0 ? (
             <View style={styles.totalRow}>
