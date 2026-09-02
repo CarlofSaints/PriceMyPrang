@@ -1446,7 +1446,10 @@ const toRequest = (r: RequestRow): QuoteRequest => {
     requiredPhotos,
     damagePhotos,
     repairerInitiated: r.repairerInitiated || undefined,
+    town: r.town ?? undefined,
+    province: r.province ?? undefined,
     location: r.lat !== null && r.lng !== null ? { lat: r.lat, lng: r.lng } : undefined,
+    nearestPanelBeaterKm: r.nearestPanelBeaterKm ?? undefined,
     letUsChoose: r.letUsChoose,
     selectedPanelBeaterIds: r.selectedPanelBeaters.map((s) => s.panelBeaterId),
     quotes: r.quotes.map((q) => toQuote(q, r.reference)),
@@ -1558,8 +1561,11 @@ export async function createRequest(
           discRawText: draft.vehicle?.discRawText ?? null,
           mileageKm: draft.mileageKm ?? null,
           repairerInitiated: !!draft.repairerInitiated,
+          town: draft.town ?? null,
+          province: draft.province ?? null,
           lat: draft.location?.lat ?? null,
           lng: draft.location?.lng ?? null,
+          nearestPanelBeaterKm: draft.nearestPanelBeaterKm ?? null,
           letUsChoose: !!draft.letUsChoose,
           createdAt: new Date(draft.createdAt),
           media: { create: mediaRows(draft) },
@@ -1586,6 +1592,59 @@ export async function updateRequestStatus(
   status: RequestStatus
 ): Promise<void> {
   await getDb().quoteRequest.update({ where: { reference }, data: { status } });
+}
+
+/**
+ * Put a set of workshops on a request, replacing whatever was there.
+ *
+ * This is how a job reaches a repairer now: the consumer no longer picks, we
+ * do. Two things happen together and must not drift apart, so they share one
+ * transaction:
+ *
+ *  1. The join rows become exactly `panelBeaterIds`.
+ *  2. `quotesRequested` becomes how many we assigned, because that is what
+ *     "3 of 3 quotes in" counts against and nobody is typing a number any more.
+ *
+ * Returns the ids that were NOT already on the request, so the caller can email
+ * only the workshops that are hearing about this job for the first time.
+ * Re-saving an unchanged list must not spam anybody.
+ */
+export async function setRequestPanelBeaters(
+  reference: string,
+  panelBeaterIds: string[]
+): Promise<{ added: string[]; removed: string[] }> {
+  const db = getDb();
+  const ids = [...new Set(panelBeaterIds)];
+
+  return db.$transaction(async (tx) => {
+    const request = await tx.quoteRequest.findUnique({
+      where: { reference },
+      select: { id: true, selectedPanelBeaters: { select: { panelBeaterId: true } } },
+    });
+    if (!request) throw new Error(`No request ${reference}`);
+
+    const before = request.selectedPanelBeaters.map((s) => s.panelBeaterId);
+    const added = ids.filter((id) => !before.includes(id));
+    const removed = before.filter((id) => !ids.includes(id));
+
+    // Delete only what left and create only what arrived: a blanket
+    // delete-then-recreate would churn every row on an unrelated edit.
+    if (removed.length)
+      await tx.requestPanelBeater.deleteMany({
+        where: { requestId: request.id, panelBeaterId: { in: removed } },
+      });
+    if (added.length)
+      await tx.requestPanelBeater.createMany({
+        data: added.map((panelBeaterId) => ({ requestId: request.id, panelBeaterId })),
+      });
+
+    await tx.quoteRequest.update({
+      where: { id: request.id },
+      data: { quotesRequested: ids.length },
+    });
+
+    return { added, removed };
+  });
 }
 
 /**
@@ -1673,7 +1732,12 @@ export async function upsertQuote(reference: string, quote: BuiltQuote): Promise
     await tx.quoteRequest.update({
       where: { id: request.id },
       data: {
-        status: quoteCount >= request.quotesRequested ? "completed" : "in_progress",
+        // quotesRequested is 0 until we assign anybody, and "0 quotes wanted"
+        // must never read as "all quotes are in".
+        status:
+          request.quotesRequested > 0 && quoteCount >= request.quotesRequested
+            ? "completed"
+            : "in_progress",
       },
     });
   });
@@ -1692,6 +1756,9 @@ export interface RequestListRow {
   model?: string;
   year?: string;
   colour?: string;
+  /** Where the vehicle is. On the list because assigning is now triage by area. */
+  town?: string;
+  province?: string;
   quotesRequested: number;
   quoteCount: number;
 }
@@ -1755,6 +1822,8 @@ export async function listRequests(
         model: true,
         year: true,
         colour: true,
+        town: true,
+        province: true,
         quotesRequested: true,
         _count: { select: { quotes: true } },
       },
@@ -1774,6 +1843,8 @@ export async function listRequests(
       model: r.model ?? undefined,
       year: r.year ?? undefined,
       colour: r.colour ?? undefined,
+      town: r.town ?? undefined,
+      province: r.province ?? undefined,
       quotesRequested: r.quotesRequested,
       quoteCount: r._count.quotes,
     })),

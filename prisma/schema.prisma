@@ -727,10 +727,20 @@ model QuoteRequest {
   /// True when a panel beater started this quote themselves (not a consumer).
   repairerInitiated Boolean @default(false)
 
-  // Where the consumer was when they submitted.
+  // Where the VEHICLE is, typed by the consumer and geocoded on submission.
+  // This drives triage, not selection: since 2 Sep 2026 the consumer no longer
+  // picks a workshop at all, we assign one. Coverage is thin and regional, so
+  // knowing the town is what lets us say who can realistically take the job.
+  town        String?
+  province    String?
   lat         Float?
   lng         Float?
-  /// True when the client asked us to pick the workshops for them.
+  /// Straight-line km to the nearest ACTIVE repairer, measured at submission.
+  /// Null when the town could not be geocoded. A snapshot, deliberately: it
+  /// records how well we covered this customer on the day they asked.
+  nearestPanelBeaterKm Float?
+  /// True when the client asked us to pick the workshops for them. Always true
+  /// for consumer submissions now; kept because older rows can be false.
   letUsChoose Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -751,6 +761,7 @@ model QuoteRequest {
   @@index([insurerId])
   @@index([email])
   @@index([lastName])
+  @@index([province])
   @@map("quote_requests")
 }
 

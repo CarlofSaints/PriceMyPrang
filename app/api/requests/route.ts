@@ -8,6 +8,8 @@ import {
   sendUnknownInsurerNotification,
 } from "@/lib/email";
 import { logActivity, actorFromUser, consumerActor } from "@/lib/activityLog";
+import { geocodeAddress } from "@/lib/geocode";
+import { nearestKm } from "@/lib/geo";
 import type { MediaRef, QuoteRequest, RequiredPhotos, VehicleDetails } from "@/lib/types";
 
 interface Payload {
@@ -25,7 +27,6 @@ interface Payload {
   noClaimNumberYet?: boolean;
   isThirdPartyClaim: "yes" | "no";
   suspectedEngineDamage: "yes" | "no";
-  quotesRequested: number;
   vehicle: VehicleDetails;
   mileageKm?: number | string;
   odometerImage?: MediaRef | null;
@@ -33,8 +34,10 @@ interface Payload {
   video?: MediaRef | null;
   requiredPhotos?: RequiredPhotos;
   damagePhotos: MediaRef[];
-  location?: { lat: number; lng: number } | null;
-  letUsChoose?: boolean;
+  /** Town or suburb the vehicle is in. Consumer submissions only. */
+  town?: string;
+  /** Province the vehicle is in. Consumer submissions only. */
+  province?: string;
   selectedPanelBeaterIds?: string[];
   /** True when a logged-in panel beater is quoting a walk-in themselves. */
   repairerQuote?: boolean;
@@ -52,7 +55,10 @@ export async function POST(request: Request) {
   const repairerQuote = !!p.repairerQuote;
   let letUsChoose = false;
   let selectedPanelBeaterIds: string[] = [];
-  let quotesRequested = Math.min(20, Math.max(1, Number(p.quotesRequested) || 1));
+  // How many quotes we expect. A repairer self-quoting means exactly one; for a
+  // consumer it stays 0 until we assign workshops, because from 2 Sep 2026 the
+  // consumer does not choose and nobody has decided yet.
+  let quotesRequested = 0;
 
   if (repairerQuote) {
     // Panel beater self-quoting a walk-in. Must be logged in and linked to a
@@ -82,11 +88,32 @@ export async function POST(request: Request) {
     selectedPanelBeaterIds = [targetId];
     quotesRequested = 1;
   } else {
-    letUsChoose = !!p.letUsChoose;
-    if (!letUsChoose && !p.selectedPanelBeaterIds?.length) {
-      return NextResponse.json({ error: "No panel beaters selected" }, { status: 400 });
+    // Consumer submission. There is no workshop choice to make any more: we
+    // match the job to a repairer ourselves, in the portal.
+    if (!p.town?.trim() || !p.province?.trim()) {
+      return NextResponse.json(
+        { error: "Please tell us the town and province the vehicle is in." },
+        { status: 400 }
+      );
     }
-    selectedPanelBeaterIds = letUsChoose ? [] : p.selectedPanelBeaterIds ?? [];
+    letUsChoose = true;
+    selectedPanelBeaterIds = [];
+  }
+
+  // Geocode the town so a distance can be measured, and so the map we removed
+  // can come back later without asking anybody for their address again. Both
+  // this and the coverage figure are best effort: a Google outage must never
+  // cost us the submission itself.
+  let location: { lat: number; lng: number } | null = null;
+  let nearestPanelBeaterKm: number | null = null;
+  if (!repairerQuote && p.town && p.province) {
+    try {
+      location = await geocodeAddress(`${p.town.trim()}, ${p.province.trim()}, South Africa`);
+      const active = (await getPanelBeaters()).filter((pb) => pb.active);
+      nearestPanelBeaterKm = nearestKm(location, active);
+    } catch (err) {
+      console.error("request location lookup failed", err);
+    }
   }
 
   const draft: Omit<QuoteRequest, "reference"> = {
@@ -120,7 +147,10 @@ export async function POST(request: Request) {
     repairerInitiated: repairerQuote || undefined,
     // Only meaningful when a repairer opened the job off their own rate card.
     rateCardId: repairerQuote ? p.rateCardId?.trim() || undefined : undefined,
-    location: p.location || undefined,
+    town: p.town?.trim() || undefined,
+    province: p.province?.trim() || undefined,
+    location: location || undefined,
+    nearestPanelBeaterKm: nearestPanelBeaterKm ?? undefined,
     letUsChoose,
     selectedPanelBeaterIds,
     quotes: [],
@@ -149,6 +179,10 @@ export async function POST(request: Request) {
       quotesRequested,
       letUsChoose,
       workshopsChosen: selectedPanelBeaterIds.length,
+      town: req.town,
+      province: req.province,
+      geocoded: !!location,
+      nearestPanelBeaterKm,
       vehicle: [req.vehicle?.make, req.vehicle?.model, req.vehicle?.year]
         .filter(Boolean)
         .join(" "),
@@ -187,5 +221,11 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ reference: req.reference });
+  // nearestPanelBeaterKm goes back so the confirmation screen can be honest
+  // about coverage. Null means we could not tell, which the screen treats as
+  // "say nothing", never as "nobody is near".
+  return NextResponse.json({
+    reference: req.reference,
+    nearestPanelBeaterKm,
+  });
 }

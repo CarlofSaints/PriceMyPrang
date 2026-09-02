@@ -63,8 +63,17 @@ export default async function ConsumerQuotePage({
               <dd className="font-semibold text-ink">{vehicle || "Not given"}</dd>
             </div>
             <div>
-              <dt className="text-ink/50">Quotes requested</dt>
-              <dd className="font-semibold text-ink">{request.quotesRequested}</dd>
+              {/*
+                quotesRequested is how many workshops WE have put on the job,
+                and it is 0 until we have. "0 quotes" would read to the customer
+                as us having decided against them, so it says we are still on it.
+              */}
+              <dt className="text-ink/50">Quotes coming</dt>
+              <dd className="font-semibold text-ink">
+                {request.quotesRequested > 0
+                  ? request.quotesRequested
+                  : "Lining them up"}
+              </dd>
             </div>
           </dl>
         </div>

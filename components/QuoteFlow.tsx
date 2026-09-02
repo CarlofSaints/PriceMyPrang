@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import type {
   MediaRef,
-  PanelBeater,
   PhotoSide,
   RequiredPhotos,
   VehicleDetails,
   YesNo,
   YesNoUnsure,
 } from "@/lib/types";
+import { PROVINCES, SERVICEABLE_KM } from "@/lib/geo";
 import { mediaPath, safeFileName } from "@/lib/mediaPath";
 import {
   fingerprint,
@@ -21,12 +21,16 @@ import {
 } from "@/lib/imageFingerprint";
 import { reportUploadFailure } from "@/lib/uploadError";
 import { Button, Field, inputClass } from "./ui";
-import PanelBeaterMap from "./PanelBeaterMap";
 
 const MAX_PHOTOS = 15;
 const MAX_VIDEO_SECONDS = 20;
 
-type Step = "form" | "map" | "done";
+// There is no workshop-picking step any more. Until 2 Sep 2026 the consumer
+// chose their own repairers off a map, which only works with enough of them on
+// board: with coverage still thin and regional, being asked to pick 3 near you
+// when there is nobody near you is a dead end. We take the request and match it
+// to a repairer ourselves.
+type Step = "form" | "done";
 
 // The four full-vehicle photos, in the order we show them.
 const REQUIRED_SIDES: { key: PhotoSide; label: string; hint: string }[] = [
@@ -52,7 +56,9 @@ interface FormState {
   isThirdPartyClaim: YesNo | "";
   suspectedEngineDamage: YesNo | "";
   mileageKm: string;
-  quotesRequested: number;
+  /** Where the VEHICLE is, which is what decides who can realistically quote. */
+  town: string;
+  province: string;
 }
 
 const EMPTY: FormState = {
@@ -71,7 +77,8 @@ const EMPTY: FormState = {
   isThirdPartyClaim: "",
   suspectedEngineDamage: "",
   mileageKm: "",
-  quotesRequested: 1,
+  town: "",
+  province: "",
 };
 
 async function uploadFile(file: File | Blob, prefix: string): Promise<MediaRef> {
@@ -148,12 +155,13 @@ export default function QuoteFlow({
   // through, and nothing renders from it.
   const photoPrints = useRef<FingerprintedPhoto[]>([]);
 
-  // Map
-  const [panelBeaters, setPanelBeaters] = useState<PanelBeater[]>([]);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locError, setLocError] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [reference, setReference] = useState<string | null>(null);
+  /**
+   * How far the nearest repairer turned out to be, as the server measured it
+   * after geocoding the town. Null means we could not tell, which the
+   * confirmation screen must treat as "say nothing", not as "nobody is near".
+   */
+  const [nearestKm, setNearestKm] = useState<number | null>(null);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -340,6 +348,8 @@ export default function QuoteFlow({
     ] as const) {
       if (!form[k]) return `Please answer: ${label}.`;
     }
+    if (!form.town.trim()) return "Please tell us which town or suburb the vehicle is in.";
+    if (!form.province) return "Please choose the province the vehicle is in.";
     if (!disc) return "Please add a photo of your licence disc.";
     if (!(Number(form.mileageKm) > 0)) return "Please enter your current mileage in km.";
     if (!odo) return "Please add a photo of your odometer as proof of mileage.";
@@ -388,45 +398,10 @@ export default function QuoteFlow({
     }
   }
 
-  async function goToMap() {
+  async function submit() {
     const v = validateForm();
     if (v) {
       setError(v);
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/panel-beaters/public");
-      const data = (await res.json()) as PanelBeater[];
-      setPanelBeaters(data);
-    } catch {
-      setPanelBeaters([]);
-    }
-    // Ask for location.
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () =>
-          setLocError(
-            "We couldn't access your location. You can still choose a workshop from the list below."
-          ),
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    } else {
-      setLocError("Location isn't available on this device. Pick a workshop from the list.");
-    }
-    setBusy(false);
-    setStep("map");
-  }
-
-  async function submit(chooseForMe = false) {
-    if (!chooseForMe && selectedIds.length !== form.quotesRequested) {
-      setError(
-        `Please select ${form.quotesRequested} different workshop${
-          form.quotesRequested > 1 ? "s" : ""
-        }, or choose "You choose for me".`
-      );
       return;
     }
     setError(null);
@@ -443,14 +418,15 @@ export default function QuoteFlow({
           video,
           requiredPhotos,
           damagePhotos: photos,
-          location,
-          letUsChoose: chooseForMe,
-          selectedPanelBeaterIds: chooseForMe ? [] : selectedIds,
         }),
       });
       if (!res.ok) throw new Error();
-      const data = (await res.json()) as { reference: string };
+      const data = (await res.json()) as {
+        reference: string;
+        nearestPanelBeaterKm: number | null;
+      };
       setReference(data.reference);
+      setNearestKm(data.nearestPanelBeaterKm);
       setStep("done");
     } catch {
       setError("Something went wrong submitting your request. Please try again.");
@@ -545,6 +521,45 @@ export default function QuoteFlow({
               placeholder="Optional"
             />
           </Field>
+
+          {/*
+            items-end, not the default stretch: these two sit side by side and
+            their hints are different lengths, so one wrapping to a second line
+            would otherwise drop its input below its neighbour's and read as a
+            broken layout. Aligning to the bottom keeps the inputs in line
+            whatever the wording later becomes.
+          */}
+          {!repairer && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
+              <Field
+                label="Town or suburb"
+                hint="So we can find a repairer near you."
+                required
+              >
+                <input
+                  className={inputClass}
+                  value={form.town}
+                  onChange={(e) => set("town", e.target.value)}
+                  autoComplete="address-level2"
+                  placeholder="e.g. Umhlanga"
+                />
+              </Field>
+              <Field label="Province" hint="Where the vehicle is right now." required>
+                <select
+                  className={inputClass}
+                  value={form.province}
+                  onChange={(e) => set("province", e.target.value)}
+                >
+                  <option value="">Select a province...</option>
+                  {PROVINCES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
 
           <div>
             <YesNoField
@@ -849,13 +864,6 @@ export default function QuoteFlow({
             </p>
           </Field>
 
-          {!repairer && (
-            <QuotesCountField
-              value={form.quotesRequested}
-              onChange={(n) => set("quotesRequested", n)}
-            />
-          )}
-
           {error && <ErrorBox message={error} />}
 
           {repairer ? (
@@ -863,67 +871,10 @@ export default function QuoteFlow({
               {busy ? "Creating…" : "Create quote & price it"}
             </Button>
           ) : (
-            <Button size="lg" className="w-full" onClick={goToMap} disabled={busy}>
-              {busy ? "Please wait…" : "Next: choose your workshop"}
+            <Button size="lg" className="w-full" onClick={submit} disabled={busy}>
+              {busy ? "Submitting…" : "Get my quotes"}
             </Button>
           )}
-        </div>
-      )}
-
-      {step === "map" && (
-        <div className="space-y-5">
-          <Header
-            title="Choose your panel beater"
-            subtitle={`Pick ${form.quotesRequested} different workshop${
-              form.quotesRequested > 1 ? "s" : ""
-            } near you, one per quote, or let us choose for you.`}
-            onClose={onClose}
-          />
-          {locError && <p className="rounded-xl bg-amber/20 p-3 text-sm text-ink">{locError}</p>}
-
-          {/* Prefer us to pick? Skip selection entirely. */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal/20 bg-white p-4">
-            <div>
-              <p className="text-sm font-semibold text-ink">Not sure who to pick?</p>
-              <p className="text-xs text-ink/60">
-                We&apos;ll choose {form.quotesRequested} suitable repairer
-                {form.quotesRequested > 1 ? "s" : ""} near you.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => submit(true)}
-              disabled={busy}
-              className="shrink-0"
-            >
-              {busy ? "Please wait…" : "You choose for me"}
-            </Button>
-          </div>
-
-          <PanelBeaterMap
-            panelBeaters={panelBeaters}
-            userLocation={location}
-            quotesRequested={form.quotesRequested}
-            selectedIds={selectedIds}
-            onChange={setSelectedIds}
-          />
-
-          {error && <ErrorBox message={error} />}
-
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep("form")}>
-              Back
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => submit(false)}
-              disabled={busy || selectedIds.length !== form.quotesRequested}
-            >
-              {busy
-                ? "Submitting…"
-                : `Submit request (${selectedIds.length}/${form.quotesRequested})`}
-            </Button>
-          </div>
         </div>
       )}
 
@@ -934,13 +885,29 @@ export default function QuoteFlow({
           </div>
           <h2 className="font-display text-2xl font-bold text-ink">Thank you for your submission</h2>
           <p className="text-ink/70">
-            The details of this quote request will be sent to the provider{form.quotesRequested > 1 ? "s" : ""} of
-            your choice. We&apos;ll be in contact with your quote within the next 24 hours.
+            We&apos;re matching your vehicle to the right repairer
+            {form.town ? ` near ${form.town}` : ""}, and we&apos;ll be in contact with your quote
+            within the next 24 hours.
           </p>
           <div className="rounded-xl bg-ink px-4 py-3 text-white">
             <p className="text-xs uppercase tracking-wide text-teal-light">Your reference number</p>
             <p className="font-display text-xl font-bold">{reference}</p>
           </div>
+          {/*
+            Said out loud rather than hidden, because a customer who waits two
+            days to hear we have nobody near them is worse off than one told
+            now. A null distance means the lookup failed, not that they are far,
+            so it says nothing at all.
+          */}
+          {nearestKm != null && nearestKm > SERVICEABLE_KM && (
+            <p className="rounded-xl bg-amber/20 p-4 text-left text-sm text-ink">
+              One thing to be straight with you about: our approved repairers are still
+              concentrated in a few areas, and{" "}
+              {form.town ? <strong>{form.town}</strong> : "your area"} may not be one of them
+              yet. We&apos;ll look at your request either way and come back to you, so you know
+              where you stand.
+            </p>
+          )}
           <Button className="w-full" onClick={onClose}>
             Done
           </Button>
@@ -980,62 +947,6 @@ function ErrorBox({ message }: { message: string }) {
   );
 }
 
-function QuotesCountField({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  const presets = [1, 2, 3];
-  const isCustom = !presets.includes(value);
-  const tile =
-    "h-12 min-w-12 rounded-xl border px-4 text-sm font-semibold transition-colors";
-  const on = "border-teal bg-teal text-white";
-  const off = "border-teal/20 bg-white text-ink hover:bg-teal/5";
-  return (
-    <Field
-      label="How many quotes would you like?"
-      hint="Each quote comes from a different repairer so you can compare. You'll pick that many workshops next (or let us choose)."
-      required
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        {presets.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(n)}
-            className={`${tile} ${value === n ? on : off}`}
-          >
-            {n}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onChange(isCustom ? value : 4)}
-          className={`${tile} ${isCustom ? on : off}`}
-        >
-          Other
-        </button>
-        {isCustom && (
-          <input
-            type="number"
-            min={4}
-            max={20}
-            aria-label="Number of quotes"
-            className={`${inputClass} w-24`}
-            value={value}
-            onChange={(e) =>
-              onChange(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
-            }
-          />
-        )}
-      </div>
-    </Field>
-  );
-}
-
-/** Simple top-down car diagram showing the four required shots. */
 function PhotoGuide() {
   const tag = "absolute rounded bg-teal px-1.5 py-0.5 text-[10px] font-bold text-white";
   return (

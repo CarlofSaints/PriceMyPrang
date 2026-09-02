@@ -141,12 +141,13 @@ export default async function DashboardPage({
 
       <div className="pmp-card overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/60">
               <tr>
                 <th className="px-4 py-3">Reference</th>
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Where</th>
                 <th className="px-4 py-3">Make</th>
                 <th className="px-4 py-3">Model</th>
                 <th className="px-4 py-3">Year</th>
@@ -159,7 +160,7 @@ export default async function DashboardPage({
             <tbody className="divide-y divide-ink/5">
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-ink/50">
+                  <td colSpan={11} className="px-4 py-10 text-center text-ink/50">
                     {search || status
                       ? "No requests match those filters."
                       : "No quote requests yet."}
@@ -177,13 +178,31 @@ export default async function DashboardPage({
                   <td className="px-4 py-3">
                     {r.firstName} {r.lastName}
                   </td>
-                  <td className="px-4 py-3 text-ink/70">{r.email}</td>
+                  <td className="px-4 py-3">
+                    {r.town || r.province ? (
+                      <>
+                        {r.town || "Town not given"}
+                        {r.province && (
+                          <div className="text-[10px] text-ink/40">{r.province}</div>
+                        )}
+                      </>
+                    ) : (
+                      // Predates the question, rather than left blank.
+                      <span className="text-ink/40">Not asked</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{r.make || "Not given"}</td>
                   <td className="px-4 py-3">{r.model || "Not given"}</td>
                   <td className="px-4 py-3">{r.year || "Not given"}</td>
                   <td className="px-4 py-3">{r.colour || "Not given"}</td>
                   <td className="px-4 py-3 text-center">
-                    {r.quoteCount}/{r.quotesRequested}
+                    {r.quotesRequested > 0 ? (
+                      `${r.quoteCount}/${r.quotesRequested}`
+                    ) : (
+                      <span className="text-ink/40" title="No workshops assigned yet">
+                        Unassigned
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-semibold text-ink/70">

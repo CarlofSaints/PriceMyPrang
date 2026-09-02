@@ -536,7 +536,12 @@ export interface QuoteRequest {
   noClaimNumberYet?: boolean;
   isThirdPartyClaim: YesNo;
   suspectedEngineDamage: YesNo;
-  quotesRequested: number; // 1+
+  /**
+   * How many quotes we expect for this job. Since 2 Sep 2026 the consumer no
+   * longer says: it is the number of workshops WE assign, and it is 0 until we
+   * have assigned any. Zero means "not decided yet", not "none wanted".
+   */
+  quotesRequested: number;
 
   vehicle: VehicleDetails;
 
@@ -555,8 +560,18 @@ export interface QuoteRequest {
   /** True when a panel beater started this quote themselves (not a consumer). */
   repairerInitiated?: boolean;
 
-  // Location + chosen panel beaters
+  // Where the vehicle is, and who we put on the job.
+  /** Town or suburb the vehicle is in, as the consumer typed it. */
+  town?: string;
+  /** One of PROVINCES in lib/geo. */
+  province?: string;
+  /** Geocoded from town + province, so a later map needs no new data. */
   location?: { lat: number; lng: number };
+  /**
+   * Straight-line km to the nearest active repairer when this was submitted.
+   * Undefined means we could not work it out, which is NOT the same as far.
+   */
+  nearestPanelBeaterKm?: number;
   /** True when the client asked us to pick the workshops for them. */
   letUsChoose?: boolean;
   selectedPanelBeaterIds: string[];

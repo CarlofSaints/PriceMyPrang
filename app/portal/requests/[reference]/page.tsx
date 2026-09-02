@@ -6,6 +6,8 @@ import { getRequest, getPanelBeaters } from "@/lib/store";
 import { shortDate, zar } from "@/lib/format";
 import { Button } from "@/components/ui";
 import StatusControl from "@/components/StatusControl";
+import AssignWorkshops from "@/components/AssignWorkshops";
+import { SERVICEABLE_KM } from "@/lib/geo";
 
 function Detail({ label, value }: { label: string; value?: string }) {
   return (
@@ -31,6 +33,19 @@ export default async function RequestDetailPage({
 
   const panelBeaters = await getPanelBeaters();
   const chosen = panelBeaters.filter((p) => req.selectedPanelBeaterIds.includes(p.id));
+  const canAssign = can(user, "manage_panel_beaters");
+  // Only active listings can take new work, but a workshop already on the job
+  // stays on the list even if it has since been switched off: hiding it would
+  // silently drop it the next time anybody saved.
+  const assignable = panelBeaters
+    .filter((p) => p.active || req.selectedPanelBeaterIds.includes(p.id))
+    .map((p) => ({
+      id: p.id,
+      name: p.tradingAs || p.companyName,
+      town: p.physicalAddress,
+      lat: p.lat,
+      lng: p.lng,
+    }));
   const nameFor = (id: string) => {
     const p = panelBeaters.find((x) => x.id === id);
     return p ? p.tradingAs || p.companyName : id;
@@ -104,8 +119,24 @@ export default async function RequestDetailPage({
               <Detail label="Under warranty" value={req.underWarranty} />
               <Detail label="Suspected engine damage" value={req.suspectedEngineDamage} />
               <Detail
-                label="Quotes requested"
-                value={`${req.quotesRequested}${req.letUsChoose ? " (we choose)" : ""}`}
+                label="Where the vehicle is"
+                value={[req.town, req.province].filter(Boolean).join(", ")}
+              />
+              <Detail
+                label="Nearest repairer when submitted"
+                value={
+                  req.nearestPanelBeaterKm == null
+                    ? undefined
+                    : `${req.nearestPanelBeaterKm} km${
+                        req.nearestPanelBeaterKm > SERVICEABLE_KM ? " (out of area)" : ""
+                      }`
+                }
+              />
+              <Detail
+                label="Workshops assigned"
+                value={
+                  req.quotesRequested > 0 ? String(req.quotesRequested) : "None yet"
+                }
               />
             </dl>
           </section>
@@ -193,33 +224,47 @@ export default async function RequestDetailPage({
           </section>
 
           <section className="pmp-card">
-            <h2 className="mb-3 font-display text-lg font-semibold text-ink">
-              Selected workshops
+            <h2 className="mb-1 font-display text-lg font-semibold text-ink">
+              {canAssign ? "Assign workshops" : "Workshops on this job"}
             </h2>
-            {req.letUsChoose && (
-              <p className="mb-3 rounded-lg bg-amber/20 px-3 py-2 text-sm text-ink">
-                Client asked us to choose {req.quotesRequested} workshop
-                {req.quotesRequested > 1 ? "s" : ""} for them.
-              </p>
-            )}
-            <ul className="space-y-2 text-sm">
-              {chosen.length === 0 ? (
-                <li className="text-ink/50">
-                  {req.letUsChoose ? "None assigned yet." : "None."}
-                </li>
-              ) : (
-                chosen.map((p) => (
-                  <li key={p.id} className="rounded-lg bg-ink/5 px-3 py-2">
-                    {p.tradingAs || p.companyName}
-                  </li>
-                ))
+            <p className="mb-3 text-sm text-ink/60">
+              {canAssign
+                ? "Who quotes this job. Saving emails any workshop you have just added."
+                : "Who has been put on this job."}
+            </p>
+            {req.nearestPanelBeaterKm != null &&
+              req.nearestPanelBeaterKm > SERVICEABLE_KM && (
+                <p className="mb-3 rounded-lg bg-amber/20 px-3 py-2 text-sm text-ink">
+                  No approved repairer is within {SERVICEABLE_KM} km of this customer. Worth a
+                  call before they give up on us.
+                </p>
               )}
-            </ul>
+            {canAssign ? (
+              <AssignWorkshops
+                reference={req.reference}
+                workshops={assignable}
+                assigned={req.selectedPanelBeaterIds}
+                customer={req.location ?? null}
+              />
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {chosen.length === 0 ? (
+                  <li className="text-ink/50">None assigned yet.</li>
+                ) : (
+                  chosen.map((p) => (
+                    <li key={p.id} className="rounded-lg bg-ink/5 px-3 py-2">
+                      {p.tradingAs || p.companyName}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
           </section>
 
           <section className="pmp-card">
             <h2 className="mb-3 font-display text-lg font-semibold text-ink">
-              Quotes ({req.quotes.length}/{req.quotesRequested})
+              Quotes ({req.quotes.length}
+              {req.quotesRequested > 0 ? `/${req.quotesRequested}` : ""})
             </h2>
             {req.quotes.length === 0 ? (
               <p className="text-sm text-ink/50">No quotes built yet.</p>

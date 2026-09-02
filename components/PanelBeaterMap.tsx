@@ -4,21 +4,25 @@ import { useMemo, useState } from "react";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import type { PanelBeater } from "@/lib/types";
 import { Button, inputClass } from "./ui";
+import { distanceKm } from "@/lib/geo";
+
+/**
+ * PARKED, NOT DEAD. Nothing renders this today.
+ *
+ * Until 2 Sep 2026 the consumer picked their own repairers off this map. It was
+ * taken out of the quote flow because it only works with enough workshops on
+ * board: asking somebody to pick 3 near them when the whole network is one
+ * province is a dead end, and it was costing us submissions. Jobs are matched
+ * to a repairer in the portal instead.
+ *
+ * Kept because the data behind it is still being collected: the consumer's town
+ * is geocoded on every submission, so putting this back is a UI decision, not a
+ * data one. Delete it only if that stops being true.
+ */
 
 // Johannesburg fallback centre.
 const DEFAULT_CENTER = { lat: -26.2041, lng: 28.0473 };
 
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
 
 function hasCoords(p: PanelBeater): p is PanelBeater & { lat: number; lng: number } {
   return typeof p.lat === "number" && typeof p.lng === "number";

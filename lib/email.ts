@@ -16,6 +16,7 @@ import {
 import { DEV_PRIORITY_SHORT, DEV_STATUS_LABEL } from "./types";
 import { getUsers, getRoles } from "./store";
 import { permissionsForRole } from "./permissions";
+import { SERVICEABLE_KM } from "./geo";
 
 const BRAND = {
   teal: "#00848D",
@@ -55,6 +56,22 @@ function detailRow(label: string, value: string): string {
     <td style="padding:6px 0;color:#6b7f82;font-size:13px;">${label}</td>
     <td style="padding:6px 0;font-size:13px;text-align:right;font-weight:bold;">${value || "Not given"}</td>
   </tr>`;
+}
+
+/**
+ * Whether nobody we work with is close enough to be useful.
+ *
+ * An unknown distance is NOT out of area: we simply could not geocode the town,
+ * and warning somebody off on the strength of a failed lookup would be wrong.
+ */
+function isOutOfArea(req: QuoteRequest): boolean {
+  return req.nearestPanelBeaterKm != null && req.nearestPanelBeaterKm > SERVICEABLE_KM;
+}
+
+/** How far the nearest repairer is, said plainly, including when we cannot tell. */
+function coverageLine(req: QuoteRequest): string {
+  if (req.nearestPanelBeaterKm == null) return "Could not work it out";
+  return `${req.nearestPanelBeaterKm} km away`;
 }
 
 /**
@@ -117,12 +134,18 @@ export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelB
     .map((p) => `<li style="margin-bottom:4px;">${p.tradingAs || p.companyName}</li>`)
     .join("");
 
+  // Older requests carry workshops the consumer picked off the map. New ones
+  // never do: we match the job to a repairer ourselves, so there is nothing to
+  // list and promising a name we have not confirmed would be a lie.
+  const outOfArea = isOutOfArea(req);
+
   const body = `
     <p style="font-size:15px;line-height:1.5;">Hi ${req.firstName},</p>
     <p style="font-size:15px;line-height:1.5;">
-      Thank you for your submission. The details of this quote request will be sent to the
-      provider${chosen.length > 1 ? "s" : ""} of your choice. We&apos;ll be in contact with your
-      quote within the next 24 hours.
+      Thank you for your submission. We are matching your ${
+        [req.vehicle.make, req.vehicle.model].filter(Boolean).join(" ") || "vehicle"
+      } to the right repairer${req.town ? ` near ${req.town}` : ""}, and we will be in
+      contact with your quote within the next 24 hours.
     </p>
     <div style="background:${BRAND.ink};border-radius:12px;padding:16px;text-align:center;margin:20px 0;">
       <div style="color:${BRAND.teal};font-size:11px;letter-spacing:2px;text-transform:uppercase;">Your reference number</div>
@@ -130,13 +153,22 @@ export async function sendConsumerConfirmation(req: QuoteRequest, chosen: PanelB
     </div>
     <table style="width:100%;border-collapse:collapse;">
       ${detailRow("Vehicle", [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" "))}
-      ${detailRow("Quotes requested", String(req.quotesRequested))}
+      ${detailRow("Where the vehicle is", [req.town, req.province].filter(Boolean).join(", "))}
     </table>
     ${
-      req.letUsChoose
-        ? `<p style="font-size:14px;margin-top:16px;">You asked us to choose your workshop${req.quotesRequested > 1 ? "s" : ""}, so we'll line up ${req.quotesRequested} suitable repairer${req.quotesRequested > 1 ? "s" : ""} near you.</p>`
-        : `<p style="font-size:14px;margin-top:16px;">Your selected workshop${chosen.length > 1 ? "s" : ""}:</p>
+      chosen.length > 0
+        ? `<p style="font-size:14px;margin-top:16px;">Your selected workshop${chosen.length > 1 ? "s" : ""}:</p>
     <ul style="font-size:14px;padding-left:18px;">${workshops}</ul>`
+        : ""
+    }
+    ${
+      outOfArea
+        ? `<p style="font-size:14px;margin-top:16px;background:${BRAND.offwhite};border-radius:12px;padding:14px;">
+      One thing to be straight with you about: our approved repairers are still concentrated in
+      a few areas, and ${req.town || "your area"} may not be one of them yet. We will look at
+      your request either way and come back to you, so you know where you stand.
+    </p>`
+        : ""
     }
   `;
 
@@ -196,10 +228,19 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
         ${detailRow("3rd party claim", req.isThirdPartyClaim)}
         ${detailRow("Under warranty", req.underWarranty)}
         ${detailRow("Suspected engine damage", req.suspectedEngineDamage)}
-        ${detailRow("Quotes requested", `${req.quotesRequested}${req.letUsChoose ? " (we choose)" : ""}`)}
-        ${detailRow("Workshops", req.letUsChoose ? "Client asked us to choose" : chosen.map((p) => p.tradingAs || p.companyName).join(", "))}
+        ${detailRow("Where the vehicle is", [req.town, req.province].filter(Boolean).join(", "))}
+        ${detailRow("Nearest repairer", coverageLine(req))}
+        ${detailRow("Workshops", chosen.length > 0 ? chosen.map((p) => p.tradingAs || p.companyName).join(", ") : "None assigned yet")}
       </table>
     </div>
+    ${
+      isOutOfArea(req)
+        ? `<p style="font-size:13px;background:#fef3c7;border-radius:10px;padding:12px;">
+      No approved repairer is within ${SERVICEABLE_KM} km of this customer. Worth a call before
+      they give up on us, and worth noting as a gap in coverage.
+    </p>`
+        : ""
+    }
     <p style="font-size:13px;">Full vehicle photos: ${sidePhotos}</p>
     <p style="font-size:13px;">Damage close-ups: ${photos || "None"}</p>
     ${req.video ? `<p style="font-size:13px;">Video: <a href="${abs(req.video.url)}" style="color:${BRAND.teal};">watch</a></p>` : ""}
@@ -218,6 +259,62 @@ export async function sendAdminNotification(req: QuoteRequest, chosen: PanelBeat
     to,
     subject: `New prang to quote: ${req.reference} (${req.firstName} ${req.lastName})`,
     html: shell("New quote request", body),
+  });
+}
+
+/**
+ * Tell a workshop we have put them on a job.
+ *
+ * This is the message that replaced the consumer picking a workshop off a map:
+ * from 2 Sep 2026 a repairer finds out about a job because we assigned it, so
+ * if this does not send, nothing else tells them. That is why the caller logs
+ * the outcome rather than swallowing a failure.
+ */
+export async function sendRepairerJobAssigned(req: QuoteRequest, pb: PanelBeater) {
+  const resend = client();
+  if (!resend) return;
+
+  const to = [pb.completedByEmail, pb.ownerEmail].filter((e): e is string => !!e);
+  if (to.length === 0) return;
+
+  const vehicle =
+    [req.vehicle.make, req.vehicle.model, req.vehicle.year].filter(Boolean).join(" ") ||
+    "a vehicle";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.5;">
+      We have put ${pb.tradingAs || pb.companyName} on a new job.
+    </p>
+    <div style="background:${BRAND.ink};border-radius:12px;padding:16px;text-align:center;margin:20px 0;">
+      <div style="color:${BRAND.teal};font-size:11px;letter-spacing:2px;text-transform:uppercase;">Reference</div>
+      <div style="color:#fff;font-size:20px;font-weight:bold;margin-top:4px;">${req.reference}</div>
+    </div>
+    <div style="background:${BRAND.offwhite};border-radius:12px;padding:16px;margin:16px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        ${detailRow("Vehicle", vehicle)}
+        ${detailRow("Where the vehicle is", [req.town, req.province].filter(Boolean).join(", "))}
+        ${detailRow("Insurance claim", req.isInsuranceClaim)}
+        ${detailRow("Insurer", req.insurerName || "")}
+      </table>
+    </div>
+    <p style="font-size:14px;">
+      The photos, licence disc and odometer reading are all on the job in your portal.
+      Please price it as soon as you can: the client has been told to expect a quote
+      within 24 hours.
+    </p>
+    <p style="margin-top:20px;">
+      <a href="${baseUrl()}/portal/requests/${req.reference}"
+         style="background:${BRAND.coral};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:bold;font-size:14px;">
+        Open the job
+      </a>
+    </p>
+  `;
+
+  await resend.emails.send({
+    from: fromAddress(),
+    to,
+    subject: `New job for you: ${req.reference}, ${vehicle}`,
+    html: shell("A new job has been assigned to you", body),
   });
 }
 
