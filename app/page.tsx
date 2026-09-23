@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import QuoteLauncher from "@/components/QuoteLauncher";
 import RegisterLauncher from "@/components/RegisterLauncher";
+import { LegalFooterLinks } from "@/components/LegalPage";
 
 const APPROVALS = [
   { src: "/approvals/miwa.png", alt: "MIWA" },
@@ -131,6 +132,7 @@ export default function Home() {
             Rate your repairer or raise a problem
           </Link>
         </p>
+        <LegalFooterLinks className="mb-4" />
         <p>© {new Date().getFullYear()} Price my Prang · Crash · Quote · Claim</p>
       </footer>
     </main>
