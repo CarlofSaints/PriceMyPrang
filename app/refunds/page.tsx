@@ -25,10 +25,11 @@ export default function RefundsPage() {
         paid for separately, to the panel beater, if you decide to go ahead.
       </p>
 
-      <h2>2. Cancelling before work starts: full refund</h2>
+      <h2>2. Cancelling before work starts: 80% refund</h2>
       <p>
-        You can cancel your request at any time before we assign it to a panel beater, and we
-        will refund the full fee.
+        You can cancel your request at any time before we assign it to a panel beater. We will
+        refund 80% of the fee. The remaining 20% covers the cost of receiving, checking and
+        processing your request, and the payment processing costs already incurred.
       </p>
 
       <h2>3. When we cannot quote: full refund</h2>

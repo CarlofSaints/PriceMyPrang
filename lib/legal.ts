@@ -11,12 +11,12 @@
 export const LEGAL = {
   tradingName: "Price my Prang",
   legalName: "Price my Prang (Pty) Ltd",
-  registrationNumber: "",
-  physicalAddress: "",
-  contactEmail: "",
-  contactPhone: "",
+  registrationNumber: "2026/600603/07",
+  physicalAddress: "5 Parthab Road, Durban North, 4051",
+  contactEmail: "contact@pricemyprang.co.za",
+  contactPhone: "011 436 9020",
   /** POPIA section 55. Defaults to the company's head if left blank. */
-  informationOfficer: "",
+  informationOfficer: "Jerome Sagathevan",
   website: "https://www.pricemyprang.co.za",
   /** The price the homepage advertises. Keep the two in step. */
   quoteFee: "R350",
