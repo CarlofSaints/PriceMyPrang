@@ -60,6 +60,11 @@ const REDACT_KEYS = [
   // the list above matches a field called setPasswordUrl, so it is named here
   // as well as being kept out of every logged detail by hand.
   "setpasswordurl",
+  // Ozow can be configured to post the payer's bank details. We never log a
+  // payment notification wholesale, but if anyone ever does, these stay out.
+  "accountnumber",
+  "bankid",
+  "recipientname",
 ];
 
 const REDACTED = "[redacted]";

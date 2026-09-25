@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
+import { verifySvix } from "@/lib/svix";
 import { findUserByEmail } from "@/lib/store";
 import { logActivity } from "@/lib/activityLog";
 
@@ -19,40 +19,6 @@ export const runtime = "nodejs";
 // recipient's user record where there is one, so a workshop's whole mail
 // history reads back on the same page as everything else they did.
 // ---------------------------------------------------------------------------
-
-/**
- * Resend signs webhooks with Svix. Verified by hand rather than pulling in the
- * `svix` package: it is one HMAC, and a dependency added for twenty lines is a
- * dependency to keep patched forever.
- */
-function verify(rawBody: string, headers: Headers, secret: string): boolean {
-  const id = headers.get("svix-id") ?? headers.get("webhook-id");
-  const timestamp = headers.get("svix-timestamp") ?? headers.get("webhook-timestamp");
-  const signature = headers.get("svix-signature") ?? headers.get("webhook-signature");
-  if (!id || !timestamp || !signature) return false;
-
-  // Refuse anything older than five minutes, so a signed request captured off
-  // the wire can't be replayed indefinitely.
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
-  if (!Number.isFinite(age) || age > 300) return false;
-
-  // "whsec_" prefix is a label, not part of the key.
-  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
-  const expected = crypto
-    .createHmac("sha256", key)
-    .update(`${id}.${timestamp}.${rawBody}`)
-    .digest("base64");
-
-  // The header carries a space-separated list of versioned signatures, because
-  // a secret being rotated means two are briefly valid at once.
-  return signature.split(" ").some((part) => {
-    const [version, value] = part.split(",");
-    if (version !== "v1" || !value) return false;
-    const a = Buffer.from(value);
-    const b = Buffer.from(expected);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-  });
-}
 
 interface ResendEvent {
   type?: string;
@@ -97,7 +63,7 @@ export async function POST(request: Request) {
   // Must be read as raw text: the signature covers the exact bytes, so
   // parsing and re-serialising would break it.
   const raw = await request.text();
-  if (!verify(raw, request.headers, secret))
+  if (!verifySvix(raw, request.headers, secret))
     return NextResponse.json({ error: "Bad signature" }, { status: 401 });
 
   let event: ResendEvent;

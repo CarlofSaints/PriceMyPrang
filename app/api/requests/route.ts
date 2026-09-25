@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser, getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getPanelBeaters, createRequest } from "@/lib/store";
+import { getPanelBeaters, createRequest, findRequestIdByReference } from "@/lib/store";
+import { ozowConfig } from "@/lib/ozow";
+import { startPayment, siteUrlFor } from "@/lib/payments";
 import {
   sendConsumerConfirmation,
   sendAdminNotification,
@@ -199,6 +201,28 @@ export async function POST(request: Request) {
     },
     request,
   });
+
+  // With Ozow switched on, a consumer request is not work until it is paid:
+  // nobody is emailed now, lib/payments.ts does that the moment Ozow confirms.
+  // The customer goes straight to Ozow. If Ozow won't open a payment, the
+  // request is still saved and the pay page lets them try again.
+  if (!repairerQuote && ozowConfig()) {
+    const id = await findRequestIdByReference(req.reference);
+    let payUrl: string | null = null;
+    try {
+      const started = id ? await startPayment(id, siteUrlFor(request)) : null;
+      if (started?.kind === "redirect") payUrl = started.url;
+    } catch (err) {
+      // Already logged as payment.start_failed with Ozow's reason.
+      console.error("ozow start failed", err);
+    }
+    return NextResponse.json({
+      reference: req.reference,
+      nearestPanelBeaterKm,
+      payUrl,
+      payPage: req.publicToken ? `/pay/${req.publicToken}` : null,
+    });
+  }
 
   // Consumer/admin notification emails only apply to consumer-submitted requests.
   // A repairer self-quote is handled by the repairer, so we don't email anyone.

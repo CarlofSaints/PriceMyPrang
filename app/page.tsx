@@ -16,7 +16,7 @@ const STEPS = [
   // 2 Sep 2026: we match the job to a repairer ourselves, so promising a map
   // that no longer exists sent people looking for a step that is not there.
   { n: "2", t: "We find your repairer", d: "We match your prang to vetted panel beaters who can take it on." },
-  { n: "3", t: "Pay & confirm", d: "A flat R350 per quote, with quick, secure checkout to lock in your request." },
+  { n: "3", t: "Pay & confirm", d: "A flat R350 per request, paid securely through Ozow to lock it in." },
   { n: "4", t: "Get your quote", d: "Our assessors do the legwork and come back to you within 24 hours." },
 ];
 

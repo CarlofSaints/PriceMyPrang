@@ -17,6 +17,8 @@ export const ACTIVITY_AREAS: Record<string, string> = {
   warranty: "Warranties",
   request: "Quote requests",
   quote: "Quotes",
+  // The customer's fee, via Ozow. Started, paid, failed.
+  payment: "Payments",
   additional: "Additionals",
   insurer: "Insurers",
   insurer_contact: "Insurer contacts",
