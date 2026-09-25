@@ -208,6 +208,15 @@ export default async function DashboardPage({
                     <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-semibold text-ink/70">
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
+                    {/* Not work yet: nobody was emailed and the customer hasn't paid. */}
+                    {r.payment === "unpaid" && (
+                      <span
+                        className="ml-1.5 rounded-full bg-amber/30 px-2.5 py-1 text-xs font-semibold text-ink"
+                        title="Customer has not paid the request fee"
+                      >
+                        Awaiting payment
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">

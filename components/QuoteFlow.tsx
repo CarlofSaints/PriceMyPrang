@@ -406,6 +406,7 @@ export default function QuoteFlow({
     }
     setError(null);
     setBusy(true);
+    let leaving = false;
     try {
       const res = await fetch("/api/requests", {
         method: "POST",
@@ -424,14 +425,27 @@ export default function QuoteFlow({
       const data = (await res.json()) as {
         reference: string;
         nearestPanelBeaterKm: number | null;
+        /** Ozow's hosted page, when payments are on. */
+        payUrl?: string | null;
+        /** Our own pay page: the fallback if Ozow wouldn't open a payment. */
+        payPage?: string | null;
       };
+      // Payments on: the request is saved, now they pay. Stay busy, the
+      // browser is leaving. Our pay page is also where Ozow sends them back.
+      if (data.payUrl || data.payPage) {
+        leaving = true;
+        window.location.href = (data.payUrl || data.payPage)!;
+        return;
+      }
       setReference(data.reference);
       setNearestKm(data.nearestPanelBeaterKm);
       setStep("done");
     } catch {
       setError("Something went wrong submitting your request. Please try again.");
     } finally {
-      setBusy(false);
+      // Unlocking while the page navigates away would let a second tap
+      // submit the same request twice.
+      if (!leaving) setBusy(false);
     }
   }
 

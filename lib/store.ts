@@ -1761,6 +1761,12 @@ export interface RequestListRow {
   province?: string;
   quotesRequested: number;
   quoteCount: number;
+  /**
+   * The customer's fee. Absent when none was ever asked for: requests from
+   * before payments, and a repairer's own jobs. "unpaid" means we asked and
+   * no attempt has come good yet.
+   */
+  payment?: "paid" | "unpaid";
 }
 
 export interface RequestListOptions {
@@ -1826,6 +1832,7 @@ export async function listRequests(
         province: true,
         quotesRequested: true,
         _count: { select: { quotes: true } },
+        payments: { select: { status: true } },
       },
     }),
     db.quoteRequest.count({ where }),
@@ -1847,6 +1854,12 @@ export async function listRequests(
       province: r.province ?? undefined,
       quotesRequested: r.quotesRequested,
       quoteCount: r._count.quotes,
+      payment:
+        r.payments.length === 0
+          ? undefined
+          : r.payments.some((p) => p.status === "paid")
+            ? ("paid" as const)
+            : ("unpaid" as const),
     })),
     total,
     page,
