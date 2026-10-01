@@ -134,7 +134,8 @@ export async function webhookSecret(cfg: OzowConfig, endpoint: string, fresh = f
   if (!fresh && cachedSecret?.key === key) return cachedSecret.value;
 
   const auth = { Authorization: `Bearer ${await accessToken(cfg, "webhooks")}` };
-  const list = (await ozowFetch(cfg, "/webhooks?limit=100", { headers: auth })) as {
+  // 50 is Ozow's maximum page size ("Limit cannot exceed 50").
+  const list = (await ozowFetch(cfg, "/webhooks?limit=50", { headers: auth })) as {
     results?: { id?: string; endpoint?: string }[];
   };
   // Host without "www." plus path: apex and www are the same site to us.
