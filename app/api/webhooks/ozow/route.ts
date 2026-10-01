@@ -26,6 +26,7 @@ export const runtime = "nodejs";
 // ---------------------------------------------------------------------------
 
 let lastRefetch = 0;
+let fetchBlockedUntil = 0;
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -33,13 +34,28 @@ export async function POST(request: Request) {
   const cfg = ozowConfig();
   const endpoint = `${siteUrlFor(request)}/api/webhooks/ozow`;
 
+  // Only something shaped like a live Svix delivery may cost us a call to
+  // Ozow. Junk posted at this public URL is refused without one.
+  const ts = Number(request.headers.get("svix-timestamp") ?? request.headers.get("webhook-timestamp"));
+  const signed =
+    !!(request.headers.get("svix-id") ?? request.headers.get("webhook-id")) &&
+    !!(request.headers.get("svix-signature") ?? request.headers.get("webhook-signature")) &&
+    Number.isFinite(ts) &&
+    Math.abs(Date.now() / 1000 - ts) <= 300;
+
   // Fail closed: without a secret nothing can be verified, so nothing is acted
   // on. 503 rather than 4xx so Svix keeps retrying until we can.
   let secret = fixed;
-  if (!secret && cfg) {
+  if (!secret && cfg && signed) {
+    // A failed fetch is remembered for a minute, so a broken setup can't turn
+    // every post into Ozow API calls and a log row.
+    if (Date.now() < fetchBlockedUntil) {
+      return NextResponse.json({ error: "Not configured" }, { status: 503 });
+    }
     try {
       secret = await webhookSecret(cfg, endpoint);
     } catch (err) {
+      fetchBlockedUntil = Date.now() + 60_000;
       await logActivity({
         action: "payment.webhook_rejected",
         summary: "Ozow webhook arrived but its secret couldn't be fetched from Ozow, so it was ignored",
@@ -52,7 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Not configured" }, { status: 503 });
     }
   }
-  if (!secret) {
+  if (!secret && signed) {
     await logActivity({
       action: "payment.webhook_rejected",
       summary: "Ozow webhook arrived but Ozow isn't configured, so it was ignored",
@@ -64,10 +80,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
 
-  let verified = verifySvix(raw, request.headers, secret);
-  // A fetched secret may be stale (rotated in Ozow): refetch and retry. At most
-  // every five minutes, so junk posted at this URL can't make us hammer Ozow.
-  if (!verified && !fixed && cfg && Date.now() - lastRefetch > 5 * 60_000) {
+  let verified = !!secret && verifySvix(raw, request.headers, secret);
+  // A fetched secret may be stale (rotated in Ozow): refetch and retry. Only
+  // when the signature itself is what failed, and at most every five minutes.
+  if (!verified && signed && secret && !fixed && cfg && Date.now() - lastRefetch > 5 * 60_000) {
     lastRefetch = Date.now();
     const again = await webhookSecret(cfg, endpoint, true).catch(() => null);
     if (again && again !== secret) verified = verifySvix(raw, request.headers, again);
