@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { verifySvix } from "@/lib/svix";
 import { getDb } from "@/lib/db";
 import { logActivity } from "@/lib/activityLog";
-import { reconcileRequest, reconcileOpenPayments } from "@/lib/payments";
+import { reconcileRequest, reconcileOpenPayments, siteUrlFor } from "@/lib/payments";
+import { ozowConfig, webhookSecret, OzowError } from "@/lib/ozow";
 
 // node:crypto, and a raw request body: neither survives the edge runtime.
 export const runtime = "nodejs";
@@ -20,18 +21,41 @@ export const runtime = "nodejs";
 //   URL      https://www.pricemyprang.co.za/api/webhooks/ozow
 //   Event    transaction.complete
 //   Message  full   (carries TransactionReference = our request reference)
-// then put its whsec_ secret in OZOW_WEBHOOK_SECRET.
+// The dashboard never shows the webhook's secret, so we fetch it from Ozow's
+// API (webhookSecret). OZOW_WEBHOOK_SECRET, if set, overrides that.
 // ---------------------------------------------------------------------------
 
-export async function POST(request: Request) {
-  const secret = process.env.OZOW_WEBHOOK_SECRET?.trim();
-  const raw = await request.text();
+let lastRefetch = 0;
 
-  // Fail closed: without a secret nothing can be verified, so nothing is acted on.
+export async function POST(request: Request) {
+  const raw = await request.text();
+  const fixed = process.env.OZOW_WEBHOOK_SECRET?.trim();
+  const cfg = ozowConfig();
+  const endpoint = `${siteUrlFor(request)}/api/webhooks/ozow`;
+
+  // Fail closed: without a secret nothing can be verified, so nothing is acted
+  // on. 503 rather than 4xx so Svix keeps retrying until we can.
+  let secret = fixed;
+  if (!secret && cfg) {
+    try {
+      secret = await webhookSecret(cfg, endpoint);
+    } catch (err) {
+      await logActivity({
+        action: "payment.webhook_rejected",
+        summary: "Ozow webhook arrived but its secret couldn't be fetched from Ozow, so it was ignored",
+        outcome: "failed",
+        actorKind: "system",
+        actorName: "Ozow",
+        detail: { error: err instanceof OzowError ? err.message : String(err) },
+        request,
+      });
+      return NextResponse.json({ error: "Not configured" }, { status: 503 });
+    }
+  }
   if (!secret) {
     await logActivity({
       action: "payment.webhook_rejected",
-      summary: "Ozow webhook arrived but OZOW_WEBHOOK_SECRET is not set, so it was ignored",
+      summary: "Ozow webhook arrived but Ozow isn't configured, so it was ignored",
       outcome: "failed",
       actorKind: "system",
       actorName: "Ozow",
@@ -40,7 +64,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not configured" }, { status: 503 });
   }
 
-  if (!verifySvix(raw, request.headers, secret)) {
+  let verified = verifySvix(raw, request.headers, secret);
+  // A fetched secret may be stale (rotated in Ozow): refetch and retry. At most
+  // every five minutes, so junk posted at this URL can't make us hammer Ozow.
+  if (!verified && !fixed && cfg && Date.now() - lastRefetch > 5 * 60_000) {
+    lastRefetch = Date.now();
+    const again = await webhookSecret(cfg, endpoint, true).catch(() => null);
+    if (again && again !== secret) verified = verifySvix(raw, request.headers, again);
+  }
+
+  if (!verified) {
     // Logged, never silently dropped: a bad signature is either our bug or
     // somebody probing the endpoint, and both want a person to look.
     await logActivity({

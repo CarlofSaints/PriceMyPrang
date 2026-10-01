@@ -14,7 +14,10 @@
 // ENV (all server-side, set on Vercel as Sensitive):
 //   OZOW_CLIENT_ID, OZOW_CLIENT_SECRET  Dashboard > One API Clients
 //   OZOW_SITE_CODE                      Dashboard > Sites
-//   OZOW_WEBHOOK_SECRET                 whsec_..., the webhook's own secret
+//   OZOW_WEBHOOK_SECRET                 optional. whsec_..., the webhook's own
+//                                       secret. Ozow's dashboard never shows
+//                                       it, so when unset we fetch it from
+//                                       their API: see webhookSecret().
 //   OZOW_ENV                            "production" to take real money.
 //                                       Anything else, or unset, is staging:
 //                                       a missing setting must never charge.
@@ -91,20 +94,20 @@ async function ozowFetch(cfg: OzowConfig, path: string, init: RequestInit): Prom
 
 // A token lasts hours; asking for one per call would double every round trip.
 // Per instance, which is fine: a cold instance just asks again.
-let cachedToken: { key: string; value: string; expiresAt: number } | null = null;
+// One per scope: a "payments" token can't read webhooks, nor the reverse.
+const cachedTokens = new Map<string, { value: string; expiresAt: number }>();
 
-async function accessToken(cfg: OzowConfig): Promise<string> {
-  const key = `${cfg.env}:${cfg.clientId}`;
-  if (cachedToken && cachedToken.key === key && cachedToken.expiresAt > Date.now()) {
-    return cachedToken.value;
-  }
+async function accessToken(cfg: OzowConfig, scope: "payments" | "webhooks" = "payments"): Promise<string> {
+  const key = `${cfg.env}:${cfg.clientId}:${scope}`;
+  const hit = cachedTokens.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.value;
   const body = (await ozowFetch(cfg, "/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: cfg.clientId,
       client_secret: cfg.clientSecret,
-      scope: "payments",
+      scope,
       grant_type: "client_credentials",
     }),
   })) as { access_token?: string; expires_in?: string | number };
@@ -112,8 +115,46 @@ async function accessToken(cfg: OzowConfig): Promise<string> {
 
   // Read the lifetime rather than assume it, and renew a minute early.
   const seconds = Number(body.expires_in) || 3600;
-  cachedToken = { key, value: body.access_token, expiresAt: Date.now() + (seconds - 60) * 1000 };
+  cachedTokens.set(key, { value: body.access_token, expiresAt: Date.now() + (seconds - 60) * 1000 });
   return body.access_token;
+}
+
+// ---------------------------------------------------------------------------
+// The webhook's signing secret. The dashboard creates a webhook but never shows
+// its secret: Ozow only hands it out through GET /webhooks/{id}/secret. So
+// rather than have a person dig it out with curl and paste it into Vercel, we
+// ask for it ourselves. Ours is the subscription pointing at our endpoint.
+// Cached per instance; `fresh` refetches, for after a secret is rotated.
+// ---------------------------------------------------------------------------
+
+let cachedSecret: { key: string; value: string } | null = null;
+
+export async function webhookSecret(cfg: OzowConfig, endpoint: string, fresh = false): Promise<string> {
+  const key = `${cfg.env}:${cfg.clientId}:${endpoint}`;
+  if (!fresh && cachedSecret?.key === key) return cachedSecret.value;
+
+  const auth = { Authorization: `Bearer ${await accessToken(cfg, "webhooks")}` };
+  const list = (await ozowFetch(cfg, "/webhooks?limit=100", { headers: auth })) as {
+    results?: { id?: string; endpoint?: string }[];
+  };
+  // Host without "www." plus path: apex and www are the same site to us.
+  const norm = (u: string | undefined) => {
+    try {
+      const x = new URL((u ?? "").trim());
+      return `${x.hostname.toLowerCase().replace(/^www\./, "")}${x.pathname.replace(/\/+$/, "")}`;
+    } catch {
+      return "";
+    }
+  };
+  const ours = (list?.results ?? []).find((w) => norm(w.endpoint) === norm(endpoint));
+  if (!ours?.id) throw new OzowError(404, "NoWebhook", `no webhook subscription points at ${endpoint}`);
+
+  const body = (await ozowFetch(cfg, `/webhooks/${encodeURIComponent(ours.id)}/secret`, { headers: auth })) as {
+    secret?: string;
+  };
+  if (!body?.secret) throw new OzowError(500, "NoSecret", "webhook secret response carried no secret");
+  cachedSecret = { key, value: body.secret };
+  return body.secret;
 }
 
 export interface CreatedPayment {
