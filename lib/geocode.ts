@@ -4,17 +4,16 @@ export interface GeocodeResult {
   lng?: number;
   status: string; // Google status, or a local reason
   error?: string; // Google error_message, if any
-  keySource: "GEOCODING_API_KEY" | "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY" | "none";
+  keySource: "GEOCODING_API_KEY" | "none";
 }
 
 // Geocode with full status info (used by the diagnostic endpoint + save flow).
 export async function geocodeWithStatus(address: string): Promise<GeocodeResult> {
-  const key = process.env.GEOCODING_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const keySource = process.env.GEOCODING_API_KEY
-    ? "GEOCODING_API_KEY"
-    : process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-      ? "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
-      : "none";
+  // Server key only. The old fallback to NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is
+  // gone with the consumer map: a NEXT_PUBLIC_ value is baked into browser JS,
+  // so it must never be the key a billable server call depends on.
+  const key = process.env.GEOCODING_API_KEY;
+  const keySource = key ? "GEOCODING_API_KEY" : "none";
   if (!key) return { ok: false, status: "NO_KEY", keySource };
   if (!address.trim()) return { ok: false, status: "NO_ADDRESS", keySource };
 

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { sessionSecret } from "./lib/session-secret";
 
 const COOKIE_NAME = "pmp_session";
 
@@ -17,11 +18,6 @@ const REDIRECT_HOSTS = new Set([
   "price-my-prang.vercel.app",
   "pricemyprang.co.za",
 ]);
-
-function secret(): Uint8Array {
-  const s = process.env.SESSION_SECRET || "dev-only-insecure-secret-change-me";
-  return new TextEncoder().encode(s);
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -47,7 +43,7 @@ export async function proxy(request: NextRequest) {
     let valid = false;
     if (token) {
       try {
-        await jwtVerify(token, secret());
+        await jwtVerify(token, sessionSecret());
         valid = true;
       } catch {
         valid = false;
