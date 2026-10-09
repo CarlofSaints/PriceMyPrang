@@ -5,14 +5,11 @@ import bcrypt from "bcryptjs";
 import { findUserById, getRoles } from "./store";
 import { permissionsForRole } from "./permissions";
 import type { AuthUser } from "./types";
+import { sessionSecret } from "./session-secret";
 
 const COOKIE_NAME = "pmp_session";
 const DAY = 60 * 60 * 24;
 
-function secret(): Uint8Array {
-  const s = process.env.SESSION_SECRET || "dev-only-insecure-secret-change-me";
-  return new TextEncoder().encode(s);
-}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -70,7 +67,7 @@ export async function createSession(userId: string): Promise<void> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secret());
+    .sign(sessionSecret());
 
   const jar = await cookies();
   jar.set(COOKIE_NAME, token, {
@@ -144,7 +141,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret());
+    const { payload } = await jwtVerify(token, sessionSecret());
     const userId = payload.sub as string;
     if (!userId) return null;
     const user = await findUserById(userId);

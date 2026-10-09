@@ -19,7 +19,7 @@ quotes. Built with **Next.js 16 (App Router)**, **Vercel Blob**, **Resend**,
 | Media          | Vercel Blob (client uploads, which bypass the 4.5MB API limit) |
 | Auth           | Cookie session (JWT via `jose`) + bcrypt, role/permission model |
 | Email          | Resend (branded HTML) |
-| Maps           | Google Maps (`@vis.gl/react-google-maps`) + Geocoding API |
+| Maps           | Google Geocoding API (server only, `GEOCODING_API_KEY`) |
 | Vehicle ID     | Claude vision reads the SA licence disc *(VIN API upgrade planned)* |
 | PDF quotes     | `@react-pdf/renderer` |
 
