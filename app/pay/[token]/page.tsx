@@ -4,6 +4,7 @@ import { Logo } from "@/components/Logo";
 import PayButton from "@/components/PayButton";
 import { getDb } from "@/lib/db";
 import { reconcileRequest } from "@/lib/payments";
+import { hit } from "@/lib/rateLimit";
 import { requestFee } from "@/lib/ozow";
 
 // PUBLIC: where the customer pays, and where Ozow sends them back to. The
@@ -23,7 +24,15 @@ export default async function PayPage({ params }: { params: Promise<{ token: str
 
   let state: Awaited<ReturnType<typeof reconcileRequest>>;
   try {
-    state = await reconcileRequest(req.id);
+    // A refresh loop on one link must not become a loop on Ozow's API. Over
+    // the limit, this load goes by what we already recorded (paid, or "still
+    // checking") without asking; the next load after the window asks again.
+    const check = await hit("payPageCheck", token);
+    state = check.ok
+      ? await reconcileRequest(req.id)
+      : (await getDb().payment.count({ where: { requestId: req.id, status: "paid" } }))
+        ? "paid"
+        : "pending";
   } catch (err) {
     // Ozow unreachable. Never guess "paid"; "still checking" is the honest answer.
     console.error("pay page reconcile failed", err);

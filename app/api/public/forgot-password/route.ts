@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findUserByEmail, createPasswordSetToken } from "@/lib/store";
 import { sendUserCredentials, passwordSetUrl } from "@/lib/email";
 import { logActivity } from "@/lib/activityLog";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { parseJson } from "@/lib/validate";
 import { ForgotPasswordBody } from "@/lib/schemas/public";
 
@@ -30,16 +30,11 @@ export async function POST(request: Request) {
   // Two limits, because they stop different things. Per-IP stops someone
   // walking a list of addresses to see which ones exist; per-address stops
   // one inbox being buried under reset mail by a stranger.
-  const perIp = rateLimit(`forgot:${ip}`, 10, 3600_000);
-  if (!perIp.ok)
-    return tooManyRequests(perIp.retryAfter, "Too many attempts. Try again a bit later.");
+  const perIp = await limitOrRespond("forgotIp", ip);
+  if (perIp) return perIp;
   if (email) {
-    const perEmail = rateLimit(`forgot-email:${email}`, 4, 3600_000);
-    if (!perEmail.ok)
-      return tooManyRequests(
-        perEmail.retryAfter,
-        "We've already sent a few of these. Check your inbox and spam folder."
-      );
+    const perEmail = await limitOrRespond("forgotEmail", email);
+    if (perEmail) return perEmail;
   }
 
   // The one thing worth its own answer: an empty box is a mistake, not a

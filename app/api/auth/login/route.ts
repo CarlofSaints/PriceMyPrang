@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { findUserByEmail, createLoginChallenge } from "@/lib/store";
 import { verifyPassword, createSession, hashPassword, generateOtp } from "@/lib/auth";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { hit, LIMITS, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { sendLoginCode } from "@/lib/email";
 import { logActivity } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { LoginBody } from "@/lib/schemas/auth";
 
-// Two limits, because they stop different attacks:
+// Two limits (numbers in lib/rateLimit LIMITS), because they stop different attacks:
 //
 //  - per ACCOUNT: someone working through a password list against one known
 //    email. Keyed on the address, so moving between IPs doesn't reset it.
@@ -16,8 +16,6 @@ import { LoginBody } from "@/lib/schemas/auth";
 //
 // Both are deliberately generous enough that a person mistyping their own
 // password a few times is never affected.
-const PER_ACCOUNT = { limit: 8, windowMs: 15 * 60_000 };
-const PER_IP = { limit: 30, windowMs: 15 * 60_000 };
 
 export async function POST(request: Request) {
   const parsed = await parseJson(request, LoginBody, "POST /api/auth/login");
@@ -30,7 +28,7 @@ export async function POST(request: Request) {
   const ip = clientIp(request);
   const key = email.trim().toLowerCase();
 
-  const byIp = rateLimit(`login-ip:${ip}`, PER_IP.limit, PER_IP.windowMs);
+  const byIp = await hit("loginIp", ip);
   if (!byIp.ok) {
     // Worth a line of its own. A burst of these from one address is the only
     // early sign of someone working through a password list, and the limiter
@@ -42,13 +40,13 @@ export async function POST(request: Request) {
       status: 429,
       actorKind: "consumer",
       actorEmail: key,
-      detail: { reason: "ip_rate_limit", limit: PER_IP.limit },
+      detail: { reason: "ip_rate_limit", limit: LIMITS.loginIp.limit },
       request,
     });
-    return tooManyRequests(byIp.retryAfter, "Too many sign-in attempts. Please try again shortly.");
+    return tooManyRequests(byIp.retryAfter, LIMITS.loginIp.message);
   }
 
-  const byAccount = rateLimit(`login-acct:${key}`, PER_ACCOUNT.limit, PER_ACCOUNT.windowMs);
+  const byAccount = await hit("loginAccount", key);
   if (!byAccount.ok) {
     await logActivity({
       action: "auth.login.blocked",
@@ -57,13 +55,10 @@ export async function POST(request: Request) {
       status: 429,
       actorKind: "consumer",
       actorEmail: key,
-      detail: { reason: "account_rate_limit", limit: PER_ACCOUNT.limit },
+      detail: { reason: "account_rate_limit", limit: LIMITS.loginAccount.limit },
       request,
     });
-    return tooManyRequests(
-      byAccount.retryAfter,
-      "Too many sign-in attempts for this account. Please wait a few minutes and try again."
-    );
+    return tooManyRequests(byAccount.retryAfter, LIMITS.loginAccount.message);
   }
 
   const user = await findUserByEmail(key);

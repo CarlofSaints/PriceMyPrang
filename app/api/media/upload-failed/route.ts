@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { actorFromUser, logActivity } from "@/lib/activityLog";
-import { clientIp, rateLimit, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { validate } from "@/lib/validate";
 import { UploadFailedBody } from "@/lib/schemas/media";
 
@@ -55,8 +55,8 @@ function stripSecrets(s: string): string {
 
 export async function POST(request: Request): Promise<NextResponse> {
   // Public endpoint: cap it so the log can't be flooded into uselessness.
-  const limit = rateLimit(`upload-failed:${clientIp(request)}`, 20, 60_000);
-  if (!limit.ok) return tooManyRequests(limit.retryAfter, "Too many reports.") as NextResponse;
+  const limited = await limitOrRespond("uploadFailed", clientIp(request));
+  if (limited) return limited as NextResponse;
 
   let raw: unknown;
   try {

@@ -13,6 +13,7 @@ import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AuthUser } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { UpdateRequestBody } from "@/lib/schemas/requests";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 export async function GET(
   _request: Request,
@@ -58,6 +59,10 @@ export async function PATCH(
   if (body.panelBeaterIds) {
     if (!can(user, "manage_panel_beaters"))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Assigning emails every newly added workshop. Status changes send
+    // nothing, so they aren't counted.
+    const limited = await limitOrRespond("assignJob", user.id);
+    if (limited) return limited;
     return assignWorkshops(request, user, reference, body.panelBeaterIds);
   }
 

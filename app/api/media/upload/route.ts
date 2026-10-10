@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { isAllowedUploadPathname } from "@/lib/schemas/media";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 
 // Client-upload token endpoint. Lets the browser upload photos/video straight
 // to Vercel Blob, avoiding the 4.5MB serverless request-body limit.
@@ -11,6 +12,15 @@ import { isAllowedUploadPathname } from "@/lib/schemas/media";
 // is WHERE a file may land, checked below.
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
+
+  // Every token is storage we pay for, minted for anyone: capped per IP. Only
+  // TOKEN requests are counted. Vercel's own "upload completed" callback also
+  // posts here, from Vercel's addresses, and counting those would put every
+  // customer's callbacks in one shared bucket.
+  if (body?.type === "blob.generate-client-token") {
+    const limited = await limitOrRespond("uploadAnon", clientIp(request));
+    if (limited) return limited as NextResponse;
+  }
 
   try {
     const json = await handleUpload({
