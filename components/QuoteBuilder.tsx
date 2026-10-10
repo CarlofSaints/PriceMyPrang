@@ -19,21 +19,11 @@ import {
 } from "@/lib/rateCard";
 import { QUOTE_LINE_CODES } from "@/lib/types";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
+import { markupFor, partsPricedByCard, priceLine, priceLines, type CardRates } from "@/lib/quotePricing";
 import { Button, Field, inputClass } from "./ui";
 import { zar } from "@/lib/format";
 
 type Line = QuoteLineItem;
-
-/**
- * Which mark-up on the rate card applies to a line, by its part-type code.
- * Anything else (Repair, Out Work, Paint, Note) isn't a part, so nothing is
- * marked up.
- */
-const MARKUP_FIELD_BY_CODE: Record<string, string> = {
-  New: "markup_oem",
-  Alt: "markup_alternate",
-  Used: "markup_used",
-};
 
 const emptyLine: Line = {
   code: "",
@@ -86,6 +76,18 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   const rates = rateCard?.values[scope] ?? {};
   const labourRate = rates.labour_rate;
   const paintRate = rates.paint_rate;
+  // What the server prices with: the card's block, or nothing when the
+  // estimator chose to type amounts by hand.
+  const cardRates: CardRates | undefined = rateCard ? rates : undefined;
+
+  // A different card or block re-prices every line, exactly as the server
+  // will when the quote is saved. Keyed on the ids, not the rates object,
+  // which is a fresh one every render.
+  useEffect(() => {
+    const card = rateCards.find((c) => c.id === rateCardId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (card) setLines((ls) => priceLines(ls, card.values[scope] ?? {}));
+  }, [rateCardId, scope, rateCards]);
 
   // Load an existing quote for a workshop into the form, else start blank.
   const loadFormFor = useCallback((req: QuoteRequest, id: string) => {
@@ -213,21 +215,25 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
   /**
    * Apply a patch, then re-price the part if we have both a cost and a mark-up
    * for its type. Re-runs when the CODE changes too, since switching New → Used
-   * changes which percentage applies. A patch that sets partsAmount directly is
-   * left alone: that's the estimator overriding the calculation.
+   * changes which percentage applies. With a card mark-up the charge is the
+   * card's, not the estimator's: the server re-prices it the same way.
+   *
+   * Only the PART is re-priced here. Labour and paint snap to hours x rate
+   * when their box loses focus (WorkBlock), so typing "1250" isn't fought
+   * keystroke by keystroke.
    */
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((ls) =>
       ls.map((l, idx) => {
         if (idx !== i) return l;
         const next = { ...l, ...patch };
-        if (patch.partsAmount !== undefined) return next;
-
-        const field = MARKUP_FIELD_BY_CODE[next.code ?? ""];
-        const markup = field ? rates[field] : undefined;
-        if (next.partsCost != null && markup != null) {
-          next.partsAmount = Number((next.partsCost * (1 + markup / 100)).toFixed(2));
-        } else if (next.partsCost != null && patch.partsCost !== undefined) {
+        if (partsPricedByCard(cardRates, next)) {
+          next.partsAmount = priceLine(next, cardRates).partsAmount;
+        } else if (
+          next.partsCost != null &&
+          patch.partsCost !== undefined &&
+          markupFor(cardRates, next.code) == null
+        ) {
           // No mark-up configured for this type: charge it on at cost.
           next.partsAmount = next.partsCost;
         }
@@ -249,7 +255,9 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
     vat,
     total,
   } = computeQuoteTotals({
-    lines,
+    // Priced exactly as the server will price them, so the total on screen is
+    // the total that gets saved, even mid-edit before a box snaps.
+    lines: priceLines(lines, cardRates),
     sundriesMode,
     sundriesValue: Number(sundries) || 0,
     consumables: Number(consumables) || 0,
@@ -271,6 +279,10 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
           sundriesMode,
           consumables,
           notes,
+          // The server looks the card up itself and re-prices every line from
+          // it; these say WHICH card, never what it charges.
+          rateCardId: rateCardId || undefined,
+          scope,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Build failed");
@@ -430,8 +442,8 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                   · Used{" "}
                   <strong>{rates.markup_used != null ? `${rates.markup_used}%` : "Not set"}</strong>
                   <span className="block text-xs text-ink/50">
-                    Enter hours and a parts cost below; amounts are worked out for you. Type over
-                    any amount to override it.
+                    Enter hours and a parts cost below; amounts are worked out from this card.
+                    To price a quote by hand, choose &ldquo;Type amounts manually&rdquo; above.
                   </span>
                 </p>
               ) : (
@@ -498,6 +510,7 @@ export default function QuoteBuilder({ initialRef }: { initialRef?: string }) {
                   line={line}
                   labourRate={labourRate}
                   paintRate={paintRate}
+                  partsLocked={partsPricedByCard(cardRates, line)}
                   suppliers={suppliers}
                   panelBeaterId={pbId}
                   onSupplierAdded={(s) => setSuppliers((l) => [...l, s])}
@@ -651,6 +664,7 @@ function LineCard({
   line,
   labourRate,
   paintRate,
+  partsLocked,
   suppliers,
   panelBeaterId,
   onSupplierAdded,
@@ -661,6 +675,8 @@ function LineCard({
   /** From the chosen rate card. Undefined = no card, so amounts stay manual. */
   labourRate?: number;
   paintRate?: number;
+  /** The card's mark-up sets the charge, so the box shows it and can't be typed over. */
+  partsLocked?: boolean;
   suppliers: Supplier[];
   panelBeaterId: string;
   onSupplierAdded: (s: Supplier) => void;
@@ -779,9 +795,14 @@ function LineCard({
           min={0}
           placeholder="Charge R"
           value={numVal(line.partsAmount)}
+          readOnly={partsLocked}
           onChange={(e) => onChange({ partsAmount: Number(e.target.value) || 0 })}
           aria-label="Parts charge"
-          title="What the client is charged. Worked out from cost + mark-up, but you can override it."
+          title={
+            partsLocked
+              ? "Cost plus the rate card's mark-up for this part type."
+              : "What the client is charged."
+          }
         />
         <button
           type="button"
@@ -962,6 +983,11 @@ function WorkBlock({
               amount: nextAmount,
               hours: rate ? Number((nextAmount / rate).toFixed(2)) : hours,
             });
+          }}
+          // Back-solved hours are rounded, so the rand figure the card will
+          // actually charge is hours x rate: show that once they're done typing.
+          onBlur={() => {
+            if (rate != null) onChange({ code, hours, amount: Math.round(hours * rate * 100) / 100 });
           }}
           aria-label={`${title} amount`}
         />

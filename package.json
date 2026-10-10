@@ -18,7 +18,8 @@
     "activity:check": "dotenv -e .env.local -- tsx scripts/check-activity-log.ts",
     "test:authz": "tsx --test scripts/test-authz.ts",
     "db:check-rls": "dotenv -e .env.local -- tsx scripts/check-rls.ts",
-    "db:prove-rls": "dotenv -e .env.local -- tsx scripts/prove-rls.ts"
+    "db:prove-rls": "dotenv -e .env.local -- tsx scripts/prove-rls.ts",
+    "test:pricing": "tsx scripts/test-pricing.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
