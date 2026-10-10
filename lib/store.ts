@@ -1484,6 +1484,27 @@ export async function findRequestIdByReference(ref: string): Promise<string | nu
   return row?.id ?? null;
 }
 
+/**
+ * The internal id behind a reference AND the workshops the job was sent to.
+ *
+ * For anything that acts on a job in a workshop's name: references follow a
+ * guessable pattern, so a reference alone proves nothing about whether that
+ * workshop has any business on the job.
+ */
+export async function findRequestAssignment(
+  ref: string
+): Promise<{ id: string; selectedPanelBeaterIds: string[] } | null> {
+  const row = await getDb().quoteRequest.findUnique({
+    where: { reference: ref },
+    select: { id: true, selectedPanelBeaters: { select: { panelBeaterId: true } } },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    selectedPanelBeaterIds: row.selectedPanelBeaters.map((s) => s.panelBeaterId),
+  };
+}
+
 export async function getRequest(ref: string): Promise<QuoteRequest | null> {
   const row = await getDb().quoteRequest.findUnique({
     where: { reference: ref },

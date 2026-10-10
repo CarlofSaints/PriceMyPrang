@@ -5,6 +5,7 @@ import { getPanelBeaters, upsertPanelBeater, upsertUser, findUserById, getPanelB
 import { geocodeAddress } from "@/lib/geocode";
 import { mergeWarranties } from "@/lib/warrantyReminders";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
+import { panelBeatersVisibleTo, panelBeaterSaveTarget, vettingFields } from "@/lib/workshopAccess";
 import type { PanelBeater } from "@/lib/types";
 
 export async function GET() {
@@ -13,12 +14,9 @@ export async function GET() {
   if (!can(user, "manage_panel_beaters") && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let list = await getPanelBeaters();
-  // Panel-beater logins only see their own listing.
-  if (!can(user, "manage_panel_beaters") && user.panelBeaterId) {
-    list = list.filter((p) => p.id === user.panelBeaterId);
-  }
-  return NextResponse.json(list);
+  // Panel-beater logins only see their own listing; one not yet linked to a
+  // listing sees none (this used to fall through to the full list).
+  return NextResponse.json(panelBeatersVisibleTo(user, await getPanelBeaters()));
 }
 
 export async function POST(request: Request) {
@@ -36,12 +34,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const existing = b.id ? (await getPanelBeaters()).find((p) => p.id === b.id) : null;
-
-  // A self-onboarding user can only edit their own listing.
-  if (!canManage && existing && existing.id !== user.panelBeaterId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // A workshop login saves ITS listing and nothing else: it can't edit another,
+  // and it can't mint new ones (fake rivals). Only a login with no listing yet
+  // may create its first.
+  const all = await getPanelBeaters();
+  const target = panelBeaterSaveTarget(user, b.id, (id) => all.some((p) => p.id === id));
+  if (!target.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const existing = target.id ? all.find((p) => p.id === target.id) ?? null : null;
 
   // Coordinates: prefer ones supplied by the "Get coordinates" button; else
   // (re)geocode when the address changed or coords are missing.
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   const pb: PanelBeater = {
-    id: existing?.id ?? crypto.randomUUID(),
+    id: target.id ?? crypto.randomUUID(),
     completedByName: b.completedByName?.trim() || undefined,
     completedByEmail: b.completedByEmail?.trim() || undefined,
     ownerName: b.ownerName?.trim() || undefined,
@@ -92,13 +91,12 @@ export async function POST(request: Request) {
       b.ownerEmail?.trim() ||
       b.completedByEmail?.trim(),
     phone: b.phone?.trim() || existing?.phone,
-    active: b.active ?? existing?.active ?? true,
     // Approval is decided on the Panel beaters page (PATCH), never by an edit.
     // writePanelBeater persists `status ?? "pending"` on update, so omitting
     // these would quietly un-approve a vetted workshop and put the "not yet
-    // vetted" banner back in front of all its users.
-    status: b.status ?? existing?.status ?? "pending",
-    submittedByPublic: b.submittedByPublic ?? existing?.submittedByPublic,
+    // vetted" banner back in front of all its users. A workshop editing its
+    // own listing can never set them: they keep their stored values.
+    ...vettingFields(user, b, existing),
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
 

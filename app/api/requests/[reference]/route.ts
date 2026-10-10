@@ -8,6 +8,7 @@ import {
   getPanelBeaters,
 } from "@/lib/store";
 import { sendRepairerJobAssigned } from "@/lib/email";
+import { isAssignedTo, requestViewFor, seesWholeJob } from "@/lib/workshopAccess";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AuthUser, RequestStatus } from "@/lib/types";
 
@@ -24,15 +25,12 @@ export async function GET(
 
   // Assessors/admins see any request. A panel-beater login may only see requests
   // assigned to their own listing (so they can quote their own walk-ins).
-  const privileged = can(user, "view_dashboard") || can(user, "build_quotes");
-  if (!privileged) {
-    const ownsIt =
-      can(user, "onboard_self") &&
-      !!user.panelBeaterId &&
-      req.selectedPanelBeaterIds.includes(user.panelBeaterId);
+  if (!seesWholeJob(user)) {
+    const ownsIt = can(user, "onboard_self") && isAssignedTo(req, user.panelBeaterId);
     if (!ownsIt) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return NextResponse.json(req);
+  // A workshop gets its own slice only: no client link token, no rival quotes.
+  return NextResponse.json(requestViewFor(user, req));
 }
 
 export async function PATCH(
