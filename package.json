@@ -15,7 +15,10 @@
     "db:seed-insurers": "dotenv -e .env.local -- tsx scripts/seed-insurers.ts",
     "blob:list": "dotenv -e .env.local -- tsx scripts/list-blobs.ts",
     "blob:clean-tests": "dotenv -e .env.local -- tsx scripts/delete-test-blobs.ts",
-    "activity:check": "dotenv -e .env.local -- tsx scripts/check-activity-log.ts"
+    "activity:check": "dotenv -e .env.local -- tsx scripts/check-activity-log.ts",
+    "test:authz": "tsx --test scripts/test-authz.ts",
+    "db:check-rls": "dotenv -e .env.local -- tsx scripts/check-rls.ts",
+    "db:prove-rls": "dotenv -e .env.local -- tsx scripts/prove-rls.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

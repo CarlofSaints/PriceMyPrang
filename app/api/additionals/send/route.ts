@@ -9,6 +9,7 @@ import {
   markAdditionalSent,
 } from "@/lib/store";
 import { actingWorkshop } from "@/lib/additionalsAccess";
+import { isAssignedTo } from "@/lib/workshopAccess";
 import { sendAdditionalsToInsurer, sendAdditionalsToClient } from "@/lib/email";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 
@@ -83,7 +84,11 @@ export async function POST(request: Request) {
     );
 
   const req = additional.reference ? await getRequest(additional.reference) : null;
-  if (!req) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  // Checked again here, not just at save: this is the step that emails the
+  // client and hands their details to an address the caller typed, and it
+  // must also refuse anything saved before the save-time check existed.
+  if (!req || !isAssignedTo(req, workshop))
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
   const pb = await getPanelBeater(workshop);
 

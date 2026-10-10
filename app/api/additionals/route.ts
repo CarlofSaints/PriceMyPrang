@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import {
-  findRequestIdByReference,
+  findRequestAssignment,
   listAdditionals,
   upsertAdditional,
   setAdditionalStatus,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/store";
 import { computeQuoteTotals } from "@/lib/quoteTotals";
 import { actingWorkshop } from "@/lib/additionalsAccess";
+import { additionalsListScope, isAssignedTo } from "@/lib/workshopAccess";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AdditionalStatus, QuoteLineItem } from "@/lib/types";
 
@@ -33,13 +34,20 @@ export async function GET(request: Request) {
   const reference = url.searchParams.get("reference");
   if (!reference) return NextResponse.json({ error: "reference required" }, { status: 400 });
 
-  const requestId = await findRequestIdByReference(reference);
-  if (!requestId) return NOT_FOUND;
+  const job = await findRequestAssignment(reference);
+  if (!job) return NOT_FOUND;
 
-  const workshop = actingWorkshop(user, url.searchParams.get("panelBeaterId") ?? undefined);
   // Staff with no workshop named see every workshop's additionals on the job;
-  // a repairer login can only ever be handed its own.
-  return NextResponse.json(await listAdditionals(requestId, workshop ?? undefined));
+  // a repairer login can only ever be handed its own, and anyone else nothing.
+  const scope = additionalsListScope(
+    user,
+    actingWorkshop(user, url.searchParams.get("panelBeaterId") ?? undefined)
+  );
+  if (!scope.ok) return FORBIDDEN;
+  // A job never sent to this workshop is a 404, the same answer as a reference
+  // that doesn't exist, so guessing references reveals nothing.
+  if (scope.panelBeaterId && !isAssignedTo(job, scope.panelBeaterId)) return NOT_FOUND;
+  return NextResponse.json(await listAdditionals(job.id, scope.panelBeaterId));
 }
 
 export async function POST(request: Request) {
@@ -64,8 +72,11 @@ export async function POST(request: Request) {
       { status: 400 }
     );
 
-  const requestId = await findRequestIdByReference(b.reference);
-  if (!requestId) return NOT_FOUND;
+  // The workshop must be on the job. References follow a guessable pattern, so
+  // without this any workshop could raise (and then send) extras on any job.
+  const job = await findRequestAssignment(b.reference);
+  if (!job || !isAssignedTo(job, workshop)) return NOT_FOUND;
+  const requestId = job.id;
 
   const lines = (b.lines ?? []).filter((l) => l.description?.trim());
   if (!lines.length)
