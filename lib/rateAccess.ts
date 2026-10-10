@@ -18,8 +18,11 @@ export async function resolveRateTarget(
   if (!canManage && !can(user as never, "onboard_self"))
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
 
-  const id = canManage ? requested || user.panelBeaterId : user.panelBeaterId;
-  if (!id)
+  // A self-service login that NAMES another workshop is refused below, not
+  // quietly handed its own: a silent swap answers 200 to a request for
+  // someone else's rates, which hides the probe and reads as success.
+  const id = requested || user.panelBeaterId;
+  if (!id || (!canManage && !user.panelBeaterId))
     return {
       error: NextResponse.json({ error: "No workshop is linked to your login." }, { status: 400 }),
     };

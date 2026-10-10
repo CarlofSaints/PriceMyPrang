@@ -20,7 +20,8 @@
     "db:check-rls": "dotenv -e .env.local -- tsx scripts/check-rls.ts",
     "db:prove-rls": "dotenv -e .env.local -- tsx scripts/prove-rls.ts",
     "test:ratelimit": "dotenv -e .env.local -- tsx scripts/test-ratelimit.ts",
-    "test:pricing": "tsx scripts/test-pricing.ts"
+    "test:pricing": "tsx scripts/test-pricing.ts",
+    "test:cross-workshop": "tsx scripts/test-cross-workshop.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
@@ -43,14 +44,19 @@
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/pg": "8.15.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "8.18.1",
     "dotenv-cli": "^11.0.0",
+    "embedded-postgres": "17.10.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "pg": "8.23.1",
     "prisma": "^7.9.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ws": "8.18.3"
   }
 }
