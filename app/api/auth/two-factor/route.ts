@@ -3,6 +3,8 @@ import { requireUser, verifyPassword } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { setTwoFactorEnabled } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { TwoFactorBody } from "@/lib/schemas/auth";
 
 /**
  * Turn the emailed second factor on or off for your own account.
@@ -26,10 +28,9 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  const { enabled, password } = (await request.json()) as {
-    enabled?: boolean;
-    password?: string;
-  };
+  const parsed = await parseJson(request, TwoFactorBody, "POST /api/auth/two-factor");
+  if (parsed.response) return parsed.response;
+  const { enabled, password } = parsed.data;
   if (typeof enabled !== "boolean")
     return NextResponse.json({ error: "enabled is required" }, { status: 400 });
   if (!password)

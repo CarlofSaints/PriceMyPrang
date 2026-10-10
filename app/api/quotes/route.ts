@@ -12,20 +12,11 @@ import { buildQuotePdf } from "@/lib/quotePdf";
 import { sendConsumerQuoteReady } from "@/lib/email";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { BuildQuoteBody } from "@/lib/schemas/quotes";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 
 export const maxDuration = 60;
-
-interface Payload {
-  reference: string;
-  panelBeaterId: string;
-  lines: QuoteLineItem[];
-  /** A rand amount, or a percentage of parts when sundriesMode is "percent". */
-  sundries?: number;
-  sundriesMode?: "rand" | "percent";
-  consumables?: number;
-  notes?: string;
-}
 
 const num = (v: unknown) => {
   const n = Number(v);
@@ -39,7 +30,9 @@ export async function POST(request: Request) {
   if (!canBuild && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const p = (await request.json()) as Payload;
+  const parsed = await parseJson(request, BuildQuoteBody, "POST /api/quotes");
+  if (parsed.response) return parsed.response;
+  const p = parsed.data;
   const req = await getRequest(p.reference);
   if (!req) return NextResponse.json({ error: "Request not found" }, { status: 404 });
   const pb = await getPanelBeater(p.panelBeaterId);
@@ -81,10 +74,10 @@ export async function POST(request: Request) {
       // the mark-up its rate card allows. Only the charge feeds the totals.
       partsCost: x.partsCost == null ? undefined : num(x.partsCost),
       partsAmount: num(x.partsAmount),
-      partId: x.partId,
-      supplierId: x.supplierId,
-      supplier: x.supplier,
-      partNumber: x.partNumber,
+      partId: x.partId ?? undefined,
+      supplierId: x.supplierId ?? undefined,
+      supplier: x.supplier ?? undefined,
+      partNumber: x.partNumber ?? undefined,
       panelCode: x.panelCode?.trim() || undefined,
       panelAmount: num(x.panelAmount),
       panelHours: num(x.panelHours),

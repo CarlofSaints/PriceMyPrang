@@ -8,6 +8,8 @@ import {
 import { resolveRateTarget } from "@/lib/rateAccess";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { RateUnit } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { CreateCustomRateTypeBody } from "@/lib/schemas/rateCards";
 
 /**
  * A workshop's own custom rates: the ones they invent on top of the fixed
@@ -37,11 +39,9 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  const b = (await request.json()) as {
-    panelBeaterId?: string;
-    label?: string;
-    unit?: RateUnit;
-  };
+  const parsed = await parseJson(request, CreateCustomRateTypeBody, "POST /api/rate-cards/custom-types");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
 
   const target = await resolveRateTarget(user, b.panelBeaterId);
   if ("error" in target) return target.error;

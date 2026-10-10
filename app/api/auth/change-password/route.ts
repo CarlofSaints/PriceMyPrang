@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, hashPassword, verifyPassword } from "@/lib/auth";
 import { setUserPassword } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { ChangePasswordBody } from "@/lib/schemas/auth";
 
 const MIN_LENGTH = 10;
 
@@ -12,10 +14,9 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { currentPassword, newPassword } = (await request.json()) as {
-    currentPassword?: string;
-    newPassword?: string;
-  };
+  const parsed = await parseJson(request, ChangePasswordBody, "POST /api/auth/change-password");
+  if (parsed.response) return parsed.response;
+  const { currentPassword, newPassword } = parsed.data;
   if (!currentPassword || !newPassword)
     return NextResponse.json(
       { error: "Current and new password required" },

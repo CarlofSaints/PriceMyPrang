@@ -4,6 +4,11 @@ import { can } from "@/lib/permissions";
 import { addDevTicketAttachments, removeDevTicketAttachment } from "@/lib/store";
 import { deleteBlob } from "@/lib/blob";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import {
+  AddDevTicketAttachmentsBody,
+  DeleteDevTicketAttachmentBody,
+} from "@/lib/schemas/devTickets";
 
 // Attaching to a ticket that already exists. Files uploaded while COMPOSING a
 // new ticket are sent with the POST in ../route.ts instead.
@@ -15,19 +20,13 @@ async function requireManage() {
   return { user };
 }
 
-type IncomingFile = {
-  fileName?: string;
-  url?: string;
-  pathname?: string;
-  contentType?: string;
-  size?: number;
-};
-
 export async function POST(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as { ticketId?: string; files?: IncomingFile[] };
+  const parsed = await parseJson(request, AddDevTicketAttachmentsBody, "POST /api/dev-tickets/attachments");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.ticketId) return NextResponse.json({ error: "ticketId required" }, { status: 400 });
 
   const files = (b.files ?? [])
@@ -63,7 +62,9 @@ export async function DELETE(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const { attachmentId } = (await request.json()) as { attachmentId?: string };
+  const parsed = await parseJson(request, DeleteDevTicketAttachmentBody, "DELETE /api/dev-tickets/attachments");
+  if (parsed.response) return parsed.response;
+  const { attachmentId } = parsed.data;
   if (!attachmentId)
     return NextResponse.json({ error: "attachmentId required" }, { status: 400 });
 

@@ -12,6 +12,8 @@ import { actingWorkshop } from "@/lib/additionalsAccess";
 import { isAssignedTo } from "@/lib/workshopAccess";
 import { sendAdditionalsToInsurer, sendAdditionalsToClient } from "@/lib/email";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { SendAdditionalBody } from "@/lib/schemas/additionals";
 
 /**
  * Send an additionals request to the insurer, and tell the client.
@@ -26,16 +28,11 @@ export async function POST(request: Request) {
   if (!can(user, "manage_additionals"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as {
-    id?: string;
-    panelBeaterId?: string;
-    /** A saved contact to send to. */
-    contactId?: string;
-    /** Or a one-off address typed for this claim. */
-    email?: string;
-    /** Whether to also tell the client. Defaults ON. */
-    notifyClient?: boolean;
-  };
+  // contactId is a saved contact to send to; email is a one-off address typed
+  // for this claim; notifyClient (default ON) also tells the client.
+  const parsed = await parseJson(request, SendAdditionalBody, "POST /api/additionals/send");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const workshop = actingWorkshop(user, b.panelBeaterId);

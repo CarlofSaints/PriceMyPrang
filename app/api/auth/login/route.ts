@@ -4,6 +4,8 @@ import { verifyPassword, createSession, hashPassword, generateOtp } from "@/lib/
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { sendLoginCode } from "@/lib/email";
 import { logActivity } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { LoginBody } from "@/lib/schemas/auth";
 
 // Two limits, because they stop different attacks:
 //
@@ -18,10 +20,9 @@ const PER_ACCOUNT = { limit: 8, windowMs: 15 * 60_000 };
 const PER_IP = { limit: 30, windowMs: 15 * 60_000 };
 
 export async function POST(request: Request) {
-  const { email, password } = (await request.json()) as {
-    email?: string;
-    password?: string;
-  };
+  const parsed = await parseJson(request, LoginBody, "POST /api/auth/login");
+  if (parsed.response) return parsed.response;
+  const { email, password } = parsed.data;
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password required" }, { status: 400 });
   }

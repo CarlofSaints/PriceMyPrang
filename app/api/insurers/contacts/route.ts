@@ -10,6 +10,8 @@ import {
 } from "@/lib/store";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { InsurerContactCreateBody, InsurerContactUpdateBody } from "@/lib/schemas/insurers";
 
 /**
  * Contacts at an insurer.
@@ -46,16 +48,10 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  const b = (await request.json()) as {
-    insurerId?: string;
-    /** True to create a GENERIC contact. Staff only. */
-    generic?: boolean;
-    name?: string;
-    role?: string;
-    email?: string;
-    phone?: string;
-    notes?: string;
-  };
+  // `generic: true` creates a GENERIC contact. Staff only.
+  const parsed = await parseJson(request, InsurerContactCreateBody, "POST /api/insurers/contacts");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.insurerId) return NextResponse.json({ error: "insurerId required" }, { status: 400 });
 
   if (!b.name?.trim() && !b.email?.trim() && !b.phone?.trim())
@@ -141,14 +137,9 @@ export async function PATCH(request: Request) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  const b = (await request.json()) as {
-    id?: string;
-    name?: string;
-    role?: string;
-    email?: string;
-    phone?: string;
-    notes?: string;
-  };
+  const parsed = await parseJson(request, InsurerContactUpdateBody, "PATCH /api/insurers/contacts");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const existing = await findInsurerContact(b.id);

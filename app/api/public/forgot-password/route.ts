@@ -3,6 +3,8 @@ import { findUserByEmail, createPasswordSetToken } from "@/lib/store";
 import { sendUserCredentials, passwordSetUrl } from "@/lib/email";
 import { logActivity } from "@/lib/activityLog";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { parseJson } from "@/lib/validate";
+import { ForgotPasswordBody } from "@/lib/schemas/public";
 
 /**
  * "I've forgotten my password."
@@ -21,8 +23,9 @@ import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 export async function POST(request: Request) {
   const ip = clientIp(request);
 
-  const b = (await request.json().catch(() => ({}))) as { email?: string };
-  const email = b.email?.trim().toLowerCase();
+  const parsed = await parseJson(request, ForgotPasswordBody, "POST /api/public/forgot-password");
+  if (parsed.response) return parsed.response;
+  const email = parsed.data.email?.trim().toLowerCase();
 
   // Two limits, because they stop different things. Per-IP stops someone
   // walking a list of addresses to see which ones exist; per-address stops

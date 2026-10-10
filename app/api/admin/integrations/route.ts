@@ -9,6 +9,8 @@ import {
 } from "@/lib/store";
 import { encryptSecret, maskSecret } from "@/lib/secrets";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { IntegrationBody, DeleteIntegrationBody } from "@/lib/schemas/admin";
 
 // Third-party API keys entered in the portal. Two gates on every write and on
 // the reveal: the Super Admin permission, AND the caller re-typing their own
@@ -46,13 +48,9 @@ export async function POST(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as {
-    action?: "save" | "reveal";
-    id?: string;
-    key?: string;
-    clientId?: string;
-    password?: string;
-  };
+  const parsed = await parseJson(request, IntegrationBody, "POST /api/admin/integrations");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
 
   const id = b.id ?? "imagin8";
   if (!KNOWN.has(id)) return NextResponse.json({ error: "Unknown integration" }, { status: 400 });
@@ -145,7 +143,9 @@ export async function DELETE(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const { id, password } = (await request.json()) as { id?: string; password?: string };
+  const parsed = await parseJson(request, DeleteIntegrationBody, "DELETE /api/admin/integrations");
+  if (parsed.response) return parsed.response;
+  const { id, password } = parsed.data;
   if (!password) return NextResponse.json({ error: "Your password is required" }, { status: 400 });
   if (!(await verifyPassword(password, gate.user.passwordHash)))
     return NextResponse.json({ error: "That password is not correct" }, { status: 403 });

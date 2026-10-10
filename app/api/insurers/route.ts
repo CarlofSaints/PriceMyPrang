@@ -4,6 +4,8 @@ import { can } from "@/lib/permissions";
 import { getInsurers, saveInsurers } from "@/lib/store";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { InsuranceCompany } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { InsurerCreateBody, InsurerDeleteBody, InsurerUpdateBody } from "@/lib/schemas/insurers";
 
 function slugId(name: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -28,7 +30,9 @@ export async function POST(request: Request) {
   const gate = await requireSuperAdmin();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as { name?: string };
+  const parsed = await parseJson(request, InsurerCreateBody, "POST /api/insurers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.name?.trim()) return NextResponse.json({ error: "Insurer name required" }, { status: 400 });
 
   const list = await getInsurers();
@@ -61,11 +65,9 @@ export async function PATCH(request: Request) {
   const gate = await requireSuperAdmin();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as {
-    id?: string;
-    name?: string;
-    active?: boolean;
-  };
+  const parsed = await parseJson(request, InsurerUpdateBody, "PATCH /api/insurers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getInsurers();
@@ -107,7 +109,9 @@ export async function DELETE(request: Request) {
   const gate = await requireSuperAdmin();
   if (gate.error) return gate.error;
 
-  const { id } = (await request.json()) as { id?: string };
+  const parsed = await parseJson(request, InsurerDeleteBody, "DELETE /api/insurers");
+  if (parsed.response) return parsed.response;
+  const { id } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getInsurers();

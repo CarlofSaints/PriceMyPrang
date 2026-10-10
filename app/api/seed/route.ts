@@ -3,19 +3,17 @@ import { getUsers, saveUsers, getRoles } from "@/lib/store";
 import { hashPassword } from "@/lib/auth";
 import { logActivity } from "@/lib/activityLog";
 import type { User } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { SeedBody } from "@/lib/schemas/seed";
 
 // One-time bootstrap: create the first admin user.
 //   POST /api/seed  { secret, name, email, password }
 // `secret` must match SEED_SECRET. Refuses to run if an admin already exists,
 // unless force=true is passed.
 export async function POST(request: Request) {
-  const { secret, name, email, password, force } = (await request.json()) as {
-    secret?: string;
-    name?: string;
-    email?: string;
-    password?: string;
-    force?: boolean;
-  };
+  const parsed = await parseJson(request, SeedBody, "POST /api/seed");
+  if (parsed.response) return parsed.response;
+  const { secret, name, email, password, force } = parsed.data;
 
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
     // This endpoint mints a full Site Admin. Anyone knocking on it is worth

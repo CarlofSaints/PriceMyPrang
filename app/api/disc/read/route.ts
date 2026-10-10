@@ -5,6 +5,8 @@ import { readMediaBytes } from "@/lib/blob";
 import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity, consumerActor } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { MediaReadBody } from "@/lib/schemas/media";
 
 export const maxDuration = 60;
 
@@ -21,10 +23,9 @@ export async function POST(request: Request) {
   if (!limited.ok)
     return tooManyRequests(limited.retryAfter, "Too many reads. Please wait a moment.");
 
-  const { pathname, url } = (await request.json()) as {
-    pathname?: string;
-    url?: string;
-  };
+  const parsed = await parseJson(request, MediaReadBody, "POST /api/disc/read");
+  if (parsed.response) return parsed.response;
+  const { pathname, url } = parsed.data;
   const ref = pathname || url;
   if (!ref) return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
 

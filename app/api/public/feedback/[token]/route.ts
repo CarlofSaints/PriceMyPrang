@@ -13,15 +13,10 @@ import {
 } from "@/lib/store";
 import { sendComplaintLodged, sendComplaintConfirmation } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { parseJson } from "@/lib/validate";
+import { FeedbackBody } from "@/lib/schemas/public";
 import { logActivity, consumerActor } from "@/lib/activityLog";
-import {
-  COMPLAINT_CATEGORIES,
-  COMPLAINT_OUTCOMES,
-  COMPLAINT_MAX_WORDS,
-  type ComplaintCategory,
-  type ComplaintOutcome,
-  type VehicleSafety,
-} from "@/lib/types";
+import { COMPLAINT_MAX_WORDS } from "@/lib/types";
 
 // The consumer side of QC. The token in the URL is the credential: it was
 // emailed to the address already on the job, because the reference itself is
@@ -88,17 +83,18 @@ export async function POST(
   const ctx = await context(token);
   if (!ctx) return NextResponse.json({ error: "Link expired" }, { status: 404 });
 
-  const b = (await request.json()) as Record<string, unknown>;
-  const kind = b.kind === "complaint" ? "complaint" : "rating";
+  const parsed = await parseJson(request, FeedbackBody, "POST /api/public/feedback/[token]");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
 
   // The workshop must be one this job actually went to: never trusted from
   // the body alone, or a link for one job could be used to rate any workshop.
-  const panelBeaterId = typeof b.panelBeaterId === "string" ? b.panelBeaterId : "";
+  const panelBeaterId = b.panelBeaterId ?? "";
   const workshop = ctx.workshops.find((w) => w.id === panelBeaterId);
   if (!workshop)
     return NextResponse.json({ error: "Choose the workshop that did the work" }, { status: 400 });
 
-  if (kind === "rating") {
+  if (b.kind === "rating") {
     const score = Number(b.score);
     if (!Number.isInteger(score) || score < 1 || score > 5)
       return NextResponse.json({ error: "Give a rating from 1 to 5" }, { status: 400 });
@@ -140,13 +136,8 @@ export async function POST(
       { status: 400 }
     );
 
-  const one = <T extends string>(v: unknown, allowed: readonly T[]): T | undefined =>
-    allowed.includes(v as T) ? (v as T) : undefined;
-
-  const media = (Array.isArray(b.media) ? b.media : [])
-    .filter((m): m is { url: string; pathname: string; contentType?: string; isVideo?: boolean } =>
-      !!m && typeof m === "object" && !!(m as { url?: string }).url
-    )
+  const media = (b.media ?? [])
+    .filter((m) => !!m.url)
     // Five photos and one clip, enforced here as well as in the form.
     .slice(0, 6)
     .map((m) => ({
@@ -159,15 +150,14 @@ export async function POST(
   const complaint = await createComplaint({
     requestId: ctx.requestId,
     panelBeaterId: workshop.id,
-    category: one<ComplaintCategory>(b.category, COMPLAINT_CATEGORIES) ?? "other",
+    category: b.category ?? "other",
     description,
-    vehicleSafety: one<VehicleSafety>(b.vehicleSafety, ["safe", "unsafe", "unsure"] as const),
-    collectedOn: typeof b.collectedOn === "string" ? b.collectedOn : undefined,
-    problemNoticedOn: typeof b.problemNoticedOn === "string" ? b.problemNoticedOn : undefined,
-    stillWithRepairer: typeof b.stillWithRepairer === "boolean" ? b.stillWithRepairer : undefined,
-    desiredOutcome: one<ComplaintOutcome>(b.desiredOutcome, COMPLAINT_OUTCOMES),
-    raisedWithRepairer:
-      typeof b.raisedWithRepairer === "boolean" ? b.raisedWithRepairer : undefined,
+    vehicleSafety: b.vehicleSafety,
+    collectedOn: b.collectedOn,
+    problemNoticedOn: b.problemNoticedOn,
+    stillWithRepairer: b.stillWithRepairer,
+    desiredOutcome: b.desiredOutcome,
+    raisedWithRepairer: b.raisedWithRepairer,
     // Observed, not asked for: we already know who they are from the link.
     submittedIp: ip,
     submittedUserAgent: request.headers.get("user-agent") ?? undefined,

@@ -9,6 +9,8 @@ import {
 } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import { COMPLAINT_STATUSES, type AuthUser, type ComplaintStatus, type Complaint } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { ComplaintStatusBody, ComplaintNoteBody } from "@/lib/schemas/complaints";
 
 // One route, two audiences. A workshop sees complaints against ITSELF; PMP
 // staff see every one. The scope is decided here from the permission, never
@@ -67,7 +69,9 @@ export async function PATCH(request: Request) {
   const s = await scope();
   if ("error" in s) return s.error;
 
-  const b = (await request.json()) as { id?: string; status?: string };
+  const parsed = await parseJson(request, ComplaintStatusBody, "PATCH /api/complaints");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
   if (!COMPLAINT_STATUSES.includes(b.status as ComplaintStatus))
     return NextResponse.json({ error: "Unknown status" }, { status: 400 });
@@ -106,7 +110,9 @@ export async function POST(request: Request) {
   const s = await scope();
   if ("error" in s) return s.error;
 
-  const b = (await request.json()) as { id?: string; body?: string; internal?: boolean };
+  const parsed = await parseJson(request, ComplaintNoteBody, "POST /api/complaints");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const text = typeof b.body === "string" ? b.body.trim() : "";

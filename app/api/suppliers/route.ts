@@ -4,6 +4,12 @@ import { can } from "@/lib/permissions";
 import { getSuppliers, saveSuppliers } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { PartType, Supplier } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import {
+  CreateSupplierBody,
+  UpdateSupplierBody,
+  DeleteSupplierBody,
+} from "@/lib/schemas/suppliers";
 
 const PART_TYPE_VALUES: PartType[] = ["new", "used", "alternate"];
 
@@ -49,7 +55,9 @@ export async function POST(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as Partial<Supplier>;
+  const parsed = await parseJson(request, CreateSupplierBody, "POST /api/suppliers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.name?.trim()) return NextResponse.json({ error: "Supplier name required" }, { status: 400 });
 
   const list = await getSuppliers();
@@ -88,7 +96,9 @@ export async function PATCH(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as Partial<Supplier> & { id?: string };
+  const parsed = await parseJson(request, UpdateSupplierBody, "PATCH /api/suppliers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getSuppliers();
@@ -131,7 +141,9 @@ export async function DELETE(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const { id } = (await request.json()) as { id?: string };
+  const parsed = await parseJson(request, DeleteSupplierBody, "DELETE /api/suppliers");
+  if (parsed.response) return parsed.response;
+  const { id } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const list = await getSuppliers();

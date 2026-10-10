@@ -4,6 +4,8 @@ import { createEmailVerification, redeemEmailVerification } from "@/lib/store";
 import { sendEmailVerification } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { VerifyEmailBody } from "@/lib/schemas/auth";
 
 /**
  * POST: redeem a token, or ask for a fresh link.
@@ -18,7 +20,9 @@ export async function POST(request: Request) {
   if (!limited.ok)
     return tooManyRequests(limited.retryAfter, "Too many attempts. Please wait a few minutes.");
 
-  const { token, resend } = (await request.json()) as { token?: string; resend?: boolean };
+  const parsed = await parseJson(request, VerifyEmailBody, "POST /api/auth/verify-email");
+  if (parsed.response) return parsed.response;
+  const { token, resend } = parsed.data;
 
   if (resend) {
     // Re-sending DOES need a session: otherwise anyone could make us mail a

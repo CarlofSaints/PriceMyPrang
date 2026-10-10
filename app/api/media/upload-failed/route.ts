@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { actorFromUser, logActivity } from "@/lib/activityLog";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rateLimit";
+import { validate } from "@/lib/validate";
+import { UploadFailedBody } from "@/lib/schemas/media";
 
 // ---------------------------------------------------------------------------
 // "Somebody's upload was refused": the one thing this app could not see.
@@ -56,12 +58,17 @@ export async function POST(request: Request): Promise<NextResponse> {
   const limit = rateLimit(`upload-failed:${clientIp(request)}`, 20, 60_000);
   if (!limit.ok) return tooManyRequests(limit.retryAfter, "Too many reports.") as NextResponse;
 
-  let body: Record<string, unknown>;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ ok: true });
   }
+  // Strict like every other body, but a refusal is STILL a 200 (rule 1 above):
+  // validate() has already logged the drift for a developer to see.
+  const parsed = validate(UploadFailedBody, raw, "POST /api/media/upload-failed");
+  if (parsed.response) return NextResponse.json({ ok: true });
+  const body = parsed.data;
 
   const fileName = text(body.fileName) ?? "(unnamed file)";
   const contentType = text(body.contentType, 100) ?? "unknown type";

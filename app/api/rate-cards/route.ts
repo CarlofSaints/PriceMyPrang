@@ -4,6 +4,8 @@ import { getRateCards, getRateCard, upsertRateCard, deleteRateCard } from "@/lib
 import { resolveRateTarget as resolveTarget } from "@/lib/rateAccess";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { RateCard, RateValues } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { SaveRateCardBody } from "@/lib/schemas/rateCards";
 
 export async function GET(request: Request) {
   const { user, response } = await requireUser();
@@ -20,14 +22,9 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  const b = (await request.json()) as {
-    id?: string;
-    panelBeaterId?: string;
-    kind?: "cash" | "insurance";
-    insurerName?: string;
-    aluminium?: boolean;
-    values?: RateValues;
-  };
+  const parsed = await parseJson(request, SaveRateCardBody, "POST /api/rate-cards");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
 
   const target = await resolveTarget(user, b.panelBeaterId);
   if ("error" in target) return target.error;
@@ -75,7 +72,9 @@ export async function POST(request: Request) {
     kind: b.kind,
     insurerName: b.kind === "insurance" ? insurerName : undefined,
     aluminium: !!b.aluminium,
-    values: b.values ?? {},
+    // Stored as posted, as before: a NaN box arrives as null and the store
+    // has always been the one to drop it.
+    values: (b.values ?? {}) as RateValues,
     createdAt: new Date().toISOString(),
   };
 
