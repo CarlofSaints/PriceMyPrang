@@ -15,6 +15,7 @@ import type { BuiltQuote, QuoteLineItem } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { BuildQuoteBody } from "@/lib/schemas/quotes";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 export const maxDuration = 60;
 
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
   const canBuild = can(user, "build_quotes");
   if (!canBuild && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Each save renders a PDF, stores it and emails the client.
+  const limited = await limitOrRespond("buildQuote", user.id);
+  if (limited) return limited;
 
   const parsed = await parseJson(request, BuildQuoteBody, "POST /api/quotes");
   if (parsed.response) return parsed.response;

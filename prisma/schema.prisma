@@ -1377,3 +1377,16 @@ model ActivityLog {
   @@index([entityType, entityId])
   @@map("activity_log")
 }
+
+/// Shared rate-limit counters (lib/rateLimit.ts): one row per bucket, e.g.
+/// "login-ip:1.2.3.4". In Postgres, not instance memory, because Vercel runs
+/// many instances and a per-instance count lets an attacker multiply it.
+/// Rows are disposable: expired ones are swept, and losing the table only
+/// resets the counts.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime @db.Timestamptz(3)
+
+  @@map("rate_limits")
+}

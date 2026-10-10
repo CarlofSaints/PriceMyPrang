@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { readMediaBytes } from "@/lib/blob";
 import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { logActivity, consumerActor } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { MediaReadBody } from "@/lib/schemas/media";
@@ -20,9 +20,10 @@ interface OdometerReading {
 export async function POST(request: Request) {
   // Anonymous by design: see the note in /api/disc/read. Same two guards.
   const ip = clientIp(request);
-  const limited = rateLimit(`odo-read:${ip}`, 12, 60_000);
-  if (!limited.ok)
-    return tooManyRequests(limited.retryAfter, "Too many reads. Please wait a moment.");
+  // Per caller, then everyone together: the second is the ceiling on the
+  // Anthropic bill when the calls come from many addresses at once.
+  const limited = (await limitOrRespond("odometerRead", ip)) ?? (await limitOrRespond("aiReadsEveryone"));
+  if (limited) return limited;
 
   const parsed = await parseJson(request, MediaReadBody, "POST /api/odometer/read");
   if (parsed.response) return parsed.response;

@@ -11,12 +11,17 @@ import { sendSignedAgreementCopy } from "@/lib/email";
 import { logActivity } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { AgreementSignBody } from "@/lib/schemas/agreementSign";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 
 export const maxDuration = 60;
 
 // PUBLIC (no auth): the repairer signs from the link we emailed them. The token
 // is the credential: they have no portal login at the point this is sent.
 export async function POST(request: Request) {
+  // Emails a signed copy and renders a PDF on every success.
+  const limited = await limitOrRespond("agreementSign", clientIp(request));
+  if (limited) return limited;
+
   const parsed = await parseJson(request, AgreementSignBody, "POST /api/public/agreement/sign");
   if (parsed.response) return parsed.response;
   const body = parsed.data;

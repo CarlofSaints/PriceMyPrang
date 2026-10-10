@@ -6,7 +6,7 @@ import {
   findUserById,
 } from "@/lib/store";
 import { verifyPassword, createSession } from "@/lib/auth";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { hit, LIMITS, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { VerifyOtpBody } from "@/lib/schemas/auth";
@@ -15,9 +15,8 @@ import { VerifyOtpBody } from "@/lib/schemas/auth";
 // is where the session is finally issued.
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`otp:${ip}`, 20, 15 * 60_000);
-  if (!limited.ok)
-    return tooManyRequests(limited.retryAfter, "Too many attempts. Please wait a few minutes.");
+  const limited = await hit("verifyOtp", ip);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter, LIMITS.verifyOtp.message);
 
   const parsed = await parseJson(request, VerifyOtpBody, "POST /api/auth/verify-otp");
   if (parsed.response) return parsed.response;

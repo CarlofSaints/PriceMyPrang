@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createEmailVerification, redeemEmailVerification } from "@/lib/store";
 import { sendEmailVerification } from "@/lib/email";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { hit, LIMITS, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { VerifyEmailBody } from "@/lib/schemas/auth";
@@ -16,9 +16,8 @@ import { VerifyEmailBody } from "@/lib/schemas/auth";
  */
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limited = rateLimit(`verify-email:${ip}`, 10, 15 * 60_000);
-  if (!limited.ok)
-    return tooManyRequests(limited.retryAfter, "Too many attempts. Please wait a few minutes.");
+  const limited = await hit("verifyEmail", ip);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter, LIMITS.verifyEmail.message);
 
   const parsed = await parseJson(request, VerifyEmailBody, "POST /api/auth/verify-email");
   if (parsed.response) return parsed.response;

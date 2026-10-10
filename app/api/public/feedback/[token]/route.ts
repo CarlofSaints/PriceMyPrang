@@ -12,7 +12,7 @@ import {
   getPanelBeater,
 } from "@/lib/store";
 import { sendComplaintLodged, sendComplaintConfirmation } from "@/lib/email";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { parseJson } from "@/lib/validate";
 import { FeedbackBody } from "@/lib/schemas/public";
 import { logActivity, consumerActor } from "@/lib/activityLog";
@@ -75,9 +75,8 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = clientIp(request);
-  const limited = rateLimit(`feedback:${ip}`, 20, 15 * 60_000);
-  if (!limited.ok)
-    return tooManyRequests(limited.retryAfter, "Too many submissions. Please wait a few minutes.");
+  const limited = await limitOrRespond("feedbackSubmit", ip);
+  if (limited) return limited;
 
   const { token } = await params;
   const ctx = await context(token);

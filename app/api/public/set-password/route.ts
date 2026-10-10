@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/auth";
 import { redeemPasswordSetToken } from "@/lib/store";
 import { logActivity } from "@/lib/activityLog";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { parseJson } from "@/lib/validate";
 import { SetPasswordBody } from "@/lib/schemas/public";
 
@@ -23,9 +23,8 @@ const MIN_LENGTH = 10;
  */
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  const limit = rateLimit(`set-password:${ip}`, 10, 60_000);
-  if (!limit.ok)
-    return tooManyRequests(limit.retryAfter, "Too many attempts. Wait a minute and try again.");
+  const limited = await limitOrRespond("setPassword", ip);
+  if (limited) return limited;
 
   const parsed = await parseJson(request, SetPasswordBody, "POST /api/public/set-password");
   if (parsed.response) return parsed.response;

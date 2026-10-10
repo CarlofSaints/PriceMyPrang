@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { VehicleDetails } from "@/lib/types";
 import { readMediaBytes } from "@/lib/blob";
 import { isAnonReadableMedia, pathnameFromMediaUrl } from "@/lib/mediaPath";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { logActivity, consumerActor } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { MediaReadBody } from "@/lib/schemas/media";
@@ -19,9 +19,10 @@ export async function POST(request: Request) {
   // Anonymous by design: a consumer photographs their disc before any account
   // exists. That makes both guards below load-bearing.
   const ip = clientIp(request);
-  const limited = rateLimit(`disc-read:${ip}`, 12, 60_000);
-  if (!limited.ok)
-    return tooManyRequests(limited.retryAfter, "Too many reads. Please wait a moment.");
+  // Per caller, then everyone together: the second is the ceiling on the
+  // Anthropic bill when the calls come from many addresses at once.
+  const limited = (await limitOrRespond("discRead", ip)) ?? (await limitOrRespond("aiReadsEveryone"));
+  if (limited) return limited;
 
   const parsed = await parseJson(request, MediaReadBody, "POST /api/disc/read");
   if (parsed.response) return parsed.response;

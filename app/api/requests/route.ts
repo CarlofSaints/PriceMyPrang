@@ -15,6 +15,7 @@ import { nearestKm } from "@/lib/geo";
 import type { QuoteRequest } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { CreateRequestBody } from "@/lib/schemas/requests";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 
 // The body is CreateRequestBody in lib/schemas/requests.ts: the consumer form
 // and the repairer walk-in forms, told apart by repairerQuote. Field by field
@@ -29,6 +30,12 @@ export async function POST(request: Request) {
   }
 
   const repairerQuote = !!p.repairerQuote;
+  // A consumer request costs a geocode, an Ozow payment and emails, from
+  // someone with no login: limited per IP. A walk-in is limited per user below.
+  if (!repairerQuote) {
+    const limited = await limitOrRespond("quoteRequest", clientIp(request));
+    if (limited) return limited;
+  }
   let letUsChoose = false;
   let selectedPanelBeaterIds: string[] = [];
   // How many quotes we expect. A repairer self-quoting means exactly one; for a
@@ -46,6 +53,8 @@ export async function POST(request: Request) {
     const canChooseAny = can(user, "manage_panel_beaters") || can(user, "build_quotes");
     if (!canChooseAny && !can(user, "onboard_self"))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const limited = await limitOrRespond("quoteRequestRepairer", user.id);
+    if (limited) return limited;
 
     const targetId = user.panelBeaterId || (canChooseAny ? p.selectedPanelBeaterIds?.[0] : undefined);
     if (!targetId)

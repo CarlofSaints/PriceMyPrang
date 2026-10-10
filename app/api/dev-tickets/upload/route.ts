@@ -2,6 +2,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 // ---------------------------------------------------------------------------
 // Client-upload token for dev-ticket attachments.
@@ -48,6 +49,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (response) return response;
   if (!can(user, "manage_dev_tickets"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const limited = await limitOrRespond("uploadDevTicket", user.id);
+  if (limited) return limited as NextResponse;
 
   const body = (await request.json()) as HandleUploadBody;
 

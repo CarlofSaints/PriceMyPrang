@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { startPayment, siteUrlFor } from "@/lib/payments";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { parseJson } from "@/lib/validate";
 import { PayBody } from "@/lib/schemas/public";
 
 // PUBLIC: the customer has no login. The request's publicToken is the only
 // credential, the same one that opens their quotes page.
 export async function POST(request: Request) {
-  const rl = rateLimit(`pay:${clientIp(request)}`, 10, 60_000);
-  if (!rl.ok) return tooManyRequests(rl.retryAfter, "Too many attempts. Please wait a minute and try again.");
+  const limited = await limitOrRespond("pay", clientIp(request));
+  if (limited) return limited;
 
   const parsed = await parseJson(request, PayBody, "POST /api/public/pay");
   if (parsed.response) return parsed.response;

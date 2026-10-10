@@ -4,6 +4,7 @@ import { setUserPassword } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { ChangePasswordBody } from "@/lib/schemas/auth";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 const MIN_LENGTH = 10;
 
@@ -13,6 +14,10 @@ const MIN_LENGTH = 10;
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Someone holding a stolen session must not get unlimited guesses at the
+  // current password, which is the one thing standing between them and it.
+  const limited = await limitOrRespond("changePassword", user.id);
+  if (limited) return limited;
 
   const parsed = await parseJson(request, ChangePasswordBody, "POST /api/auth/change-password");
   if (parsed.response) return parsed.response;

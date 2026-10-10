@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 import { requestKeyByReference, createConsumerAccessLink, getRequest } from "@/lib/store";
 import { sendConsumerFeedbackLink } from "@/lib/email";
 import { logActivity, consumerActor } from "@/lib/activityLog";
@@ -23,30 +24,11 @@ const SAME_ANSWER = {
     "If that reference is one of ours, we've emailed a link to the address on the job. Please check your inbox.",
 };
 
-/** Per-IP, in-memory. Enough to stop someone walking the reference space. */
-const hits = new Map<string, { n: number; resetAt: number }>();
-const LIMIT = 5;
-const WINDOW_MS = 60_000;
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const cur = hits.get(ip);
-  if (!cur || now > cur.resetAt) {
-    hits.set(ip, { n: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  cur.n += 1;
-  return cur.n > LIMIT;
-}
 
 export async function POST(request: Request) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (rateLimited(ip))
-    return NextResponse.json(
-      { error: "Too many attempts. Please wait a minute and try again." },
-      { status: 429 }
-    );
+  // Per IP: also what stops someone walking the reference space.
+  const limited = await limitOrRespond("feedbackLink", clientIp(request));
+  if (limited) return limited;
 
   const parsed = await parseJson(request, FeedbackLinkBody, "POST /api/public/feedback/request-link");
   if (parsed.response) return parsed.response;

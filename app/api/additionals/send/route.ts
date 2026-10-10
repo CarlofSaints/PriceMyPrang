@@ -14,6 +14,7 @@ import { sendAdditionalsToInsurer, sendAdditionalsToClient } from "@/lib/email";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import { parseJson } from "@/lib/validate";
 import { SendAdditionalBody } from "@/lib/schemas/additionals";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 /**
  * Send an additionals request to the insurer, and tell the client.
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
   if (response) return response;
   if (!can(user, "manage_additionals"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const limited = await limitOrRespond("sendAdditionals", user.id);
+  if (limited) return limited;
 
   // contactId is a saved contact to send to; email is a one-off address typed
   // for this claim; notifyClient (default ON) also tells the client.

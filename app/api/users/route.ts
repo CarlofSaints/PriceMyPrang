@@ -15,6 +15,7 @@ import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser, User } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { CreateUserBody, UpdateUserBody } from "@/lib/schemas/users";
+import { limitOrRespond } from "@/lib/rateLimit";
 
 function scrub(u: User) {
   const { passwordHash, ...rest } = u;
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
   // safer behaviour.
   const sendEmail = b.sendEmail !== false;
   const mustChangePassword = b.mustChangePassword !== false;
+  if (sendEmail) {
+    const limited = await limitOrRespond("userEmails", admin.id);
+    if (limited) return limited;
+  }
 
   const scope = scopeFor(admin);
   if (!scope) return FORBIDDEN;
@@ -228,6 +233,11 @@ export async function PATCH(request: Request) {
   const parsed = await parseJson(request, UpdateUserBody, "PATCH /api/users");
   if (parsed.response) return parsed.response;
   const b = parsed.data;
+  // Only the changes that send an email are counted: a role tick sends none.
+  if (b.welcome || b.resetLink || (b.password && b.sendEmail !== false)) {
+    const limited = await limitOrRespond("userEmails", admin.id);
+    if (limited) return limited;
+  }
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const scope = scopeFor(admin);

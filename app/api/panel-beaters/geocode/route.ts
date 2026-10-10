@@ -4,36 +4,16 @@ import { can } from "@/lib/permissions";
 import { geocodeWithStatus } from "@/lib/geocode";
 import { parseJson } from "@/lib/validate";
 import { GeocodeBody } from "@/lib/schemas/panelBeaters";
+import { hit, clientIp } from "@/lib/rateLimit";
 
 // Look up coordinates for an address on demand (the "Get coordinates" button).
 //
 // PUBLIC: the sign-up form runs this before the applicant has a login, so it
 // can't require one: letting them see the pin means they can fix a wrong
 // address before submitting, instead of it landing "not geocoded" for an admin.
-// It does spend Google Geocoding quota though, so anonymous callers are capped.
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 10;
+// It does spend Google Geocoding quota though, so every caller is capped:
+// anonymous ones per IP, signed-in ones per user (lib/rateLimit LIMITS).
 const MAX_ADDRESS_LENGTH = 300;
-
-// Per-instance memory only: Vercel runs several and recycles them, so this is a
-// brake on casual hammering, not a hard quota. Enough for a form button.
-const recentHits = new Map<string, number[]>();
-
-function overRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const hits = (recentHits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  hits.push(now);
-  recentHits.set(ip, hits);
-
-  // Drop callers who've gone quiet, so the map can't grow without bound.
-  if (recentHits.size > 1000) {
-    for (const [key, times] of recentHits) {
-      if (!times.some((t) => now - t < WINDOW_MS)) recentHits.delete(key);
-    }
-  }
-
-  return hits.length > MAX_PER_WINDOW;
-}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -46,15 +26,15 @@ export async function POST(request: Request) {
         { ok: false, status: "FORBIDDEN", error: "Forbidden" },
         { status: 403 }
       );
-  } else {
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    if (overRateLimit(ip))
-      return NextResponse.json(
-        { ok: false, status: "RATE_LIMITED", error: "Too many lookups" },
-        { status: 429 }
-      );
   }
+
+  // Same shape as every other answer here (ok/status/error): the form reads it.
+  const limited = user ? await hit("geocodeUser", user.id) : await hit("geocodeAnon", clientIp(request));
+  if (!limited.ok)
+    return NextResponse.json(
+      { ok: false, status: "RATE_LIMITED", error: "Too many lookups" },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
+    );
 
   const parsed = await parseJson(request, GeocodeBody, "POST /api/panel-beaters/geocode");
   if (parsed.response) return parsed.response;

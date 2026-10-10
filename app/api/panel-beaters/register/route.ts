@@ -22,6 +22,7 @@ import {
 import type { PanelBeater, User } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { PanelBeaterRegisterBody } from "@/lib/schemas/panelBeaters";
+import { clientIp, limitOrRespond } from "@/lib/rateLimit";
 
 // The workshop's first two logins are its admins: they need to be able to add
 // the rest of their team (estimators, buyers) without coming through us.
@@ -178,6 +179,10 @@ async function sendAgreementInvite(pb: PanelBeater): Promise<boolean> {
 // PUBLIC (no auth): a panel beater applies to join. Created as pending +
 // inactive so it does NOT appear on the consumer map until an admin approves.
 export async function POST(request: Request) {
+  // Each application costs a Google geocode and three emails.
+  const limited = await limitOrRespond("registerWorkshop", clientIp(request));
+  if (limited) return limited;
+
   // No id, coordinates or vetting fields can come in: see the schema.
   const parsed = await parseJson(request, PanelBeaterRegisterBody, "POST /api/panel-beaters/register");
   if (parsed.response) return parsed.response;
