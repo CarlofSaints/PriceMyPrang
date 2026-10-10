@@ -1,5 +1,6 @@
 import { PrismaClient } from "./generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
 
 // ---------------------------------------------------------------------------
 // Neon Postgres client.
@@ -26,8 +27,27 @@ export function getDb(): PrismaClient {
     );
   }
 
+  pointAtLocalProxyIfAsked();
   client = new PrismaClient({
     adapter: new PrismaNeon({ connectionString }),
   });
   return client;
+}
+
+/**
+ * LOCAL TEST STACK ONLY (scripts/lib/localStack.ts). The Neon driver speaks
+ * Postgres over a WebSocket, so a plain local Postgres needs a small
+ * WebSocket-to-TCP proxy in front of it; this points the driver at that proxy
+ * instead of Neon (host:port, no scheme: the driver adds ws://). Off unless
+ * PMP_LOCAL_WS_PROXY is set, and refused outright
+ * on Vercel so a stray variable can never redirect a deployment.
+ */
+function pointAtLocalProxyIfAsked() {
+  const proxy = process.env.PMP_LOCAL_WS_PROXY?.trim();
+  if (!proxy) return;
+  if (process.env.VERCEL) throw new Error("PMP_LOCAL_WS_PROXY is for local tests only and must not be set on Vercel");
+  neonConfig.wsProxy = (host, port) => `${proxy}/v1?address=${host}:${port}`;
+  neonConfig.useSecureWebSocket = false;
+  neonConfig.pipelineConnect = false;
+  neonConfig.pipelineTLS = false;
 }

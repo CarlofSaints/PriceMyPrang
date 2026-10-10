@@ -35,8 +35,8 @@ type Gate =
 /**
  * @param target a workshop id from the caller. HONOURED ONLY for PMP staff
  *   building a quote on a workshop's behalf: they need that workshop's
- *   supplier book, not their own (they have none). A workshop's own login can
- *   never use it, or one repairer could read another's suppliers.
+ *   supplier book, not their own (they have none). A workshop's own login
+ *   naming any workshop but its own gets 403.
  */
 async function gate(target?: string | null): Promise<Gate> {
   const { user, response } = await requireUser();
@@ -56,6 +56,11 @@ async function gate(target?: string | null): Promise<Gate> {
         { status: 400 }
       ),
     };
+
+  // Naming another workshop is refused, not quietly swapped for the caller's
+  // own: a 200 to a request for someone else's book hides the attempt.
+  if (target && target !== user.panelBeaterId)
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
 
   return { panelBeaterId: user.panelBeaterId, canEdit, user };
 }
