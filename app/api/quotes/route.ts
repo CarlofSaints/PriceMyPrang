@@ -5,6 +5,7 @@ import {
   getRequest,
   upsertQuote,
   getPanelBeater,
+  getRateCard,
   listSuppliersForPanelBeater,
 } from "@/lib/store";
 import { uploadMedia } from "@/lib/blob";
@@ -16,6 +17,7 @@ import { parseJson } from "@/lib/validate";
 import { BuildQuoteBody } from "@/lib/schemas/quotes";
 import { computeQuoteTotals, type SundriesMode } from "@/lib/quoteTotals";
 import { limitOrRespond } from "@/lib/rateLimit";
+import { priceLines, type CardRates } from "@/lib/quotePricing";
 
 export const maxDuration = 60;
 
@@ -68,9 +70,24 @@ export async function POST(request: Request) {
     }
   }
 
-  // Keep lines that carry a description or any value.
-  const lines: QuoteLineItem[] = (p.lines || [])
-    .map((x) => ({
+  // The rate card is looked up HERE, by id, and must be this workshop's own:
+  // a card id is only a pointer, and another repairer's (or an insurer's
+  // better) rates are not this quote's to borrow. No card = typed by hand.
+  let rates: CardRates | undefined;
+  const scope = p.scope ?? "out_of_warranty";
+  if (p.rateCardId) {
+    const card = await getRateCard(p.rateCardId);
+    if (!card || card.panelBeaterId !== pb.id)
+      return NextResponse.json({ error: "That rate card isn't this workshop's" }, { status: 400 });
+    if (scope === "aluminium" && !card.aluminium)
+      return NextResponse.json({ error: "That rate card has no aluminium rates" }, { status: 400 });
+    rates = card.values[scope] ?? {};
+  }
+
+  // Keep lines that carry a description or any value. Lines are priced off
+  // the card before the filter, so a line is judged by what it will charge.
+  const lines: QuoteLineItem[] = priceLines(
+    (p.lines || []).map((x) => ({
       code: x.code?.trim() || undefined,
       description: (x.description || "").trim(),
       quantity: Math.max(1, num(x.quantity) || 1),
@@ -91,15 +108,11 @@ export async function POST(request: Request) {
       stripCode: x.stripCode?.trim() || undefined,
       stripAmount: num(x.stripAmount),
       stripHours: num(x.stripHours),
-    }))
-    .filter(
-      (x) =>
-        x.description ||
-        x.partsAmount ||
-        x.panelAmount ||
-        x.paintAmount ||
-        x.stripAmount
-    );
+    })),
+    rates
+  ).filter(
+    (x) => x.description || x.partsAmount || x.panelAmount || x.paintAmount || x.stripAmount
+  );
 
   // A supplier id arrives from the browser, so it is checked against the
   // quoting workshop's OWN book before it is stored. Otherwise a posted id
@@ -225,6 +238,8 @@ export async function POST(request: Request) {
     panelBeaterId: pb.id,
     detail: {
       panelBeater: label,
+      rateCardId: p.rateCardId || null,
+      scope: rates ? scope : null,
       lines: lines.length,
       totalHours,
       partsTotal,
