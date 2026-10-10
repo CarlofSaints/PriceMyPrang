@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { addDevTicketNote, deleteDevTicketNote } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { AddDevTicketNoteBody, DeleteDevTicketNoteBody } from "@/lib/schemas/devTickets";
 
 // The running conversation on a ticket. Same Super-Admin-only gate as the
 // ticket itself: notes are internal and must never widen who can read a
@@ -22,7 +24,9 @@ export async function POST(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as { ticketId?: string; body?: string };
+  const parsed = await parseJson(request, AddDevTicketNoteBody, "POST /api/dev-tickets/notes");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.ticketId) return NextResponse.json({ error: "ticketId required" }, { status: 400 });
 
   const body = typeof b.body === "string" ? b.body.trim() : "";
@@ -57,7 +61,9 @@ export async function DELETE(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const { noteId } = (await request.json()) as { noteId?: string };
+  const parsed = await parseJson(request, DeleteDevTicketNoteBody, "DELETE /api/dev-tickets/notes");
+  if (parsed.response) return parsed.response;
+  const { noteId } = parsed.data;
   if (!noteId) return NextResponse.json({ error: "noteId required" }, { status: 400 });
 
   const ticket = await deleteDevTicketNote(noteId);

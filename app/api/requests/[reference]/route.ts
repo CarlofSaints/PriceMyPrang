@@ -10,7 +10,9 @@ import {
 import { sendRepairerJobAssigned } from "@/lib/email";
 import { isAssignedTo, requestViewFor, seesWholeJob } from "@/lib/workshopAccess";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
-import type { AuthUser, RequestStatus } from "@/lib/types";
+import type { AuthUser } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { UpdateRequestBody } from "@/lib/schemas/requests";
 
 export async function GET(
   _request: Request,
@@ -43,10 +45,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { reference } = await params;
-  const body = (await request.json()) as {
-    status?: RequestStatus;
-    panelBeaterIds?: string[];
-  };
+  const parsed = await parseJson(request, UpdateRequestBody, "PATCH /api/requests/[reference]");
+  if (parsed.response) return parsed.response;
+  const body = parsed.data;
 
   const req = await getRequest(reference);
   if (!req) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -60,9 +61,9 @@ export async function PATCH(
     return assignWorkshops(request, user, reference, body.panelBeaterIds);
   }
 
+  // The schema only lets a known status through; a missing one still gets this.
   const { status } = body;
-  const valid: RequestStatus[] = ["new", "in_progress", "completed"];
-  if (!status || !valid.includes(status)) {
+  if (!status) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 

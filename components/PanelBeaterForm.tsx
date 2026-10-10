@@ -161,6 +161,58 @@ export default function PanelBeaterForm({
     }
   }
 
+  /**
+   * Exactly what the form edits, field by field. This used to post the whole
+   * stored record back (`...form`), which carried createdAt, status,
+   * submittedByPublic and every warranty's remindersSent: fields a person must
+   * never set, and which the routes' strict schemas now refuse. See
+   * lib/schemas/panelBeaters.ts.
+   */
+  function payload() {
+    const fields = {
+      completedByName: form.completedByName,
+      completedByEmail: form.completedByEmail,
+      ownerName: form.ownerName,
+      ownerEmail: form.ownerEmail,
+      phone: form.phone,
+      companyName: form.companyName,
+      tradingAs: form.tradingAs,
+      companyRegNumber: form.companyRegNumber,
+      vatNumber: form.vatNumber,
+      physicalAddress: form.physicalAddress,
+      mibcoNumber: form.mibcoNumber,
+      rmiNumber: form.rmiNumber,
+      sambraNumber: form.sambraNumber,
+      miwaNumber: form.miwaNumber,
+      logoUrl,
+      warranties: warranties.map((w) => ({
+        manufacturer: w.manufacturer,
+        startDate: w.startDate,
+        expiryDate: w.expiryDate,
+        certificate: w.certificate && {
+          url: w.certificate.url,
+          pathname: w.certificate.pathname,
+          contentType: w.certificate.contentType,
+        },
+        remind: w.remind,
+      })),
+    };
+    // The public Join form: the server geocodes the address itself, and a new
+    // application is always inactive and pending, so none of these are sent.
+    if (mode === "public") return fields;
+    return {
+      ...fields,
+      // Which listing this edits (absent = a new one); the server decides
+      // whether this login may.
+      id: existing?.id,
+      // From the "Get coordinates" button, so a wrong pin can be corrected.
+      lat: form.lat,
+      lng: form.lng,
+      // The Active tickbox. Honoured for staff only.
+      active: form.active,
+    };
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const missingCert = warranties.find((w) => !w.certificate);
@@ -174,7 +226,7 @@ export default function PanelBeaterForm({
       const res = await fetch(submitUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, logoUrl, warranties }),
+        body: JSON.stringify(payload()),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

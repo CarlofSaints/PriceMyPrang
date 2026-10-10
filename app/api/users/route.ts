@@ -13,6 +13,8 @@ import {
 import { sendUserCredentials, sendPanelBeaterWelcome, passwordSetUrl } from "@/lib/email";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser, User } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { CreateUserBody, UpdateUserBody } from "@/lib/schemas/users";
 
 function scrub(u: User) {
   const { passwordHash, ...rest } = u;
@@ -59,15 +61,9 @@ export async function POST(request: Request) {
   if (response) return response;
   if (!can(admin, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as {
-    name?: string;
-    email?: string;
-    password?: string;
-    role?: string;
-    panelBeaterId?: string;
-    sendEmail?: boolean;
-    mustChangePassword?: boolean;
-  };
+  const parsed = await parseJson(request, CreateUserBody, "POST /api/users");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.name || !b.email || !b.password || !b.role)
     return NextResponse.json({ error: "name, email, password, role required" }, { status: 400 });
 
@@ -226,22 +222,12 @@ export async function PATCH(request: Request) {
   if (response) return response;
   if (!can(admin, "manage_users")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as {
-    id?: string;
-    role?: string;
-    active?: boolean;
-    password?: string;
-    sendEmail?: boolean;
-    mustChangePassword?: boolean;
-    twoFactorEnabled?: boolean;
-    /** Re-send the welcome letter, carrying a fresh set-password link. */
-    welcome?: boolean;
-    /**
-     * Email a "choose a new password" link instead of setting one here. Leaves
-     * their current password working until they actually use it.
-     */
-    resetLink?: boolean;
-  };
+  // welcome: re-send the welcome letter, carrying a fresh set-password link.
+  // resetLink: email a "choose a new password" link instead of setting one
+  // here, leaving their current password working until they actually use it.
+  const parsed = await parseJson(request, UpdateUserBody, "PATCH /api/users");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const scope = scopeFor(admin);

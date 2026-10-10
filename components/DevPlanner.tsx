@@ -203,10 +203,15 @@ export default function DevPlanner({
    * `remindOn: null` clears the date. It has to be null rather than undefined:
    * JSON.stringify drops undefined keys entirely, and the API reads a missing
    * key as "leave this field alone", so undefined could never clear anything.
+   *
+   * Only the fields the API lets you edit: it refuses any other key (see
+   * UpdateDevTicketBody), so a wider type here would only compile a 400.
    */
   async function patch(
     id: string,
-    changes: Partial<Omit<DevTicket, "remindOn">> & { remindOn?: string | null }
+    changes: Partial<Pick<DevTicket, "title" | "detail" | "priority" | "status">> & {
+      remindOn?: string | null;
+    }
   ): Promise<boolean> {
     const prev = tickets;
     // The optimistic copy carries the app's own shape, where "no date" is

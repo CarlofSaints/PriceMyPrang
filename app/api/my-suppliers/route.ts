@@ -9,6 +9,12 @@ import {
 } from "@/lib/store";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import type { AuthUser, Supplier } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import {
+  OwnSupplierCreateBody,
+  OwnSupplierDeleteBody,
+  OwnSupplierUpdateBody,
+} from "@/lib/schemas/suppliers-own";
 
 // A workshop's OWN supplier book. Separate from /api/suppliers, which is Price
 // my Prang's platform-wide list under manage_parts.
@@ -84,12 +90,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const b0 = (await request.clone().json()) as { panelBeaterId?: string };
-  const g = await gate(b0.panelBeaterId);
+  // Parsed before the gate because the gate needs panelBeaterId from it.
+  const parsed = await parseJson(request, OwnSupplierCreateBody, "POST /api/my-suppliers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
+  const g = await gate(b.panelBeaterId);
   if ("error" in g) return g.error;
   if (!g.canEdit) return NextResponse.json({ error: "Read-only access" }, { status: 403 });
 
-  const b = (await request.json()) as Record<string, unknown>;
   const f = fields(b);
   // Nothing else is required: a buyer adding a supplier mid-job shouldn't be
   // stopped by a VAT number they'd have to go and find.
@@ -119,8 +127,10 @@ export async function PATCH(request: Request) {
   if ("error" in g) return g.error;
   if (!g.canEdit) return NextResponse.json({ error: "Read-only access" }, { status: 403 });
 
-  const b = (await request.json()) as Record<string, unknown>;
-  const id = typeof b.id === "string" ? b.id : "";
+  const parsed = await parseJson(request, OwnSupplierUpdateBody, "PATCH /api/my-suppliers");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
+  const id = b.id ?? "";
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const f = fields(b);
@@ -153,7 +163,9 @@ export async function DELETE(request: Request) {
   if ("error" in g) return g.error;
   if (!g.canEdit) return NextResponse.json({ error: "Read-only access" }, { status: 403 });
 
-  const { id } = (await request.json()) as { id?: string };
+  const parsed = await parseJson(request, OwnSupplierDeleteBody, "DELETE /api/my-suppliers");
+  if (parsed.response) return parsed.response;
+  const { id } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const existing = (await listSuppliersForPanelBeater(g.panelBeaterId)).find((s) => s.id === id);

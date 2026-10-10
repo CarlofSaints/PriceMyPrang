@@ -3,6 +3,8 @@ import { hashPassword } from "@/lib/auth";
 import { redeemPasswordSetToken } from "@/lib/store";
 import { logActivity } from "@/lib/activityLog";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
+import { parseJson } from "@/lib/validate";
+import { SetPasswordBody } from "@/lib/schemas/public";
 
 /** Same floor as /api/auth/change-password, so the two can't disagree. */
 const MIN_LENGTH = 10;
@@ -25,7 +27,9 @@ export async function POST(request: Request) {
   if (!limit.ok)
     return tooManyRequests(limit.retryAfter, "Too many attempts. Wait a minute and try again.");
 
-  const b = (await request.json().catch(() => ({}))) as { token?: string; password?: string };
+  const parsed = await parseJson(request, SetPasswordBody, "POST /api/public/set-password");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   const token = b.token?.trim();
   const password = b.password ?? "";
 

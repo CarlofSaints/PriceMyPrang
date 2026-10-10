@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { geocodeWithStatus } from "@/lib/geocode";
+import { parseJson } from "@/lib/validate";
+import { GeocodeBody } from "@/lib/schemas/panelBeaters";
 
 // Look up coordinates for an address on demand (the "Get coordinates" button).
 //
@@ -54,7 +56,9 @@ export async function POST(request: Request) {
       );
   }
 
-  const { address } = (await request.json()) as { address?: string };
+  const parsed = await parseJson(request, GeocodeBody, "POST /api/panel-beaters/geocode");
+  if (parsed.response) return parsed.response;
+  const { address } = parsed.data;
   if (!address?.trim())
     return NextResponse.json(
       { ok: false, status: "NO_ADDRESS", error: "Enter an address first" },

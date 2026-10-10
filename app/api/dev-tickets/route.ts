@@ -16,6 +16,12 @@ import {
   type DevPriority,
   type DevTicketStatus,
 } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import {
+  CreateDevTicketBody,
+  UpdateDevTicketBody,
+  DeleteDevTicketBody,
+} from "@/lib/schemas/devTickets";
 
 // The dev planner is PMP's own backlog: Super Admin only. Every handler goes
 // through requireManage, so there is no route here a panel beater can reach.
@@ -82,7 +88,9 @@ export async function POST(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as Record<string, unknown>;
+  const parsed = await parseJson(request, CreateDevTicketBody, "POST /api/dev-tickets");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   const title = typeof b.title === "string" ? b.title.trim() : "";
   if (!title) return NextResponse.json({ error: "A title is required" }, { status: 400 });
 
@@ -123,7 +131,9 @@ export async function PATCH(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const b = (await request.json()) as Record<string, unknown>;
+  const parsed = await parseJson(request, UpdateDevTicketBody, "PATCH /api/dev-tickets");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   const id = typeof b.id === "string" ? b.id : "";
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -165,7 +175,9 @@ export async function DELETE(request: Request) {
   const gate = await requireManage();
   if (gate.error) return gate.error;
 
-  const { id } = (await request.json()) as { id?: string };
+  const parsed = await parseJson(request, DeleteDevTicketBody, "DELETE /api/dev-tickets");
+  if (parsed.response) return parsed.response;
+  const { id } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   // The rows go first: if a blob delete fails we are left with orphaned bytes,

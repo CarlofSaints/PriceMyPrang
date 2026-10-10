@@ -12,43 +12,17 @@ import {
 import { logActivity, actorFromUser, consumerActor } from "@/lib/activityLog";
 import { geocodeAddress } from "@/lib/geocode";
 import { nearestKm } from "@/lib/geo";
-import type { MediaRef, QuoteRequest, RequiredPhotos, VehicleDetails } from "@/lib/types";
+import type { QuoteRequest } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { CreateRequestBody } from "@/lib/schemas/requests";
 
-interface Payload {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  companyName?: string;
-  hasInsurance: "yes" | "no";
-  insurerName?: string;
-  insurerId?: string;
-  underWarranty: "yes" | "no" | "unsure";
-  isInsuranceClaim: "yes" | "no";
-  claimNumber?: string;
-  noClaimNumberYet?: boolean;
-  isThirdPartyClaim: "yes" | "no";
-  suspectedEngineDamage: "yes" | "no";
-  vehicle: VehicleDetails;
-  mileageKm?: number | string;
-  odometerImage?: MediaRef | null;
-  discImage?: MediaRef | null;
-  video?: MediaRef | null;
-  requiredPhotos?: RequiredPhotos;
-  damagePhotos: MediaRef[];
-  /** Town or suburb the vehicle is in. Consumer submissions only. */
-  town?: string;
-  /** Province the vehicle is in. Consumer submissions only. */
-  province?: string;
-  selectedPanelBeaterIds?: string[];
-  /** True when a logged-in panel beater is quoting a walk-in themselves. */
-  repairerQuote?: boolean;
-  /** Rate type off the repairer's own rate card. Repairer-initiated jobs only. */
-  rateCardId?: string;
-}
-
+// The body is CreateRequestBody in lib/schemas/requests.ts: the consumer form
+// and the repairer walk-in forms, told apart by repairerQuote. Field by field
+// it is what those forms post, so change them together.
 export async function POST(request: Request) {
-  const p = (await request.json()) as Payload;
+  const parsed = await parseJson(request, CreateRequestBody, "POST /api/requests");
+  if (parsed.response) return parsed.response;
+  const p = parsed.data;
 
   if (!p.firstName || !p.lastName || !p.email || !p.phone) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

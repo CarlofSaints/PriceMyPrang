@@ -12,7 +12,9 @@ import { computeQuoteTotals } from "@/lib/quoteTotals";
 import { actingWorkshop } from "@/lib/additionalsAccess";
 import { additionalsListScope, isAssignedTo } from "@/lib/workshopAccess";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
-import type { AdditionalStatus, QuoteLineItem } from "@/lib/types";
+import type { AdditionalStatus } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { SaveAdditionalBody, AdditionalStatusBody } from "@/lib/schemas/additionals";
 
 /**
  * Additionals: extra work found after a vehicle is stripped.
@@ -55,14 +57,9 @@ export async function POST(request: Request) {
   if (response) return response;
   if (!can(user, "manage_additionals")) return FORBIDDEN;
 
-  const b = (await request.json()) as {
-    id?: string;
-    reference?: string;
-    panelBeaterId?: string;
-    reason?: string;
-    claimNumber?: string;
-    lines?: QuoteLineItem[];
-  };
+  const parsed = await parseJson(request, SaveAdditionalBody, "POST /api/additionals");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.reference) return NextResponse.json({ error: "reference required" }, { status: 400 });
 
   const workshop = actingWorkshop(user, b.panelBeaterId);
@@ -160,20 +157,18 @@ export async function PATCH(request: Request) {
   if (response) return response;
   if (!can(user, "manage_additionals")) return FORBIDDEN;
 
-  const b = (await request.json()) as {
-    id?: string;
-    panelBeaterId?: string;
-    status?: AdditionalStatus;
-    responseNote?: string;
-  };
+  const parsed = await parseJson(request, AdditionalStatusBody, "PATCH /api/additionals");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
   if (!b.status || !["pending", "approved", "declined"].includes(b.status))
     return NextResponse.json({ error: "Unknown status" }, { status: 400 });
+  const status = b.status as AdditionalStatus;
 
   const workshop = actingWorkshop(user, b.panelBeaterId);
   if (!workshop) return NextResponse.json({ error: "Choose a workshop." }, { status: 400 });
 
-  const updated = await setAdditionalStatus(b.id, workshop, b.status, b.responseNote);
+  const updated = await setAdditionalStatus(b.id, workshop, status, b.responseNote);
   if (!updated) return NOT_FOUND;
 
   await logActivity({

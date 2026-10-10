@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { acceptQuote, getRequestByPublicToken } from "@/lib/store";
 import { logActivity, consumerActor } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { AcceptQuoteBody } from "@/lib/schemas/public";
 
 // PUBLIC (no auth): the consumer accepts one of the quotes on their own job.
 // The request's publicToken is the credential: it arrives in their email and
 // is unguessable, unlike the reference. There is no login on the consumer side.
 export async function POST(request: Request) {
-  const { token, quoteId } = (await request.json()) as {
-    token?: string;
-    quoteId?: string;
-  };
+  const parsed = await parseJson(request, AcceptQuoteBody, "POST /api/public/quotes/accept");
+  if (parsed.response) return parsed.response;
+  const { token, quoteId } = parsed.data;
 
   if (!token?.trim() || !quoteId?.trim())
     return NextResponse.json({ error: "Missing token or quote" }, { status: 400 });

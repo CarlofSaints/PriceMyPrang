@@ -10,6 +10,8 @@ import {
 import { uploadMedia } from "@/lib/blob";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { AgreementDocument } from "@/lib/types";
+import { validate } from "@/lib/validate";
+import { AgreementUploadForm } from "@/lib/schemas/admin";
 
 export const maxDuration = 60;
 
@@ -39,8 +41,17 @@ export async function POST(request: Request) {
   if ("error" in gate) return gate.error;
 
   const form = await request.formData();
-  const file = form.get("file");
-  const title = String(form.get("title") ?? "").trim();
+  // A key sent twice becomes an array, which no field accepts: otherwise one
+  // copy would be silently dropped and the other trusted.
+  const fields: Record<string, FormDataEntryValue | FormDataEntryValue[]> = {};
+  for (const [k, v] of form.entries()) {
+    const prev = fields[k];
+    fields[k] = prev === undefined ? v : [...(Array.isArray(prev) ? prev : [prev]), v];
+  }
+  const parsed = validate(AgreementUploadForm, fields, "POST /api/agreement");
+  if (parsed.response) return parsed.response;
+  const file = parsed.data.file;
+  const title = (parsed.data.title ?? "").trim();
 
   if (!(file instanceof File))
     return NextResponse.json({ error: "Choose a .docx file to upload" }, { status: 400 });

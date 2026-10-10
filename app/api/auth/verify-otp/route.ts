@@ -8,6 +8,8 @@ import {
 import { verifyPassword, createSession } from "@/lib/auth";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rateLimit";
 import { logActivity } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { VerifyOtpBody } from "@/lib/schemas/auth";
 
 // Second half of a two-factor sign-in. The password was already checked; this
 // is where the session is finally issued.
@@ -17,10 +19,9 @@ export async function POST(request: Request) {
   if (!limited.ok)
     return tooManyRequests(limited.retryAfter, "Too many attempts. Please wait a few minutes.");
 
-  const { challengeId, code } = (await request.json()) as {
-    challengeId?: string;
-    code?: string;
-  };
+  const parsed = await parseJson(request, VerifyOtpBody, "POST /api/auth/verify-otp");
+  if (parsed.response) return parsed.response;
+  const { challengeId, code } = parsed.data;
   if (!challengeId || !code)
     return NextResponse.json({ error: "Enter the code we emailed you" }, { status: 400 });
 

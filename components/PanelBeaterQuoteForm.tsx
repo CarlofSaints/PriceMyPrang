@@ -230,7 +230,6 @@ export default function PanelBeaterQuoteForm({
         hasInsurance: "no",
         isInsuranceClaim: "no",
         suspectedEngineDamage: "no",
-        quotesRequested: 1,
         vehicle,
         mileageKm,
         odometerImage: odo,

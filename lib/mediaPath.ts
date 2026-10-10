@@ -47,10 +47,21 @@ export function isMediaPathname(pathname: string): boolean {
  */
 export const ANON_READABLE_PREFIXES = ["requests/"] as const;
 
+/**
+ * True for a path that could climb out of its prefix: absolute, empty, or with
+ * a "." / ".." / empty SEGMENT. Judged per segment, not by substring, because
+ * safeFileName keeps dots: a customer's "photo..jpg" is a legitimate name and
+ * must not be refused as if it were "../".
+ */
+export function isUnsafeMediaPath(pathname: string): boolean {
+  if (!pathname || pathname.startsWith("/") || pathname.includes("\\")) return true;
+  return pathname.split("/").some((s) => s === "" || s === "." || s === "..");
+}
+
 export function isAnonReadableMedia(pathname: string): boolean {
   // Reject traversal and absolute paths before the prefix test, or
   // "requests/../dev-tickets/x" would sail through it.
-  if (!pathname || pathname.includes("..") || pathname.startsWith("/")) return false;
+  if (isUnsafeMediaPath(pathname)) return false;
   return ANON_READABLE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 

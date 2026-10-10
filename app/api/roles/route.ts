@@ -4,6 +4,8 @@ import { can, ALL_PERMISSIONS } from "@/lib/permissions";
 import { getRoles, saveRoles, getUsers } from "@/lib/store";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
 import type { Permission, Role } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { CreateRoleBody, UpdateRoleBody, DeleteRoleBody } from "@/lib/schemas/roles";
 
 function cleanPermissions(input: unknown): Permission[] {
   if (!Array.isArray(input)) return [];
@@ -29,11 +31,9 @@ export async function POST(request: Request) {
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as {
-    name?: string;
-    permissions?: Permission[];
-    scope?: Role["scope"];
-  };
+  const parsed = await parseJson(request, CreateRoleBody, "POST /api/roles");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.name?.trim()) return NextResponse.json({ error: "Role name required" }, { status: 400 });
 
   const roles = await getRoles();
@@ -76,11 +76,9 @@ export async function PATCH(request: Request) {
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as {
-    id?: string;
-    name?: string;
-    permissions?: Permission[];
-  };
+  const parsed = await parseJson(request, UpdateRoleBody, "PATCH /api/roles");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
   if (!b.id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const roles = await getRoles();
@@ -130,7 +128,9 @@ export async function DELETE(request: Request) {
   if (!can(user, "manage_roles"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { id } = (await request.json()) as { id?: string };
+  const parsed = await parseJson(request, DeleteRoleBody, "DELETE /api/roles");
+  if (parsed.response) return parsed.response;
+  const { id } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const roles = await getRoles();

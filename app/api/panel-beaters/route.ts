@@ -7,6 +7,8 @@ import { mergeWarranties } from "@/lib/warrantyReminders";
 import { logActivity, actorFromUser, diff } from "@/lib/activityLog";
 import { panelBeatersVisibleTo, panelBeaterSaveTarget, vettingFields } from "@/lib/workshopAccess";
 import type { PanelBeater } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { PanelBeaterSaveBody, PanelBeaterVettingBody } from "@/lib/schemas/panelBeaters";
 
 export async function GET() {
   const { user, response } = await requireUser();
@@ -26,7 +28,10 @@ export async function POST(request: Request) {
   if (!canManage && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const b = (await request.json()) as Partial<PanelBeater> & { id?: string };
+  // Never status, submittedByPublic or createdAt: see the schema.
+  const parsed = await parseJson(request, PanelBeaterSaveBody, "POST /api/panel-beaters");
+  if (parsed.response) return parsed.response;
+  const b = parsed.data;
 
   for (const req of ["companyName", "companyRegNumber", "physicalAddress", "rmiNumber"] as const) {
     if (!b[req] || !String(b[req]).trim()) {
@@ -166,11 +171,9 @@ export async function PATCH(request: Request) {
   if (!can(user, "manage_panel_beaters"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { id, status, active } = (await request.json()) as {
-    id?: string;
-    status?: "pending" | "approved" | "declined";
-    active?: boolean;
-  };
+  const parsed = await parseJson(request, PanelBeaterVettingBody, "PATCH /api/panel-beaters");
+  if (parsed.response) return parsed.response;
+  const { id, status, active } = parsed.data;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const pb = await getPanelBeater(id);

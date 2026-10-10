@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requestKeyByReference, createConsumerAccessLink, getRequest } from "@/lib/store";
 import { sendConsumerFeedbackLink } from "@/lib/email";
 import { logActivity, consumerActor } from "@/lib/activityLog";
+import { parseJson } from "@/lib/validate";
+import { FeedbackLinkBody } from "@/lib/schemas/public";
 
 // ---------------------------------------------------------------------------
 // "I want to rate or complain about my repair."
@@ -46,8 +48,9 @@ export async function POST(request: Request) {
       { status: 429 }
     );
 
-  const { reference } = (await request.json()) as { reference?: string };
-  const ref = typeof reference === "string" ? reference.trim() : "";
+  const parsed = await parseJson(request, FeedbackLinkBody, "POST /api/public/feedback/request-link");
+  if (parsed.response) return parsed.response;
+  const ref = parsed.data.reference?.trim() ?? "";
   if (!ref) return NextResponse.json({ error: "Enter your reference number" }, { status: 400 });
 
   let matched = false;

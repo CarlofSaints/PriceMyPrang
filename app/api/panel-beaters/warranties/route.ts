@@ -4,7 +4,8 @@ import { can } from "@/lib/permissions";
 import { getPanelBeater, upsertPanelBeater } from "@/lib/store";
 import { mergeWarranties } from "@/lib/warrantyReminders";
 import { logActivity, actorFromUser } from "@/lib/activityLog";
-import type { WarrantyApproval } from "@/lib/types";
+import { parseJson } from "@/lib/validate";
+import { WarrantyUpsertBody } from "@/lib/schemas/panelBeaters";
 
 /**
  * Add or replace ONE manufacturer warranty on a workshop's listing, so a panel
@@ -21,10 +22,9 @@ export async function POST(request: Request) {
   if (!canManage && !can(user, "onboard_self"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = (await request.json()) as {
-    panelBeaterId?: string;
-    warranty?: WarrantyApproval;
-  };
+  const parsed = await parseJson(request, WarrantyUpsertBody, "POST /api/panel-beaters/warranties");
+  if (parsed.response) return parsed.response;
+  const body = parsed.data;
 
   // A self-service login can only ever touch its own listing; a manager may
   // name one.
