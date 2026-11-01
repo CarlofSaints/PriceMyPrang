@@ -24,8 +24,6 @@ export function LegalPage({ title, children }: { title: string; children: React.
           </div>
         </div>
       </article>
-
-      <LegalFooter />
     </main>
   );
 }
@@ -47,7 +45,7 @@ export function LegalFooterLinks({ className }: { className?: string }) {
   );
 }
 
-function LegalFooter() {
+export function LegalFooter() {
   return (
     <footer className="border-t border-teal/10 bg-ink py-8 text-center text-sm text-white/70">
       <LegalFooterLinks className="mb-4" />

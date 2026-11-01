@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "./ui";
 
 /** Opens (or resumes) the customer's Ozow payment and sends them to it. */
 export default function PayButton({ token, label }: { token: string; label: string }) {
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function pay() {
@@ -35,7 +37,16 @@ export default function PayButton({ token, label }: { token: string; label: stri
 
   return (
     <div className="space-y-2">
-      <Button size="lg" className="w-full" onClick={pay} disabled={busy}>
+      {/* shortcut: the tick is not recorded on the server; record it with the payment if a dispute ever needs proof */}
+      <label className="flex items-start gap-2 text-left text-sm text-ink/80">
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1" />
+        <span>
+          I agree to the{" "}
+          <Link href="/terms" target="_blank" className="underline">Terms</Link> and{" "}
+          <Link href="/privacy" target="_blank" className="underline">Privacy policy</Link>.
+        </span>
+      </label>
+      <Button size="lg" className="w-full" onClick={pay} disabled={busy || !agreed}>
         {busy ? "Opening secure payment…" : label}
       </Button>
       {error && <p className="text-sm text-red-600">{error}</p>}

@@ -1,3 +1,4 @@
+import { SiteLegalFooter } from "@/components/SiteLegalFooter";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Archivo } from "next/font/google";
 import "./globals.css";
@@ -27,7 +28,6 @@ export const viewport: Viewport = {
   themeColor: "#00848D",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -41,6 +41,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${archivo.variable} min-h-full antialiased`}
       >
         {children}
+        <SiteLegalFooter />
       </body>
     </html>
   );
