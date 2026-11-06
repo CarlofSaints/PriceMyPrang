@@ -21,7 +21,7 @@ export const LEGAL = {
   /** The price the homepage advertises. Keep the two in step. */
   quoteFee: "R350",
   /** Shown as "Last updated" on all three pages. Bump it when any changes. */
-  lastUpdated: "23 September 2026",
+  lastUpdated: "6 November 2026",
 } as const;
 
 export const LEGAL_LINKS = [

@@ -53,6 +53,11 @@ export default function PrivacyPage() {
           <strong>Technical:</strong> your IP address and basic request information, used to
           keep the site secure and prevent abuse.
         </li>
+        <li>
+          <strong>Site statistics:</strong> if you accept on the cookie notice, Google Analytics
+          records the public pages you visit, how long you stay, and your general location and
+          device type.
+        </li>
       </ul>
 
       <h2>2. Why we use it</h2>
@@ -62,6 +67,7 @@ export default function PrivacyPage() {
         <li>To take payment and deal with refunds.</li>
         <li>To handle ratings, complaints and warranty queries about a repair.</li>
         <li>To keep the site secure, and to meet our legal and tax obligations.</li>
+        <li>If you accept, to see how the site is used so that we can improve it.</li>
       </ul>
       <p>
         We rely on your consent, on the need to perform the service you asked for, and on our
@@ -111,7 +117,8 @@ export default function PrivacyPage() {
       <p>
         We keep your request, quotes and related records for as long as they are needed for the
         service, for any warranty or complaint about the repair, and for the period tax and other
-        laws require (generally five years). After that it is deleted or anonymised.
+        laws require (generally five years). After that it is deleted or anonymised. Google
+        Analytics statistics are kept for no more than 14 months.
       </p>
 
       <h2>7. Your rights</h2>
@@ -139,7 +146,7 @@ export default function PrivacyPage() {
         We use a cookie to keep staff and panel beaters signed in to the portal. If you accept on
         the cookie notice, Google Analytics cookies also show us how many people visit and which
         public pages they use. They are not used for advertising, they never load if you decline,
-        and they are not used on quote, payment, agreement or portal pages.{" "}
+        and they are not used on private quote, payment or agreement links, or in the portal.{" "}
         <ChangeCookieChoice />
       </p>
 
