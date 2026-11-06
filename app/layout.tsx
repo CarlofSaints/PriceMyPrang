@@ -1,3 +1,4 @@
+import { CookieConsent } from "@/components/CookieConsent";
 import { SiteLegalFooter } from "@/components/SiteLegalFooter";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Archivo } from "next/font/google";
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
   title: "Price my Prang · Crash · Quote · Claim",
   description:
     "The fastest way to price a prang. Request repair quotes from nearby panel beaters in minutes.",
+  // Private links carry a token, so never pass a full URL on as the referrer, to gtag or anyone else.
+  referrer: "strict-origin",
   icons: {
     icon: "/brand/svg/icon-fullcolour.svg",
   },
@@ -42,6 +45,7 @@ export default function RootLayout({
       >
         {children}
         <SiteLegalFooter />
+        <CookieConsent />
       </body>
     </html>
   );
