@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ChangeCookieChoice } from "@/components/CookieConsent";
 import { ContactBlock, ContactUs, LegalPage } from "@/components/LegalPage";
 import { LEGAL } from "@/lib/legal";
 
@@ -81,8 +82,9 @@ export default function PrivacyPage() {
         <li>
           <strong>Service providers</strong> who run parts of the service for us under contract:
           website hosting and file storage (Vercel), our database (Neon), email delivery
-          (Resend), address lookup (Google Maps), reading licence discs and odometers from photos
-          (Anthropic), vehicle data lookup, and our payment provider.
+          (Resend), address lookup (Google Maps), site statistics if you allow them (Google
+          Analytics), reading licence discs and odometers from photos (Anthropic), vehicle data
+          lookup, and our payment provider.
         </li>
         <li>
           <strong>Authorities</strong>, where the law requires it.
@@ -134,8 +136,11 @@ export default function PrivacyPage() {
 
       <h2>8. Cookies</h2>
       <p>
-        The public site does not use advertising or tracking cookies. We use a cookie only to keep
-        staff and panel beaters signed in to the portal.
+        We use a cookie to keep staff and panel beaters signed in to the portal. If you accept on
+        the cookie notice, Google Analytics cookies also show us how many people visit and which
+        public pages they use. They are not used for advertising, they never load if you decline,
+        and they are not used on quote, payment, agreement or portal pages.{" "}
+        <ChangeCookieChoice />
       </p>
 
       <h2>9. Information Officer and contact</h2>

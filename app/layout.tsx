@@ -1,3 +1,4 @@
+import { CookieConsent } from "@/components/CookieConsent";
 import { SiteLegalFooter } from "@/components/SiteLegalFooter";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Archivo } from "next/font/google";
@@ -42,6 +43,7 @@ export default function RootLayout({
       >
         {children}
         <SiteLegalFooter />
+        <CookieConsent />
       </body>
     </html>
   );
