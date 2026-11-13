@@ -18,7 +18,7 @@ let fail = 0;
 function check(ok: boolean, text: string, got?: unknown) {
   if (ok) pass++;
   else fail++;
-  console.log(`  ${ok ? "PASS" : "FAIL"}  ${text}${ok ? "" : `   (got ${JSON.stringify(got).slice(0, 300)})`}`);
+  console.log(`  ${ok ? "PASS" : "FAIL"}  ${text}${ok ? "" : `   (got ${String(JSON.stringify(got)).slice(0, 300)})`}`);
 }
 
 async function login(email: string): Promise<string> {
@@ -48,6 +48,8 @@ async function call(cookie: string | null, method: string, path: string, body?: 
   return { status: r.status, json, text };
 }
 
+/** zar() output, e.g. "R 280,00" (the space may be a no-break space). */
+const money = (n: string) => new RegExp(`R[\\s\\u00a0]${n}`);
 const one = async (q: string, p: unknown[] = []) => (await stack.sql.query(q, p)).rows[0];
 const day = (offset: number) => new Date(Date.now() + 2 * 3600_000 + offset * 86_400_000).toISOString().slice(0, 10);
 
@@ -125,7 +127,7 @@ async function main() {
     const applied = await call(null, "POST", "/api/public/voucher", { token: "token-1", code: ` ${code20.toLowerCase()} ` });
     check(applied.status === 200 && applied.json.amount === 280, "typed in lower case with spaces: R350 -> R280", applied.json);
     const pay1 = await call(null, "GET", "/pay/token-1");
-    check(pay1.text.includes("Pay R280 securely") && pay1.text.includes("line-through"), "pay page shows R350 struck through and Pay R280", pay1.status);
+    check(money("280,00 securely").test(pay1.text) && pay1.text.includes("line-through"), "pay page shows R350 struck through and Pay R280", pay1.status);
     check(Number((await one(`SELECT "usesCount" FROM vouchers WHERE code = $1`, [code20])).usesCount) === 0, "applying does NOT use it up (counted only when paid)");
     const removed = await call(null, "POST", "/api/public/voucher", { token: "token-1", code: "" });
     check(removed.status === 200 && removed.json.amount === 350, "Remove puts the full price back", removed.json);
@@ -149,11 +151,48 @@ async function main() {
     await call(null, "POST", "/api/public/voucher", { token: "token-1", code: code20 });
     const off = await call(admin, "PATCH", "/api/vouchers", { id: v20.json.id, active: false });
     check(off.status === 200 && off.json.active === false, "staff switch it off");
-    const stale = await call(null, "POST", "/api/public/pay", { token: "token-1" });
-    check(stale.json.kind === "voucher_invalid", "Pay refuses it and says why", stale.json);
+    const stale = await call(null, "POST", "/api/public/pay", { token: "token-1", expectedAmount: 280 });
+    check(stale.json.kind === "price_changed" && String(stale.json.reason).includes("isn't valid"), "Pay (page showed R280) refuses and says why, opens nothing", stale.json);
     check((await one(`SELECT "voucherId" FROM quote_requests WHERE id = 'req1'`)).voucherId === null, "and takes it off the request, so the full price applies");
-    check((await call(null, "GET", "/pay/token-1")).text.includes("Pay R350 securely"), "pay page back to R350");
+    check(money("350,00 securely").test((await call(null, "GET", "/pay/token-1")).text), "pay page back to R350");
     check((await call(admin, "PATCH", "/api/vouchers", { id: v20.json.id, active: true, percentOff: 90 })).status === 400, "staff can't change the discount after making it (strict body)");
+
+
+    console.log("\nOne live price: an Ozow link already open fixes the price");
+    await call(admin, "PATCH", "/api/vouchers", { id: v20.json.id, active: true });
+    await stack.sql.query(`DELETE FROM rate_limits`); // this test types more codes than the 10-per-15-min a person gets
+    // Times passed from JS: this throwaway Postgres runs on local time, the app writes UTC.
+    await stack.sql.query(
+      `INSERT INTO payments (id, "requestId", amount, status, "providerPaymentId", "redirectUrl", "isTest", "createdAt", "updatedAt") VALUES ('pay_live', 'req1', 350, 'pending', 'ozow-live-1', 'https://pay.example/live', true, $1, $1)`,
+      [new Date().toISOString().replace("Z", "")]
+    );
+    const locked = await call(null, "POST", "/api/public/voucher", { token: "token-1", code: code20 });
+    check(locked.status === 409 && String(locked.json.error).includes("already started a payment"), "voucher can't be added while a R350 link is open", locked.json);
+    // (The pay page and Pay both ask Ozow about an open link, and these keys are fake, so neither is checked here.)
+    await stack.sql.query(`UPDATE payments SET status = 'failed' WHERE id = 'pay_live'`);
+    check((await call(null, "POST", "/api/public/voucher", { token: "token-1", code: code20 })).status === 200, "once that link is dead, the voucher can be added");
+
+    console.log("\nA voucher use is HELD when a link opens, and given back if it fails");
+    const opened = await call(null, "POST", "/api/public/pay", { token: "token-1", expectedAmount: 280 });
+    check(opened.status === 502, "Ozow (fake keys) refuses to open the R280 link", opened.status);
+    check(Number((await one(`SELECT "usesCount" FROM vouchers WHERE code = $1`, [code20])).usesCount) === 0, "the held use was given back");
+    const failedRow = await one(`SELECT status, amount::text, "voucherCode" FROM payments WHERE "requestId" = 'req1' AND "voucherCode" IS NOT NULL ORDER BY "createdAt" DESC LIMIT 1`);
+    check(failedRow?.status === "failed" && Number(failedRow?.amount) === 280 && failedRow?.voucherCode === code20, "attempt recorded: R280, voucher, failed", failedRow);
+    // A row that never reached Ozow (server stopped mid-way) still holding a use:
+    await stack.sql.query(`UPDATE vouchers SET "usesCount" = 1 WHERE code = $1`, [code20]);
+    await stack.sql.query(
+      `INSERT INTO payments (id, "requestId", amount, status, "voucherId", "createdAt", "updatedAt") VALUES ('pay_orphan', 'req1', 280, 'pending', $1, $2, $2)`,
+      [v20.json.id, new Date(Date.now() - 2 * 3600_000).toISOString().replace("Z", "")]
+    );
+    await stack.sql.query(`DELETE FROM rate_limits`); // the pay page only asks again so often per link
+    await call(null, "GET", "/pay/token-1");
+    check((await one(`SELECT status FROM payments WHERE id = 'pay_orphan'`)).status === "failed", "an attempt that never reached Ozow is closed after an hour");
+    check(Number((await one(`SELECT "usesCount" FROM vouchers WHERE code = $1`, [code20])).usesCount) === 0, "and its use is given back");
+    const changed = await call(null, "POST", "/api/public/pay", { token: "token-1", expectedAmount: 350 });
+    check(changed.json.kind === "price_changed", "page showed R350 but the voucher makes it R280: nothing opened, new price shown first", changed.json);
+
+    console.log("\nCron sweep");
+    check((await call(null, "GET", "/api/cron/payments-sweep")).status === 503, "no CRON_SECRET set: refuses to run (fails closed)");
 
     console.log("\nActivity log");
     const acts = (await stack.sql.query(`SELECT action FROM activity_log WHERE action LIKE 'voucher.%' OR action = 'payment.paid'`)).rows.map((r) => r.action);

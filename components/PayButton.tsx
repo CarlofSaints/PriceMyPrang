@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "./ui";
 
 /** Opens (or resumes) the customer's Ozow payment and sends them to it. */
-export default function PayButton({ token, label }: { token: string; label: string }) {
+export default function PayButton({ token, label, expectedAmount }: { token: string; label: string; expectedAmount?: number }) {
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export default function PayButton({ token, label }: { token: string; label: stri
       const res = await fetch("/api/public/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, expectedAmount }),
       });
       const data = (await res.json().catch(() => ({}))) as { kind?: string; url?: string; error?: string; reason?: string };
       if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
@@ -29,10 +29,10 @@ export default function PayButton({ token, label }: { token: string; label: stri
         window.location.href = data.url;
         return; // stay busy: the browser is leaving
       }
-      if (data.kind === "voucher_invalid") {
-        // Taken off on the server: refresh shows the full price, and the
+      if (data.kind === "voucher_invalid" || data.kind === "price_changed") {
+        // Nothing was opened. Refresh shows the price as it is now, and the
         // message stays because refresh keeps this component's state.
-        setError(`${data.reason ?? "That voucher can no longer be used."} The full price now applies.`);
+        setError(`${data.reason ?? "The price has changed."} Please check the new price and press again.`);
         setBusy(false);
         router.refresh();
         return;

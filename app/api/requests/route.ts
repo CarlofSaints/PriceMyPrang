@@ -45,6 +45,9 @@ export async function POST(request: Request) {
   const voucherCode = !repairerQuote && "voucherCode" in p ? normaliseVoucherCode(p.voucherCode ?? "") : "";
   const voucher = voucherCode ? await getDb().voucher.findUnique({ where: { code: voucherCode } }) : null;
   if (voucherCode) {
+    // Same budget as the voucher box, so the form is no back door for guessing codes.
+    const limitedV = await limitOrRespond("voucherApply", clientIp(request));
+    if (limitedV) return limitedV;
     const problem = voucherProblem(voucher);
     if (problem) return NextResponse.json({ error: problem, field: "voucherCode" }, { status: 400 });
   }
@@ -204,10 +207,18 @@ export async function POST(request: Request) {
   if (!repairerQuote && ozowConfig()) {
     const id = await findRequestIdByReference(req.reference);
     let payUrl: string | null = null;
+    let voucherLapsed = false;
     try {
       if (id && voucher) await getDb().quoteRequest.update({ where: { id }, data: { voucherId: voucher.id } });
-      const started = id ? await startPayment(id, siteUrlFor(request)) : null;
-      if (started?.kind === "redirect") payUrl = started.url;
+      let started = id ? await startPayment(id, siteUrlFor(request)) : null;
+      if (id && started?.kind === "voucher_invalid") {
+        // The voucher ran out between the form's check and now (it has been
+        // taken off). Open the full-price link, but land them on OUR page,
+        // which says why, rather than straight on Ozow at a price they weren't shown.
+        started = await startPayment(id, siteUrlFor(request));
+        voucherLapsed = true;
+      }
+      if (started?.kind === "redirect" && !voucherLapsed) payUrl = started.url;
     } catch (err) {
       // Already logged as payment.start_failed with Ozow's reason.
       console.error("ozow start failed", err);
@@ -216,7 +227,7 @@ export async function POST(request: Request) {
       reference: req.reference,
       nearestPanelBeaterKm,
       payUrl,
-      payPage: req.publicToken ? `/pay/${req.publicToken}` : null,
+      payPage: req.publicToken ? `/pay/${req.publicToken}${voucherLapsed ? "?voucher=lapsed" : ""}` : null,
     });
   }
 

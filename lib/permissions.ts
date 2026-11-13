@@ -47,7 +47,7 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
   view_activity_log:
     "Super Admin: the record of everything everyone has done on the site: sign-ins, forms filled in, quotes built, records changed, and what was refused. Shows every workshop's activity, so it is Price my Prang staff only.",
   manage_vouchers:
-    "Super Admin: create discount vouchers on the R350 request fee (percentage, expiry date, how many uses) and switch them off.",
+    "Super Admin: create discount vouchers on the customer's request fee (percentage, expiry date, how many uses) and switch them off.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];

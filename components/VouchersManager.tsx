@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Field, inputClass } from "./ui";
 import { discountedFee, voucherStatus } from "@/lib/vouchers";
+import { zar } from "@/lib/format";
 
 export interface VoucherRow {
   id: string;
@@ -94,7 +95,7 @@ export default function VouchersManager({ initial, fee }: { initial: VoucherRow[
       <form onSubmit={create} className="pmp-card space-y-4">
         <h2 className="font-display text-lg font-semibold text-ink">New voucher</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Discount (%)" hint={pctOk ? `Customer pays R${discountedFee(fee, pct).toFixed(2)} instead of R${fee}${pct === 100 ? ": free, no payment" : ""}` : "1 to 100"}>
+          <Field label="Discount (%)" hint={pctOk ? `Customer pays ${zar(discountedFee(fee, pct))} instead of ${zar(fee)}${pct === 100 ? ": free, no payment" : ""}` : "1 to 100"}>
             <input type="number" min={1} max={100} step={1} value={percentOff} onChange={(e) => setPercentOff(e.target.value)} className={inputClass} required />
           </Field>
           <Field label="Expiry date" hint="Works until the end of this day">

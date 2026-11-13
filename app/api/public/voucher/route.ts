@@ -6,6 +6,8 @@ import { VoucherApplyBody } from "@/lib/schemas/public";
 import { requestFee } from "@/lib/ozow";
 import { discountedFee, normaliseVoucherCode, voucherProblem } from "@/lib/vouchers";
 import { logActivity, consumerActor } from "@/lib/activityLog";
+import { openPaymentLink } from "@/lib/payments";
+import { zar } from "@/lib/format";
 
 // PUBLIC: the customer typing a voucher code on /pay/[token]. The request's
 // publicToken is the only credential. This only REMEMBERS the voucher on the
@@ -36,10 +38,18 @@ export async function POST(request: Request) {
     select: { id: true, reference: true, firstName: true, lastName: true, email: true, repairerInitiated: true },
   });
   if (!req || req.repairerInitiated) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  // An Ozow link already opened at the old price is fine: Pay only reuses a
-  // link whose amount matches, so a changed price opens a new one.
   if (await db.payment.count({ where: { requestId: req.id, status: "paid" } }))
     return NextResponse.json({ error: "This request is already paid." }, { status: 409 });
+  // ONE LIVE PRICE (lib/payments.ts): an Ozow link already open can't be
+  // cancelled, so the price stays put until it is paid or expires.
+  const open = await openPaymentLink(req.id);
+  if (open) {
+    const until = open.expiresAt.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg" });
+    return NextResponse.json(
+      { error: `You've already started a payment of ${zar(open.amount)}. Finish it, or change the voucher after ${until} when that payment link expires.` },
+      { status: 409 }
+    );
+  }
 
   const fee = requestFee();
   const typed = normaliseVoucherCode(code ?? "");
