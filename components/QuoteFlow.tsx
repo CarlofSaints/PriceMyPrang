@@ -123,6 +123,33 @@ export default function QuoteFlow({
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Voucher on the request fee: checked here, sent with the request, checked again by the server.
+  const [voucherOpen, setVoucherOpen] = useState(false);
+  const [voucherInput, setVoucherInput] = useState("");
+  const [voucher, setVoucher] = useState<{ code: string; percentOff: number; amount: number; fee: number } | null>(null);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [voucherBusy, setVoucherBusy] = useState(false);
+
+  async function checkVoucher() {
+    if (voucherBusy || !voucherInput.trim()) return;
+    setVoucherBusy(true);
+    setVoucherError(null);
+    try {
+      const res = await fetch("/api/public/voucher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: voucherInput }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't check that code. Please try again.");
+      setVoucher({ ...data.voucher, amount: data.amount, fee: data.fee });
+      setVoucherInput("");
+    } catch (err) {
+      setVoucherError((err as Error).message);
+    } finally {
+      setVoucherBusy(false);
+    }
+  }
 
   // Media
   const [disc, setDisc] = useState<MediaRef | null>(null);
@@ -419,9 +446,21 @@ export default function QuoteFlow({
           video,
           requiredPhotos,
           damagePhotos: photos,
+          ...(voucher ? { voucherCode: voucher.code } : {}),
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.field === "voucherCode") {
+          // It lapsed since they checked it. Nothing was saved: back to the form.
+          setVoucher(null);
+          setVoucherOpen(true);
+          setVoucherError(data.error);
+          setError(`${data.error} Remove it or try another code, then press Get my quotes again.`);
+          return;
+        }
+        throw new Error();
+      }
       const data = (await res.json()) as {
         reference: string;
         nearestPanelBeaterKm: number | null;
@@ -885,9 +924,52 @@ export default function QuoteFlow({
               {busy ? "Creating…" : "Create quote & price it"}
             </Button>
           ) : (
-            <Button size="lg" className="w-full" onClick={submit} disabled={busy}>
-              {busy ? "Submitting…" : "Get my quotes"}
-            </Button>
+            <>
+              {voucher ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-teal/10 px-4 py-3 text-sm">
+                  <span className="text-ink">
+                    Voucher <span className="font-mono font-semibold">{voucher.code}</span>: {voucher.percentOff}% off.
+                    You&apos;ll pay {voucher.amount <= 0 ? "nothing" : `R${voucher.amount.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}`} instead of R{voucher.fee}.
+                  </span>
+                  <button type="button" onClick={() => setVoucher(null)} className="font-semibold text-teal underline">
+                    Remove
+                  </button>
+                </div>
+              ) : !voucherOpen ? (
+                <button type="button" onClick={() => setVoucherOpen(true)} className="text-sm font-semibold text-teal underline">
+                  Have a voucher code?
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <label htmlFor="voucher" className="text-sm font-semibold text-ink">Voucher code</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="voucher"
+                      value={voucherInput}
+                      onChange={(e) => setVoucherInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          checkVoucher();
+                        }
+                      }}
+                      placeholder="PMP-XXXXXX"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      maxLength={40}
+                      className={`${inputClass} font-mono uppercase`}
+                    />
+                    <Button type="button" variant="outline" onClick={checkVoucher} disabled={voucherBusy || !voucherInput.trim()}>
+                      {voucherBusy ? "Checking…" : "Apply"}
+                    </Button>
+                  </div>
+                  {voucherError && <p className="text-sm text-red-600">{voucherError}</p>}
+                </div>
+              )}
+              <Button size="lg" className="w-full" onClick={submit} disabled={busy}>
+                {busy ? "Submitting…" : "Get my quotes"}
+              </Button>
+            </>
           )}
         </div>
       )}

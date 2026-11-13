@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "./ui";
 
 /** Opens (or resumes) the customer's Ozow payment and sends them to it. */
@@ -9,6 +10,7 @@ export default function PayButton({ token, label }: { token: string; label: stri
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   async function pay() {
     // Locked before the first await, so a double tap can't open two payments.
@@ -21,11 +23,19 @@ export default function PayButton({ token, label }: { token: string; label: stri
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      const data = (await res.json().catch(() => ({}))) as { kind?: string; url?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { kind?: string; url?: string; error?: string; reason?: string };
       if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
       if (data.kind === "redirect" && data.url) {
         window.location.href = data.url;
         return; // stay busy: the browser is leaving
+      }
+      if (data.kind === "voucher_invalid") {
+        // Taken off on the server: refresh shows the full price, and the
+        // message stays because refresh keeps this component's state.
+        setError(`${data.reason ?? "That voucher can no longer be used."} The full price now applies.`);
+        setBusy(false);
+        router.refresh();
+        return;
       }
       // Paid, pending or switched off: this page knows how to show each.
       window.location.reload();

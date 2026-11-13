@@ -25,7 +25,9 @@ export type Permission =
   | "manage_additionals"
   // Super Admin: the site-wide activity log. Deliberately NOT given to any
   // other seeded role: it shows every workshop's activity to whoever holds it.
-  | "view_activity_log";
+  | "view_activity_log"
+  // Super Admin: discount vouchers on the customer's request fee.
+  | "manage_vouchers";
 
 /**
  * Whose org chart a role belongs to. "platform" roles are PMP's own staff;

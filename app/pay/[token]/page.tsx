@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import PayButton from "@/components/PayButton";
+import VoucherBox from "@/components/VoucherBox";
 import { getDb } from "@/lib/db";
 import { reconcileRequest } from "@/lib/payments";
 import { hit } from "@/lib/rateLimit";
 import { requestFee } from "@/lib/ozow";
+import { discountedFee, voucherProblem } from "@/lib/vouchers";
 
 // PUBLIC: where the customer pays, and where Ozow sends them back to. The
 // token is the only credential, so it must never be indexed or logged.
@@ -18,7 +20,7 @@ export default async function PayPage({ params }: { params: Promise<{ token: str
   const { token } = await params;
   const req = await getDb().quoteRequest.findUnique({
     where: { publicToken: token },
-    select: { id: true, reference: true, firstName: true, repairerInitiated: true },
+    select: { id: true, reference: true, firstName: true, repairerInitiated: true, voucher: true },
   });
   if (!req || req.repairerInitiated) notFound();
 
@@ -46,7 +48,13 @@ export default async function PayPage({ params }: { params: Promise<{ token: str
           select: { statusReason: true },
         })
       : null;
-  const fee = requestFee().toLocaleString("en-ZA", { minimumFractionDigits: 0 });
+  const rand = (n: number) => n.toLocaleString("en-ZA", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+  const fullFee = requestFee();
+  const fee = rand(fullFee);
+  // Shown only while it's still good. If it lapsed, Pay will say so and take it off.
+  const voucher = req.voucher && !voucherProblem(req.voucher) ? req.voucher : null;
+  const amount = voucher ? discountedFee(fullFee, voucher.percentOff) : fullFee;
+  const free = amount <= 0;
 
   return (
     <div className="min-h-dvh bg-offwhite">
@@ -94,15 +102,22 @@ export default async function PayPage({ params }: { params: Promise<{ token: str
                 Hi {req.firstName}, one step left
               </h1>
               <p className="text-ink/70">
-                Your request is saved. Pay the flat R{fee} and we&apos;ll get it to the right repairer.
+                Your request is saved. {`Pay the flat R${fee} once-off fee and we'll `}get it to the right repairer.
                 You pay securely through Ozow, straight from your bank: we never see your banking details.
               </p>
+              {voucher && (
+                <p className="font-display text-2xl font-bold text-ink">
+                  <span className="mr-2 text-lg font-semibold text-ink/40 line-through">R{fee}</span>
+                  {free ? "Free" : `R${rand(amount)}`}
+                </p>
+              )}
+              <VoucherBox token={token} applied={voucher ? { code: voucher.code, percentOff: voucher.percentOff } : null} />
               {lastFailure?.statusReason && (
                 <p className="rounded-xl bg-amber/20 p-3 text-sm text-ink">
                   Your last payment didn&apos;t go through, so nothing was taken. You can try again below.
                 </p>
               )}
-              <PayButton token={token} label={`Pay R${fee} securely`} />
+              <PayButton token={token} label={free ? "Confirm my request" : `Pay R${rand(amount)} securely`} />
               <p className="text-xs text-ink/50">
                 See our <Link href="/refunds" className="underline">refund policy</Link>.
               </p>

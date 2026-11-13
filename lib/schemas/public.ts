@@ -85,6 +85,12 @@ export const PayBody = z.strictObject({
   token: token.optional(),
 });
 
+/** POST /api/public/voucher. An empty code takes the voucher off again. */
+export const VoucherApplyBody = z.strictObject({
+  token: token.optional(),
+  code: z.string().max(40).optional(),
+});
+
 /**
  * POST /api/public/quotes/accept.
  *

@@ -88,6 +88,8 @@ const common = {
 export const ConsumerRequestBody = z.strictObject({
   ...common,
   repairerQuote: z.literal(false).optional(),
+  /** Typed on the form. Checked again by the route before anything is saved. */
+  voucherCode: z.string().max(40).optional(),
 });
 
 /**

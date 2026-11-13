@@ -16,6 +16,8 @@ import type { QuoteRequest } from "@/lib/types";
 import { parseJson } from "@/lib/validate";
 import { CreateRequestBody } from "@/lib/schemas/requests";
 import { clientIp, limitOrRespond } from "@/lib/rateLimit";
+import { getDb } from "@/lib/db";
+import { normaliseVoucherCode, voucherProblem } from "@/lib/vouchers";
 
 // The body is CreateRequestBody in lib/schemas/requests.ts: the consumer form
 // and the repairer walk-in forms, told apart by repairerQuote. Field by field
@@ -35,6 +37,16 @@ export async function POST(request: Request) {
   if (!repairerQuote) {
     const limited = await limitOrRespond("quoteRequest", clientIp(request));
     if (limited) return limited;
+  }
+
+  // A voucher typed on the form is checked BEFORE anything is saved, so a bad
+  // code sends them back to the form instead of to Ozow at the full price.
+  // Only the remembering happens here: startPayment prices it and counts the use.
+  const voucherCode = !repairerQuote && "voucherCode" in p ? normaliseVoucherCode(p.voucherCode ?? "") : "";
+  const voucher = voucherCode ? await getDb().voucher.findUnique({ where: { code: voucherCode } }) : null;
+  if (voucherCode) {
+    const problem = voucherProblem(voucher);
+    if (problem) return NextResponse.json({ error: problem, field: "voucherCode" }, { status: 400 });
   }
   let letUsChoose = false;
   let selectedPanelBeaterIds: string[] = [];
@@ -193,6 +205,7 @@ export async function POST(request: Request) {
     const id = await findRequestIdByReference(req.reference);
     let payUrl: string | null = null;
     try {
+      if (id && voucher) await getDb().quoteRequest.update({ where: { id }, data: { voucherId: voucher.id } });
       const started = id ? await startPayment(id, siteUrlFor(request)) : null;
       if (started?.kind === "redirect") payUrl = started.url;
     } catch (err) {

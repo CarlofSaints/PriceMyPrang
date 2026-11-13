@@ -25,6 +25,7 @@ import {
   OzowError,
   type OzowConfig,
 } from "@/lib/ozow";
+import { discountedFee, voucherProblem } from "@/lib/vouchers";
 
 /** How long an Ozow payment link stays usable. */
 const LINK_LIFETIME_MS = 60 * 60 * 1000;
@@ -133,7 +134,11 @@ async function checkOne(cfg: OzowConfig, p: Row): Promise<"paid" | "pending" | "
   return "open";
 }
 
-async function markPaid(p: Row, transactionId: string, completedDate?: string) {
+/**
+ * @param voucherCounted the caller already took the voucher use (a 100% voucher
+ *   claims it up front, before there is anything to mark paid)
+ */
+async function markPaid(p: Row, transactionId: string, completedDate?: string, voucherCounted = false) {
   const db = getDb();
   // The conditional update IS the lock: two callers can get here at once and
   // only one of them changes the row.
@@ -148,12 +153,21 @@ async function markPaid(p: Row, transactionId: string, completedDate?: string) {
   });
   if (res.count !== 1) return;
 
+  // A use is counted only now, when the money has actually arrived, so a code
+  // typed in and abandoned never burns a single-use voucher. Unconditional:
+  // the customer has paid the discounted price, so the use happened.
+  if (p.voucherId && !voucherCounted) {
+    await db.voucher.update({ where: { id: p.voucherId }, data: { usesCount: { increment: 1 } } }).catch((err) => {
+      console.error("voucher use count failed", p.voucherId, err);
+    });
+  }
+
   const row = await db.quoteRequest.findUnique({ where: { id: p.requestId }, select: { reference: true } });
   const req = row ? await getRequest(row.reference) : null;
 
   await logActivity({
     action: "payment.paid",
-    summary: `R${money(p.amount)} received${p.isTest ? " (TEST, staging)" : ""} for ${req?.reference ?? "a request"}`,
+    summary: `${p.provider === "voucher" ? `Fee covered in full by voucher ${p.voucherCode}` : `R${money(p.amount)} received`}${p.isTest ? " (TEST, staging)" : ""} for ${req?.reference ?? "a request"}`,
     entityType: "request",
     entityId: req?.reference ?? p.requestId,
     entityLabel: req?.reference,
@@ -164,6 +178,7 @@ async function markPaid(p: Row, transactionId: string, completedDate?: string) {
       transactionId,
       amount: money(p.amount),
       isTest: p.isTest,
+      ...(p.voucherCode ? { voucherCode: p.voucherCode, voucherPercentOff: p.voucherPercentOff } : {}),
     },
   });
 
@@ -187,7 +202,9 @@ export type StartResult =
   | { kind: "paid" }
   /** Ozow is still confirming an earlier attempt: starting another risks paying twice. */
   | { kind: "pending" }
-  | { kind: "off" };
+  | { kind: "off" }
+  /** The voucher on the request stopped being valid since it was typed in. It has been taken off. */
+  | { kind: "voucher_invalid"; reason: string };
 
 /**
  * Send the customer to pay. Reuses an attempt that is still open, so pressing
@@ -202,7 +219,10 @@ export async function startPayment(requestId: string, siteUrl: string): Promise<
 
   const req = await db.quoteRequest.findUnique({
     where: { id: requestId },
-    select: { id: true, reference: true, publicToken: true, firstName: true, lastName: true, email: true, repairerInitiated: true },
+    select: {
+      id: true, reference: true, publicToken: true, firstName: true, lastName: true, email: true, repairerInitiated: true,
+      voucher: true,
+    },
   });
   if (!req || !req.publicToken || req.repairerInitiated) return { kind: "off" };
 
@@ -210,17 +230,35 @@ export async function startPayment(requestId: string, siteUrl: string): Promise<
   if (state === "paid") return { kind: "paid" };
   if (state === "pending") return { kind: "pending" };
 
+  // The price is worked out HERE, from the voucher as it stands now, never
+  // from what the pay page showed: it may have expired or been used up since.
+  const voucher = req.voucher;
+  if (voucher) {
+    const problem = voucherProblem(voucher);
+    if (problem) {
+      await db.quoteRequest.update({ where: { id: requestId }, data: { voucherId: null } });
+      return { kind: "voucher_invalid", reason: problem };
+    }
+  }
+  const amount = voucher ? discountedFee(requestFee(), voucher.percentOff) : requestFee();
+  const voucherData = voucher
+    ? { voucherId: voucher.id, voucherCode: voucher.code, voucherPercentOff: voucher.percentOff }
+    : {};
+
+  if (voucher && amount <= 0) return payWithVoucherOnly(requestId, voucher, cfg.env !== "production");
+
+  // Only a link for THIS amount: a voucher added or removed since must not
+  // send them to pay the old price.
   const open = await db.payment.findFirst({
-    where: { requestId, status: "pending", isTest: cfg.env !== "production", redirectUrl: { not: null } },
+    where: { requestId, status: "pending", isTest: cfg.env !== "production", redirectUrl: { not: null }, amount },
     orderBy: { createdAt: "desc" },
   });
   if (open && open.createdAt.getTime() + LINK_LIFETIME_MS - Date.now() > REUSE_MARGIN_MS) {
     return { kind: "redirect", url: open.redirectUrl! };
   }
 
-  const amount = requestFee();
   const row = await db.payment.create({
-    data: { requestId, amount, currency: "ZAR", isTest: cfg.env !== "production" },
+    data: { requestId, amount, currency: "ZAR", isTest: cfg.env !== "production", ...voucherData },
   });
 
   try {
@@ -250,7 +288,7 @@ export async function startPayment(requestId: string, siteUrl: string): Promise<
       entityId: req.reference,
       entityLabel: req.reference,
       ...consumerActor(`${req.firstName} ${req.lastName}`, req.email),
-      detail: { paymentId: row.id, providerPaymentId: created.id, amount, env: cfg.env },
+      detail: { paymentId: row.id, providerPaymentId: created.id, amount, env: cfg.env, ...voucherData },
     });
     return { kind: "redirect", url: created.redirectUrl };
   } catch (err) {
@@ -271,6 +309,35 @@ export async function startPayment(requestId: string, siteUrl: string): Promise<
     });
     throw err;
   }
+}
+
+/**
+ * A 100% voucher: nothing to collect, so no Ozow at all. The use is claimed
+ * FIRST with a conditional update (still on, not expired, not used up), which
+ * is what stops two customers sharing the last use of a free voucher.
+ */
+async function payWithVoucherOnly(
+  requestId: string,
+  voucher: { id: string; code: string; percentOff: number },
+  isTest: boolean
+): Promise<StartResult> {
+  const db = getDb();
+  const claimed = await db.voucher.updateMany({
+    where: { id: voucher.id, active: true, expiresAt: { gte: new Date() }, usesCount: { lt: db.voucher.fields.maxUses } },
+    data: { usesCount: { increment: 1 } },
+  });
+  if (claimed.count !== 1) {
+    await db.quoteRequest.update({ where: { id: requestId }, data: { voucherId: null } });
+    return { kind: "voucher_invalid", reason: "That voucher has just been used up." };
+  }
+  const row = await db.payment.create({
+    data: {
+      requestId, amount: 0, currency: "ZAR", provider: "voucher", isTest,
+      voucherId: voucher.id, voucherCode: voucher.code, voucherPercentOff: voucher.percentOff,
+    },
+  });
+  await markPaid(row, `voucher:${voucher.code}`, undefined, true);
+  return { kind: "paid" };
 }
 
 /**

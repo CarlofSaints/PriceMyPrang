@@ -102,6 +102,8 @@ export const LIMITS = {
   feedbackSubmit: { prefix: "feedback", limit: 20, windowMs: 15 * MIN, per: "ip", message: "Too many submissions. Please wait a few minutes." },
   /** Signing the repairer agreement (emails a signed copy). */
   agreementSign: { prefix: "agreement-sign", limit: 10, windowMs: 15 * MIN, per: "ip", message: WAIT },
+  /** Typing a voucher code on the pay page: codes must not be guessable by volume. */
+  voucherApply: { prefix: "voucher-apply", limit: 10, windowMs: 15 * MIN, per: "ip", message: "Too many voucher attempts. Please wait a few minutes and try again." },
   /** Upload-failure reports (logged, emailed to us). */
   uploadFailed: { prefix: "upload-failed", limit: 20, windowMs: MIN, per: "ip", message: "Too many reports." },
 

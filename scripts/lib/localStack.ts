@@ -108,7 +108,8 @@ async function waitForHttp(url: string, child: ChildProcess, log: () => string, 
   throw new Error(`next dev never answered ${url}:\n${log()}`);
 }
 
-export async function startLocalStack(opts: { log?: (s: string) => void } = {}): Promise<LocalStack> {
+/** @param opts.env extra variables for the app, applied after the blanking (e.g. fake Ozow keys). */
+export async function startLocalStack(opts: { log?: (s: string) => void; env?: Record<string, string> } = {}): Promise<LocalStack> {
   const say = opts.log ?? (() => {});
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pmp-stack-"));
   const [pgPort, wsPort, appPort] = await Promise.all([freePort(), freePort(), freePort()]);
@@ -138,6 +139,7 @@ export async function startLocalStack(opts: { log?: (s: string) => void } = {}):
     SESSION_SECRET: crypto.randomBytes(32).toString("hex"),
     NEXT_PUBLIC_APP_URL: `http://localhost:${appPort}`,
     NEXT_TELEMETRY_DISABLED: "1",
+    ...opts.env,
   };
   // BLANK, not deleted: a deleted variable is undefined, and Next would refill
   // it from .env.local (vercel env pull writes VERCEL="1" there).

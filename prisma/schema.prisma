@@ -274,8 +274,8 @@ model PasswordSetToken {
   /// the thing that prompted them.
   purpose String
 
-  expiresAt DateTime
-  usedAt    DateTime?
+  expiresAt    DateTime
+  usedAt       DateTime?
   /// Set when a NEWER link superseded this one. Unlike EmailVerification,
   /// issuing a fresh link kills the outstanding ones: two live links to set one
   /// password is one more way in than anybody asked for.
@@ -739,17 +739,17 @@ model QuoteRequest {
   // This drives triage, not selection: since 2 Sep 2026 the consumer no longer
   // picks a workshop at all, we assign one. Coverage is thin and regional, so
   // knowing the town is what lets us say who can realistically take the job.
-  town        String?
-  province    String?
-  lat         Float?
-  lng         Float?
+  town                 String?
+  province             String?
+  lat                  Float?
+  lng                  Float?
   /// Straight-line km to the nearest ACTIVE repairer, measured at submission.
   /// Null when the town could not be geocoded. A snapshot, deliberately: it
   /// records how well we covered this customer on the day they asked.
   nearestPanelBeaterKm Float?
   /// True when the client asked us to pick the workshops for them. Always true
   /// for consumer submissions now; kept because older rows can be false.
-  letUsChoose Boolean @default(false)
+  letUsChoose          Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -764,6 +764,11 @@ model QuoteRequest {
   quotes               Quote[]
   additionals          Additional[]
   payments             Payment[]
+
+  /// Voucher the customer typed on the pay page. Checked again when they pay,
+  /// and a use is only counted once the payment actually succeeds.
+  voucherId String?
+  voucher   Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
@@ -796,6 +801,13 @@ model Payment {
   redirectUrl           String?
   /// True when made against Ozow staging, so a test never reads as revenue.
   isTest                Boolean @default(false)
+
+  /// The voucher this payment was discounted by. Code and percentage are
+  /// copies, so the record still says what was given if the voucher changes.
+  voucherId         String?
+  voucherCode       String?
+  voucherPercentOff Int?
+  voucher           Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
 
   paidAt    DateTime?
   createdAt DateTime  @default(now())
@@ -1389,4 +1401,30 @@ model RateLimit {
   resetAt DateTime @db.Timestamptz(3)
 
   @@map("rate_limits")
+}
+
+/// A discount code for the customer's request fee, made on /portal/admin/vouchers.
+model Voucher {
+  id            String   @id @default(uuid())
+  /// What the customer types, stored upper-case with no spaces (lib/vouchers.ts).
+  code          String   @unique
+  /// 1 to 100. At 100 the customer never goes to Ozow at all.
+  percentOff    Int
+  /// Last moment it can be used: the end of the chosen day, SA time.
+  expiresAt     DateTime
+  /// 1 = single use.
+  maxUses       Int
+  /// Counted when a payment using it SUCCEEDS, not when it is typed in.
+  usesCount     Int      @default(0)
+  /// Switched off by staff: refused from then on, history kept.
+  active        Boolean  @default(true)
+  note          String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  requests QuoteRequest[]
+  payments Payment[]
+
+  @@map("vouchers")
 }
