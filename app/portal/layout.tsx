@@ -135,6 +135,8 @@ export default async function PortalLayout({
     adminItems.push({ href: "/portal/admin/complaints", label: "Complaints" });
   if (can(user, "manage_integrations"))
     adminItems.push({ href: "/portal/admin/integrations", label: "Integrations" });
+  if (can(user, "manage_vouchers"))
+    adminItems.push({ href: "/portal/admin/vouchers", label: "Vouchers" });
   // Everything everyone has done. Staff-only by design: it shows every
   // workshop's activity side by side.
   if (can(user, "view_activity_log"))

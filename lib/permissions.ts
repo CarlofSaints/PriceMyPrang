@@ -20,6 +20,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_own_complaints: "See and answer complaints against us",
   manage_complaints: "Manage all complaints",
   view_activity_log: "View the activity log",
+  manage_vouchers: "Manage discount vouchers",
 };
 
 export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
@@ -45,6 +46,8 @@ export const PERMISSION_HELP: Partial<Record<Permission, string>> = {
     "Super Admin: every complaint across the network, including internal notes the repairer never sees.",
   view_activity_log:
     "Super Admin: the record of everything everyone has done on the site: sign-ins, forms filled in, quotes built, records changed, and what was refused. Shows every workshop's activity, so it is Price my Prang staff only.",
+  manage_vouchers:
+    "Super Admin: create discount vouchers on the customer's request fee (percentage, expiry date, how many uses) and switch them off.",
 };
 
 export const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as Permission[];

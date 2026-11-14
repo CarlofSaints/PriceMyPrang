@@ -13,14 +13,14 @@ export async function POST(request: Request) {
 
   const parsed = await parseJson(request, PayBody, "POST /api/public/pay");
   if (parsed.response) return parsed.response;
-  const { token } = parsed.data;
+  const { token, expectedAmount } = parsed.data;
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
   const row = await getDb().quoteRequest.findUnique({ where: { publicToken: token }, select: { id: true } });
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    const result = await startPayment(row.id, siteUrlFor(request));
+    const result = await startPayment(row.id, siteUrlFor(request), expectedAmount);
     return NextResponse.json(result);
   } catch {
     // Ozow's reason is in the activity log. The customer gets a plain answer.

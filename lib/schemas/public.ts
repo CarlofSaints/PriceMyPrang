@@ -83,6 +83,14 @@ export const ForgotPasswordBody = z.strictObject({
  */
 export const PayBody = z.strictObject({
   token: token.optional(),
+  /** The price the pay page showed. Pay refuses (and shows the new one) if it no longer holds. */
+  expectedAmount: z.number().min(0).max(100000).optional(),
+});
+
+/** POST /api/public/voucher. An empty code takes the voucher off again. */
+export const VoucherApplyBody = z.strictObject({
+  token: token.optional(),
+  code: z.string().max(40).optional(),
 });
 
 /**

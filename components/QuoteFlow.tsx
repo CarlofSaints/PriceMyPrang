@@ -21,6 +21,7 @@ import {
 } from "@/lib/imageFingerprint";
 import { reportUploadFailure } from "@/lib/uploadError";
 import { Button, Field, inputClass } from "./ui";
+import VoucherBox, { type AppliedVoucher } from "./VoucherBox";
 
 const MAX_PHOTOS = 15;
 const MAX_VIDEO_SECONDS = 20;
@@ -123,6 +124,10 @@ export default function QuoteFlow({
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Voucher on the request fee: checked in VoucherBox, sent with the request,
+  // checked again by the server. A code typed but never applied is sent too.
+  const [voucher, setVoucher] = useState<AppliedVoucher | null>(null);
+  const [voucherDraft, setVoucherDraft] = useState("");
 
   // Media
   const [disc, setDisc] = useState<MediaRef | null>(null);
@@ -419,9 +424,19 @@ export default function QuoteFlow({
           video,
           requiredPhotos,
           damagePhotos: photos,
+          ...(voucher || voucherDraft.trim() ? { voucherCode: voucher?.code ?? voucherDraft.trim() } : {}),
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.field === "voucherCode") {
+          // Bad, or lapsed since they checked it. Nothing was saved: back to the form.
+          setVoucher(null);
+          setError(`${data.error} Remove it or try another code, then press Get my quotes again.`);
+          return;
+        }
+        throw new Error();
+      }
       const data = (await res.json()) as {
         reference: string;
         nearestPanelBeaterKm: number | null;
@@ -885,9 +900,12 @@ export default function QuoteFlow({
               {busy ? "Creating…" : "Create quote & price it"}
             </Button>
           ) : (
-            <Button size="lg" className="w-full" onClick={submit} disabled={busy}>
-              {busy ? "Submitting…" : "Get my quotes"}
-            </Button>
+            <>
+              <VoucherBox applied={voucher} onChange={setVoucher} onDraft={setVoucherDraft} />
+              <Button size="lg" className="w-full" onClick={submit} disabled={busy}>
+                {busy ? "Submitting…" : "Get my quotes"}
+              </Button>
+            </>
           )}
         </div>
       )}
